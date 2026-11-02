@@ -26,6 +26,18 @@ export class AppError extends Error {
   }
 }
 
+export class UnauthenticatedError extends AppError {
+  constructor() {
+    super({ kind: 'unauthorized', code: 'UNAUTHENTICATED', message: 'Authentication is required' });
+  }
+}
+
+export class RateLimitedError extends AppError {
+  constructor(readonly retryAfterSeconds: number) {
+    super({ kind: 'rate_limited', code: 'RATE_LIMITED', message: 'Too many requests' });
+  }
+}
+
 export class ForbiddenError extends AppError {
   constructor() {
     super({

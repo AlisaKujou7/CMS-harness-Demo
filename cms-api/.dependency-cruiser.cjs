@@ -87,7 +87,7 @@ module.exports = {
     },
   ],
   options: {
-    doNotFollow: { path: 'node_modules' },
+    doNotFollow: { path: ['node_modules', '^src/generated/'] },
     tsConfig: { fileName: 'tsconfig.json' },
     tsPreCompilationDeps: true,
     enhancedResolveOptions: { extensions: ['.ts', '.js', '.json'] },

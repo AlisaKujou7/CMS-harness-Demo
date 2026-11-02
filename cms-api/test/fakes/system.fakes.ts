@@ -9,6 +9,7 @@ import type {
   Logger,
   RateLimitDecision,
   RateLimiter,
+  ReadinessProbe,
   TransactionRunner,
 } from '../../src/shared/ports/system.port.js';
 
@@ -84,6 +85,14 @@ export class InMemoryLogger implements Logger {
 
   error(message: string, context?: LogContext): void {
     this.errors.push({ message, context });
+  }
+}
+
+export class FakeReadinessProbe implements ReadinessProbe {
+  ready = true;
+
+  check(): Promise<boolean> {
+    return Promise.resolve(this.ready);
   }
 }
 

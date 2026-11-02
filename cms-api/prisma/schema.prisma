@@ -1,0 +1,115 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  admin
+  editor
+  author
+
+  @@map("user_role")
+}
+
+enum UserStatus {
+  active
+  deactivated
+  invited
+
+  @@map("user_status")
+}
+
+model User {
+  id           String     @id @db.Uuid
+  email        String     @unique
+  name         String
+  passwordHash String?    @map("password_hash")
+  role         UserRole
+  status       UserStatus
+  lastLoginAt  DateTime?  @map("last_login_at") @db.Timestamptz(3)
+  createdAt    DateTime   @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime   @map("updated_at") @db.Timestamptz(3)
+
+  lockout     LoginLockout?
+  refreshTokens RefreshToken[]
+  resetTokens PasswordResetToken[]
+  apiKeys     ApiKey[]
+
+  @@map("users")
+}
+
+model LoginLockout {
+  userId          String    @id @map("user_id") @db.Uuid
+  failureCount    Int       @map("failure_count")
+  windowStartedAt DateTime? @map("window_started_at") @db.Timestamptz(3)
+  lockedUntil     DateTime? @map("locked_until") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("login_lockouts")
+}
+
+model RefreshToken {
+  id        String    @id @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  familyId  String    @map("family_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  issuedAt  DateTime  @map("issued_at") @db.Timestamptz(3)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@map("refresh_tokens")
+}
+
+model PasswordResetToken {
+  id        String    @id @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, usedAt])
+  @@map("password_reset_tokens")
+}
+
+model ApiKey {
+  id         String    @id @db.Uuid
+  name       String
+  prefix     String
+  keyHash    String    @unique @map("key_hash")
+  createdBy  String    @map("created_by") @db.Uuid
+  createdAt  DateTime  @map("created_at") @db.Timestamptz(3)
+  lastUsedAt DateTime? @map("last_used_at") @db.Timestamptz(3)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(3)
+
+  creator User @relation(fields: [createdBy], references: [id])
+
+  @@map("api_keys")
+}
+
+model AuditEvent {
+  id         String   @id @db.Uuid
+  occurredAt DateTime @map("occurred_at") @db.Timestamptz(3)
+  actorId    String?  @map("actor_id") @db.Uuid
+  actorIp    String?  @map("actor_ip")
+  action     String
+  targetType String?  @map("target_type")
+  targetId   String?  @map("target_id") @db.Uuid
+  summary    Json
+
+  @@index([occurredAt(sort: Desc)])
+  @@index([actorId, occurredAt(sort: Desc)])
+  @@index([action, occurredAt(sort: Desc)])
+  @@index([targetType, targetId])
+  @@map("audit_events")
+}

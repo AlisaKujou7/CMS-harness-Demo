@@ -7,11 +7,16 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "depcruise": "depcruise src --config .dependency-cruiser.cjs",
-    "test": "vitest run",
-    "test:unit": "vitest run",
+    "test": "vitest run --project unit",
+    "test:unit": "vitest run --project unit",
     "test:cov": "vitest run --coverage",
-    "test:integration": "vitest run --config vitest.integration.config.ts --passWithNoTests",
-    "test:mutation": "stryker run"
+    "test:integration": "vitest run --project docker --passWithNoTests",
+    "test:mutation": "stryker run",
+    "postinstall": "prisma generate",
+    "prisma:migrate": "prisma migrate deploy",
+    "seed:admin": "node dist/composition/seed-admin.js",
+    "start": "node dist/main.js",
+    "dev": "tsc -p tsconfig.build.json && node --env-file=.env dist/main.js"
   },
   "devDependencies": {
     "@nestjs/testing": "^12.3.2",
@@ -19,6 +24,7 @@
     "@stryker-mutator/vitest-runner": "^10.1.1",
     "@testcontainers/postgresql": "^12.2.1",
     "@testcontainers/redis": "^12.2.1",
+    "@types/express": "^5.0.6",
     "@types/node": "^26.6.6",
     "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.23.1",

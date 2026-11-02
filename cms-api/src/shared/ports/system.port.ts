@@ -26,6 +26,10 @@ export interface RateLimiter {
   consume(key: string, limit: number, windowSeconds: number): Promise<RateLimitDecision>;
 }
 
+export interface ReadinessProbe {
+  check(): Promise<boolean>;
+}
+
 export interface EmailMessage {
   readonly to: string;
   readonly subject: string;

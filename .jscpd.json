@@ -5,7 +5,7 @@
   "reporters": ["console"],
   "format": ["typescript", "tsx", "javascript"],
   "path": ["cms-api/src", "cms-web/src"],
-  "ignore": ["**/*.spec.ts", "**/*.spec.tsx", "**/*.generated.ts"],
+  "ignore": ["**/*.spec.ts", "**/*.spec.tsx", "**/*.generated.ts", "**/generated/**"],
   "gitignore": true,
   "exitCode": 1
 }

@@ -23,6 +23,7 @@ export default tseslint.config(
       '**/reports/**',
       '**/.stryker-tmp/**',
       '**/*.generated.ts',
+      'cms-api/src/generated/**',
     ],
   },
 
@@ -56,7 +57,13 @@ export default tseslint.config(
       '@typescript-eslint/no-deprecated': 'error',
       '@eslint-community/eslint-comments/require-description': 'error',
       '@eslint-community/eslint-comments/no-unused-disable': 'error',
-      '@typescript-eslint/consistent-type-imports': 'error',
+      // NestJS modules are empty classes that exist to carry a decorator.
+      '@typescript-eslint/no-extraneous-class': ['error', { allowWithDecorator: true }],
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        // Decorated parameters keep their imports for emitDecoratorMetadata (TS1272).
+        { disallowTypeAnnotations: false },
+      ],
       // Immutable entities copy themselves by spreading their fields back into a constructor.
       '@typescript-eslint/no-misused-spread': 'off',
     },
@@ -67,9 +74,11 @@ export default tseslint.config(
     plugins: { vitest },
     rules: {
       // M-TEST-05: skipped and focused tests never merge
+      // Decorator metadata is keyed by the unbound method, so specs pass it around as is.
+      '@typescript-eslint/unbound-method': 'off',
       'vitest/no-disabled-tests': 'error',
       'vitest/no-focused-tests': 'error',
-      'vitest/expect-expect': 'error',
+      'vitest/expect-expect': ['error', { assertFunctionNames: ['expect', '**.expect'] }],
       'max-lines-per-function': 'off',
       'max-lines': 'off',
     },

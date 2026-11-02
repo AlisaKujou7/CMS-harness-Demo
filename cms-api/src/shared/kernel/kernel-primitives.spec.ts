@@ -1,7 +1,7 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { canManageSystem, type Actor } from './actor.js';
-import { AppError, ForbiddenError } from './app-error.js';
+import { AppError, ForbiddenError, RateLimitedError, UnauthenticatedError } from './app-error.js';
 import { Email, InvalidEmailError } from './email.js';
 
 describe('AppError', () => {
@@ -28,6 +28,21 @@ describe('AppError', () => {
 
   it('reports the concrete class as its name', () => {
     expect(new ForbiddenError().name).toBe('ForbiddenError');
+  });
+});
+
+describe('RateLimitedError', () => {
+  it('exposes how long to wait', () => {
+    const error = new RateLimitedError(30);
+
+    expect(error.kind).toBe('rate_limited');
+    expect(error.retryAfterSeconds).toBe(30);
+  });
+});
+
+describe('UnauthenticatedError', () => {
+  it('maps to the unauthorized kind', () => {
+    expect(new UnauthenticatedError().kind).toBe('unauthorized');
   });
 });
 
