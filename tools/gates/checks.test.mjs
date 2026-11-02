@@ -229,6 +229,19 @@ describe('findDisallowedLicenses', () => {
 
     assert.deepEqual(findDisallowedLicenses(report), ['bad-pkg (GPL-3.0)']);
   });
+
+  it('excepts only the libvips binaries, under only their own license (ADR-0015)', () => {
+    const report = {
+      'LGPL-3.0-or-later': [{ name: '@img/sharp-libvips-linux-x64' }, { name: 'other-lgpl' }],
+      'Apache-2.0 AND LGPL-3.0-or-later': [{ name: '@img/sharp-win32-x64' }],
+      'GPL-3.0': [{ name: '@img/sharp-linux-x64' }],
+    };
+
+    assert.deepEqual(findDisallowedLicenses(report), [
+      'other-lgpl (LGPL-3.0-or-later)',
+      '@img/sharp-linux-x64 (GPL-3.0)',
+    ]);
+  });
 });
 
 describe('evaluateTestRatio', () => {

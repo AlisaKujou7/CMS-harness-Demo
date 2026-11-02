@@ -43,6 +43,7 @@ const MUTATION_BARS = [
   { pattern: /^src\/modules\/[^/]+\/domain\//, depth: 4, minimum: 90 },
   { pattern: /^src\/modules\/auth\/application\//, depth: 4, minimum: 90 },
   { pattern: /^src\/modules\/content\/application\//, depth: 4, minimum: 90 },
+  { pattern: /^src\/modules\/media\/application\//, depth: 4, minimum: 90 },
   { pattern: /^src\/shared\/kernel\//, depth: 3, minimum: 80 },
 ];
 const DETECTED = new Set(['Killed', 'Timeout']);
@@ -107,9 +108,26 @@ export function isLicenseAllowed(expression) {
   return normalized.split(' OR ').some((license) => ALLOWED_LICENSES.has(license.trim()));
 }
 
+// ADR-0015: the prebuilt libvips binaries sharp loads as a separate library, unmodified. An exception
+// names both the package and its exact license, so any other LGPL dependency still fails.
+const LICENSE_EXCEPTIONS = [
+  {
+    name: /^@img\/sharp-(libvips-)?[a-z0-9-]+$/,
+    licenses: new Set(['LGPL-3.0-or-later', 'Apache-2.0 AND LGPL-3.0-or-later']),
+  },
+];
+
+function isLicenseExcepted(name, license) {
+  return LICENSE_EXCEPTIONS.some((rule) => rule.name.test(name) && rule.licenses.has(license));
+}
+
 export function findDisallowedLicenses(report) {
   return Object.entries(report).flatMap(([license, packages]) =>
-    isLicenseAllowed(license) ? [] : packages.map((pkg) => `${pkg.name} (${license})`),
+    isLicenseAllowed(license)
+      ? []
+      : packages
+          .filter((pkg) => !isLicenseExcepted(pkg.name, license))
+          .map((pkg) => `${pkg.name} (${license})`),
   );
 }
 
