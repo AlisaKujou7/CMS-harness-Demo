@@ -9,7 +9,8 @@ export interface AccountRepository {
   findByEmail(email: string): Promise<Account | null>;
   findById(id: string): Promise<Account | null>;
   updatePassword(id: string, passwordHash: string): Promise<void>;
-  activate(id: string, passwordHash: string): Promise<void>;
+  // Returns false unless the account was still invited, so it cannot undo a deactivation.
+  activate(id: string, passwordHash: string): Promise<boolean>;
   recordLogin(id: string, at: Date): Promise<void>;
 }
 

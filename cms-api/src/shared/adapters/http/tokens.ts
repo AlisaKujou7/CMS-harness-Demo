@@ -15,5 +15,6 @@ export interface HttpConfig {
   readonly rateLimits: {
     readonly login: RateLimitPolicy;
     readonly passwordReset: RateLimitPolicy;
+    readonly invitation: RateLimitPolicy;
   };
 }

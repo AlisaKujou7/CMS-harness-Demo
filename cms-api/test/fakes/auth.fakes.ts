@@ -42,12 +42,11 @@ export class InMemoryAccountRepository implements AccountRepository {
     return Promise.resolve();
   }
 
-  activate(id: string, passwordHash: string): Promise<void> {
+  activate(id: string, passwordHash: string): Promise<boolean> {
     const account = this.accounts.get(id);
-    if (account) {
-      this.accounts.set(id, new Account({ ...account, passwordHash, status: 'active' }));
-    }
-    return Promise.resolve();
+    if (account?.status !== 'invited') return Promise.resolve(false);
+    this.accounts.set(id, new Account({ ...account, passwordHash, status: 'active' }));
+    return Promise.resolve(true);
   }
 
   recordLogin(id: string, at: Date): Promise<void> {

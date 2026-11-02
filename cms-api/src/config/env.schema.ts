@@ -49,6 +49,7 @@ const schema = z
     ARGON2_PARALLELISM: count(1),
     RATE_LIMIT_LOGIN_PER_MIN: count(10),
     RATE_LIMIT_PASSWORD_RESET_PER_HOUR: count(5),
+    RATE_LIMIT_INVITATION_PER_HOUR: count(30),
     EMAIL_PROVIDER: z.enum(['console', 'smtp', 'ses']),
     EMAIL_FROM: z.string().default('no-reply@example.com'),
     EMAIL_FROM_NAME: z.string().default('CMS'),
@@ -102,6 +103,7 @@ function toConfig(env: z.output<typeof schema>) {
     },
     rateLimitLoginPerMinute: env.RATE_LIMIT_LOGIN_PER_MIN,
     rateLimitPasswordResetPerHour: env.RATE_LIMIT_PASSWORD_RESET_PER_HOUR,
+    rateLimitInvitationPerHour: env.RATE_LIMIT_INVITATION_PER_HOUR,
     email: {
       provider: env.EMAIL_PROVIDER,
       from: { address: env.EMAIL_FROM, name: env.EMAIL_FROM_NAME },

@@ -27,7 +27,7 @@ export class InviteUser implements InviteUserUseCase {
       ...(command.name === undefined ? {} : { name: command.name }),
     });
     await this.deps.tx.run(async () => {
-      await this.deps.users.save(user);
+      await this.deps.users.create(user);
       await this.deps.audit.record({
         actorId: command.actor.id,
         actorIp: command.ip,

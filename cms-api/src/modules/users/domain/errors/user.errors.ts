@@ -47,6 +47,16 @@ export class UserNotInvitedError extends AppError {
   }
 }
 
+export class UserNotActiveError extends AppError {
+  constructor() {
+    super({
+      kind: 'conflict',
+      code: 'USER_NOT_ACTIVE',
+      message: 'Only an active user can receive a password reset',
+    });
+  }
+}
+
 export class InvalidUserNameError extends AppError {
   constructor() {
     super({

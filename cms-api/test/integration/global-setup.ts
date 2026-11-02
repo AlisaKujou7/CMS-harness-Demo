@@ -20,6 +20,7 @@ export default async function globalSetup(project: TestProject): Promise<() => P
   const client = new pg.Client({ connectionString: postgres.getConnectionUri() });
   await client.connect();
   await client.query('CREATE ROLE cms_app NOLOGIN');
+  await client.query("CREATE ROLE cms_app_login LOGIN PASSWORD 'test-only' IN ROLE cms_app");
   await client.end();
 
   project.provide('postgresAdminUrl', postgres.getConnectionUri());

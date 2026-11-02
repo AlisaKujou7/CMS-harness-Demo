@@ -1,3 +1,4 @@
+import { UserNotActiveError } from '../../domain/errors/user.errors.js';
 import type { UserPasswordResetRequested } from '../../domain/events/user.events.js';
 import { assertCanManageUsers } from '../policies/user.policy.js';
 import type { UserActionUseCase, UserCommand } from '../ports/in/users.ports.js';
@@ -12,6 +13,8 @@ export class RequestUserPasswordReset implements UserActionUseCase {
     assertCanManageUsers(command.actor);
 
     const user = await loadUser(this.deps.users, command.id);
+    if (!user.isActive()) throw new UserNotActiveError();
+
     await this.deps.audit.record({
       actorId: command.actor.id,
       actorIp: command.ip,

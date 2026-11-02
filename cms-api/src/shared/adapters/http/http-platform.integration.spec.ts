@@ -5,7 +5,9 @@ import {
   HttpStatus,
   type INestApplication,
   Post,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   createFakeInfrastructure,
@@ -26,6 +28,12 @@ class BoomController {
   thrownString(): never {
     // eslint-disable-next-line @typescript-eslint/only-throw-error -- covers non-Error throws from libraries
     throw 'plain string';
+  }
+
+  @Get('partial')
+  partial(@Res() response: Response): never {
+    response.write('partial');
+    throw new Error('late failure');
   }
 
   @Get('http')
@@ -138,6 +146,15 @@ describe('HTTP platform', () => {
         .expect(400);
 
       expect((res.body as { error: { code: string } }).error.code).toBe('BAD_REQUEST');
+    });
+  });
+
+  it('ends the connection when an error follows a started response', async () => {
+    await expect(http(app).get('/boom/partial')).rejects.toThrow();
+
+    expect(infra.logger.errors[0]).toMatchObject({
+      message: 'Failed after the response started',
+      context: { error: 'late failure' },
     });
   });
 

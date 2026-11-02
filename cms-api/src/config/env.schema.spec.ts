@@ -48,6 +48,7 @@ describe('loadEnv', () => {
       jwtSecrets: ['a'.repeat(64)],
       rateLimitLoginPerMinute: 10,
       rateLimitPasswordResetPerHour: 5,
+      rateLimitInvitationPerHour: 30,
       argon2: { memoryKb: 19_456, iterations: 2, parallelism: 1 },
       logLevel: 'info',
       secureCookies: true,

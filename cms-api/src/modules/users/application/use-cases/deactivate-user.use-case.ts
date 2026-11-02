@@ -22,7 +22,8 @@ export class DeactivateUser implements UserActionUseCase {
     if (user.isDeactivated()) return false;
 
     await assertAnotherAdminRemains(this.deps.users, user);
-    await this.deps.users.save(user.deactivate(this.deps.clock.now()));
+    const { status, updatedAt } = user.deactivate(this.deps.clock.now());
+    await this.deps.users.update(user.id, { status, updatedAt });
     await this.deps.audit.record({
       actorId: command.actor.id,
       actorIp: command.ip,

@@ -16,6 +16,7 @@
     "prisma:migrate": "prisma migrate deploy",
     "seed:admin": "node dist/composition/seed-admin.js",
     "start": "node dist/main.js",
+    "worker": "node dist/worker.js",
     "dev": "tsc -p tsconfig.build.json && node --env-file=.env dist/main.js"
   },
   "devDependencies": {
@@ -46,6 +47,7 @@
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
     "argon2": "^0.45.1",
+    "bullmq": "^6.5.3",
     "helmet": "^8.3.0",
     "ioredis": "^6.0.0",
     "jose": "^6.2.14",

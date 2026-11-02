@@ -2,6 +2,7 @@ import { AppError } from './app-error.js';
 
 export const DEFAULT_PAGE_SIZE = 25;
 export const MAX_PAGE_SIZE = 100;
+export const MAX_PAGE = 1_000_000;
 
 export interface PageRequest {
   readonly page: number;
@@ -32,6 +33,7 @@ function requirePositiveInteger(field: string, value: number): number {
 
 export function toPageRequest(input: { page?: number; pageSize?: number }): PageRequest {
   const page = requirePositiveInteger('page', input.page ?? 1);
+  if (page > MAX_PAGE) throw new InvalidPageRequestError('page', page);
   const pageSize = requirePositiveInteger('pageSize', input.pageSize ?? DEFAULT_PAGE_SIZE);
   return { page, pageSize: Math.min(pageSize, MAX_PAGE_SIZE) };
 }

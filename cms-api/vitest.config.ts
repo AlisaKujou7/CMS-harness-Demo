@@ -32,6 +32,7 @@ export default defineConfig({
         'src/**/index.ts',
         'src/composition/**',
         'src/main.ts',
+        'src/worker.ts',
       ],
       thresholds: {
         lines: 98,

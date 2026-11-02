@@ -38,6 +38,12 @@ cd cms-api && SEED_ADMIN_EMAIL=you@example.com SEED_ADMIN_PASSWORD=choose-a-pass
 node --env-file=.env dist/main.js
 ```
 
+Run the worker in another terminal, or queued email is not delivered:
+
+```bash
+cd cms-api && node --env-file=.env dist/worker.js
+```
+
 Set `JWT_SECRET` in `.env` first. It refuses the placeholder.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow.

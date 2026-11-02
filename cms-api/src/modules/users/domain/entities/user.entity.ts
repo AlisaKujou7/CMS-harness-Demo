@@ -71,6 +71,10 @@ export class User implements UserProps {
     return this.role === 'admin' && this.status === 'active';
   }
 
+  isActive(): boolean {
+    return this.status === 'active';
+  }
+
   isInvited(): boolean {
     return this.status === 'invited';
   }

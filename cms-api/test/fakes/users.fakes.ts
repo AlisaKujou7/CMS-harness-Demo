@@ -1,5 +1,8 @@
-import type { UserRepository } from '../../src/modules/users/application/ports/out/user-repository.port.js';
-import type { User } from '../../src/modules/users/domain/entities/user.entity.js';
+import type {
+  UserChanges,
+  UserRepository,
+} from '../../src/modules/users/application/ports/out/user-repository.port.js';
+import { User } from '../../src/modules/users/domain/entities/user.entity.js';
 import {
   EmailTakenError,
   UserInUseError,
@@ -33,10 +36,16 @@ export class InMemoryUserRepository implements UserRepository {
     return Promise.resolve(pagedResult(all.slice(start, start + page.pageSize), all.length, page));
   }
 
-  save(user: User): Promise<void> {
-    const clash = [...this.users.values()].some((u) => u.email === user.email && u.id !== user.id);
+  create(user: User): Promise<void> {
+    const clash = [...this.users.values()].some((u) => u.email === user.email);
     if (clash) return Promise.reject(new EmailTakenError());
     this.users.set(user.id, user);
+    return Promise.resolve();
+  }
+
+  update(id: string, changes: UserChanges): Promise<void> {
+    const user = this.users.get(id);
+    if (user) this.users.set(id, User.restore({ ...user, ...changes }));
     return Promise.resolve();
   }
 

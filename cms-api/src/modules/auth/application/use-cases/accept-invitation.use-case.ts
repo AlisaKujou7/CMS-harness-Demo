@@ -25,7 +25,8 @@ export class AcceptInvitation implements AcceptInvitationUseCase {
     const passwordHash = await this.deps.hasher.hash(command.newPassword);
     const accepted = await this.deps.tx.run(async () => {
       if (!(await this.deps.invitationTokens.consumeIfUnused(token.id, now))) return false;
-      await this.deps.accounts.activate(account.id, passwordHash);
+      if (!(await this.deps.accounts.activate(account.id, passwordHash))) return false;
+      await this.deps.lockouts.clear(account.id);
       await this.deps.audit.record({
         actorId: account.id,
         actorIp: command.ip,

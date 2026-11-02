@@ -16,7 +16,8 @@
     "!src/**/adapters/out/**",
     "!src/shared/adapters/out/**",
     "!src/composition/**",
-    "!src/main.ts"
+    "!src/main.ts",
+    "!src/worker.ts"
   ],
   "thresholds": { "high": 90, "low": 80, "break": 80 },
   "incremental": true,

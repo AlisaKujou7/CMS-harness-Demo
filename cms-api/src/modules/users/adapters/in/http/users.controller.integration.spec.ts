@@ -258,6 +258,17 @@ describe('user endpoints', () => {
     });
   });
 
+  it('returns 409 when resetting the password of a user who cannot receive it', async () => {
+    infra.users.add(aUser(TARGET, 'editor', 'invited'));
+
+    const res = await http(app)
+      .post(`${USERS}/${TARGET}/reset-password`)
+      .set('Authorization', await bearer('admin'))
+      .expect(409);
+
+    expect((res.body as { error: { code: string } }).error.code).toBe('USER_NOT_ACTIVE');
+  });
+
   describe('POST /api/admin/users/:id/resend-invite', () => {
     it('sends another invitation', async () => {
       infra.users.add(aUser(TARGET, 'editor', 'invited'));

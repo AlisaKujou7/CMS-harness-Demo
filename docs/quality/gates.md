@@ -54,11 +54,11 @@ changes. `pnpm gate` runs the local steps, and `pnpm gate:self-test` proves that
 
 ## Known gaps in what passes
 
-- Deployed environments must connect as `cms_app`, which has no UPDATE, DELETE or TRUNCATE on
-  `audit_events`. The migration creates that role without a login. Local development still connects
-  as the owner, where only the trigger protects the table. Phase 8 adds the login and grants for
-  later tables, because each migration that adds a table must grant it to the role.
-- The CSV export has no test for write backpressure (the `drain` path).
+- Deployed environments must connect as a login in the `cms_app` role. A test proves the app works
+  with only those privileges, and a trigger blocks changes for every role, but no environment is
+  configured this way until phase 8. Migrations must keep running as the owner.
+- Email delivery depends on `dist/worker.js` running, and a crash between commit and enqueue loses
+  that email. Resending an invitation or a reset request recovers it.
 - Mutation testing skips driven adapters (`adapters/out`), because they need containers. They are
   covered by the Docker tests at 100% line coverage for auth, but M-TEST targets of 70% for them are
   not measured.

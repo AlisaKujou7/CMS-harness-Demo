@@ -37,6 +37,12 @@ The stricter or more specific document wins unless noted.
 - The migration that replaced the lockout columns drops them in one step instead of using expand and contract, because no release has shipped. Later migrations follow 07-OPS-ARCH §12.3.
 - `TRUST_PROXY` defaults to false, so a client cannot choose its own IP unless a proxy is declared. Deployments behind nginx must set it, or every client shares one rate limit bucket.
 - `SMTP_SECURE=true` means mail must be encrypted: implicit TLS on port 465 and required STARTTLS on any other port.
+- User writes change only the fields that changed. Two admins editing one user at once cannot undo each other's deactivation or role change, though the last rename wins.
+- Invitation acceptance has its own rate limit, 30 per hour per IP by default, because SEC-07 sets 5 for password resets and an office shares one IP.
+- An Admin password reset for a user who is not active returns 409, rather than the silent success the public forgot flow uses.
+- Email goes through a BullMQ queue and `dist/worker.js`, which 04-ARCH lists. 07-OPS-ARCH §9.2 sets Redis to `allkeys-lru`, which can evict queued jobs. Phase 8 must use `noeviction` for the queue, on a separate Redis instance from the cache if needed.
+- Queued emails hold reset links in Redis until delivered or retries run out, about 2 minutes, and are then removed. Redis is on the internal network and requires a password.
+- `page` is limited to 1,000,000.
 
 ## Consequences
 

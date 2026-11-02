@@ -202,6 +202,25 @@ describe('audit endpoints', () => {
       expect(res.text.trim().split('\r\n')).toHaveLength(502);
     });
 
+    it('aborts the download and logs when reading fails mid stream', async () => {
+      for (let n = 0; n < 500; n += 1) {
+        infra.auditReader.events.push(anEvent({ id: `e${String(n)}` }));
+      }
+      const batchAfter = infra.auditReader.batchAfter.bind(infra.auditReader);
+      infra.auditReader.batchAfter = (criteria, afterId, limit) =>
+        afterId === null
+          ? batchAfter(criteria, afterId, limit)
+          : Promise.reject(new Error('database gone'));
+
+      const authorization = await bearer('admin');
+      await expect(http(app).get(EXPORT).set('Authorization', authorization)).rejects.toThrow();
+
+      expect(infra.logger.errors[0]).toMatchObject({
+        message: 'Failed after the response started',
+        context: { error: 'database gone' },
+      });
+    });
+
     it('applies the same filters as the list', async () => {
       infra.auditReader.events.push(anEvent(), anEvent({ id: 'skip', action: 'user.create' }));
 

@@ -1,4 +1,3 @@
-import { once } from 'node:events';
 import { Controller, Get, Inject, Query, Res, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { z } from 'zod';
@@ -20,7 +19,7 @@ import type {
   AuditCriteria,
   AuditEventView,
 } from '../../../application/ports/out/audit-reader.port.js';
-import { CSV_HEADER, toCsvRow } from './audit-csv.js';
+import { streamCsv } from './audit-csv.js';
 import { AUDIT_USE_CASES, type AuditUseCases } from './audit.use-cases.js';
 
 const timestamp = z.iso.datetime({ offset: true });
@@ -85,10 +84,6 @@ export class AuditController {
 
     response.setHeader('Content-Type', 'text/csv; charset=utf-8');
     response.setHeader('Content-Disposition', 'attachment; filename="audit-log.csv"');
-    response.write(CSV_HEADER);
-    for await (const event of events) {
-      if (!response.write(toCsvRow(event))) await once(response, 'drain');
-    }
-    response.end();
+    await streamCsv(events, response);
   }
 }

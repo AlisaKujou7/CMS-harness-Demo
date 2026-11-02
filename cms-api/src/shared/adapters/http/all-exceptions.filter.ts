@@ -36,6 +36,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const response = host.switchToHttp().getResponse<Response>();
+    if (response.headersSent) {
+      this.abort(response, exception);
+      return;
+    }
     if (exception instanceof AppError) {
       this.sendAppError(response, exception);
       return;
@@ -48,9 +52,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
     this.logger.error('Unhandled error', {
       requestId: response.getHeader('x-request-id'),
-      error: exception instanceof Error ? exception.message : String(exception),
+      error: errorMessage(exception),
     });
     send(response, 500, { code: 'INTERNAL_ERROR', message: 'Something went wrong' });
+  }
+
+  // Too late for a status code. Dropping the connection is what tells the client it failed.
+  private abort(response: Response, exception: unknown): void {
+    this.logger.error('Failed after the response started', {
+      requestId: response.getHeader('x-request-id'),
+      error: errorMessage(exception),
+    });
+    response.destroy();
   }
 
   private sendAppError(response: Response, error: AppError): void {
@@ -64,6 +77,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
       error.details ? { ...body, details: error.details } : body,
     );
   }
+}
+
+function errorMessage(exception: unknown): string {
+  return exception instanceof Error ? exception.message : String(exception);
 }
 
 function send(response: Response, status: number, error: ErrorBody): void {

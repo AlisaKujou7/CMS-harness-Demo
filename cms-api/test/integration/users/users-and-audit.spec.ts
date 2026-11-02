@@ -44,7 +44,7 @@ describe('users and audit persistence', () => {
       User.invite({ id: id(n), email: Email.create(email), role: 'author', now: later(n) });
 
     it('round-trips a new user', async () => {
-      await repo().save(invited(1));
+      await repo().create(invited(1));
 
       await expect(repo().findById(id(1))).resolves.toEqual(invited(1));
       await expect(repo().findByEmail('user1@example.com')).resolves.toEqual(invited(1));
@@ -56,15 +56,28 @@ describe('users and audit persistence', () => {
     });
 
     it('rejects a duplicate email (FR-USER-07)', async () => {
-      await repo().save(invited(1, 'same@example.com'));
+      await repo().create(invited(1, 'same@example.com'));
 
-      await expect(repo().save(invited(2, 'same@example.com'))).rejects.toThrow(EmailTakenError);
+      await expect(repo().create(invited(2, 'same@example.com'))).rejects.toThrow(EmailTakenError);
     });
 
     it('rethrows other database errors from save', async () => {
       const bad = User.restore({ ...invited(1), id: 'not-a-uuid' });
 
-      await expect(repo().save(bad)).rejects.not.toBeInstanceOf(EmailTakenError);
+      await expect(repo().create(bad)).rejects.not.toBeInstanceOf(EmailTakenError);
+    });
+
+    it('leaves fields out of the update alone', async () => {
+      await db.seedUser(id(1), {
+        email: 'owner@example.com',
+        role: 'author',
+        status: 'deactivated',
+      });
+
+      await repo().update(id(1), { name: 'Renamed', updatedAt: later(9) });
+
+      const row = await db.context.client.user.findUniqueOrThrow({ where: { id: id(1) } });
+      expect(row).toMatchObject({ name: 'Renamed', role: 'author', status: 'deactivated' });
     });
 
     it('updates owned fields without touching the password or login time', async () => {
@@ -76,7 +89,7 @@ describe('users and audit persistence', () => {
       const user = (await repo().findById(id(1))) as User;
       await new PrismaAccountRepository(db.context).recordLogin(id(1), later(5));
 
-      await repo().save(user.rename('New Name', later(9)).changeRole('admin', later(9)));
+      await repo().update(user.id, { name: 'New Name', role: 'admin', updatedAt: later(9) });
 
       const row = await db.context.client.user.findUniqueOrThrow({ where: { id: id(1) } });
       expect(row).toMatchObject({
@@ -89,9 +102,9 @@ describe('users and audit persistence', () => {
     });
 
     it('pages newest first with the total', async () => {
-      await repo().save(invited(1));
-      await repo().save(invited(2));
-      await repo().save(invited(3));
+      await repo().create(invited(1));
+      await repo().create(invited(2));
+      await repo().create(invited(3));
 
       const result = await repo().findMany(toPageRequest({ page: 2, pageSize: 2 }));
 
@@ -100,7 +113,7 @@ describe('users and audit persistence', () => {
     });
 
     it('deletes a user and their tokens', async () => {
-      await repo().save(invited(1));
+      await repo().create(invited(1));
       await new PrismaInvitationTokenRepository(db.context).save(
         InvitationToken.issue({ id: id(50), userId: id(1), tokenHash: 'h', now: T0 }),
       );
@@ -112,7 +125,7 @@ describe('users and audit persistence', () => {
     });
 
     it('refuses to delete a user who created an API key', async () => {
-      await repo().save(invited(1));
+      await repo().create(invited(1));
       await db.context.client.apiKey.create({
         data: {
           id: id(60),
@@ -204,8 +217,20 @@ describe('users and audit persistence', () => {
       await expect(repo().findByHash('invite-11')).resolves.toMatchObject({ usedAt: null });
     });
 
+    it('activates only an account that is still invited', async () => {
+      await db.seedUser(id(3), { status: 'deactivated', passwordHash: null });
+
+      const activated = await new PrismaAccountRepository(db.context).activate(id(3), 'new-hash');
+
+      expect(activated).toBe(false);
+      const row = await db.context.client.user.findUniqueOrThrow({ where: { id: id(3) } });
+      expect(row).toMatchObject({ status: 'deactivated', passwordHash: null });
+    });
+
     it('activates an invited account with its password', async () => {
-      await new PrismaAccountRepository(db.context).activate(id(1), 'new-hash');
+      await expect(
+        new PrismaAccountRepository(db.context).activate(id(1), 'new-hash'),
+      ).resolves.toBe(true);
 
       const row = await db.context.client.user.findUniqueOrThrow({ where: { id: id(1) } });
       expect(row).toMatchObject({ status: 'active', passwordHash: 'new-hash' });
@@ -299,6 +324,14 @@ describe('users and audit persistence', () => {
       await seedEvent();
 
       await expect(db.context.client.$executeRawUnsafe('DELETE FROM audit_events')).rejects.toThrow(
+        /append-only/,
+      );
+    });
+
+    it('rejects a truncate even from the table owner', async () => {
+      await seedEvent();
+
+      await expect(db.context.client.$executeRawUnsafe('TRUNCATE audit_events')).rejects.toThrow(
         /append-only/,
       );
     });

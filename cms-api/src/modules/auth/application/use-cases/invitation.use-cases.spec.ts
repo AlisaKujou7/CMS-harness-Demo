@@ -160,6 +160,33 @@ describe('invitation use cases', () => {
       await expect(accept()).rejects.toThrow(InvalidInvitationError);
     });
 
+    it('will not reactivate a user deactivated while the password was being hashed', async () => {
+      const hash = ctx.hasher.hash.bind(ctx.hasher);
+      ctx.hasher.hash = async (password) => {
+        ctx.accounts.add(anAccount({ status: 'deactivated', passwordHash: null }));
+        return hash(password);
+      };
+
+      await expect(accept()).rejects.toThrow(InvalidInvitationError);
+
+      expect(ctx.accounts.accounts.get('user-1')?.status).toBe('deactivated');
+    });
+
+    it('clears a lockout built up before the invitation was accepted', async () => {
+      const login = new Login(ctx);
+      for (let i = 0; i < 5; i += 1) {
+        await expect(
+          login.execute({ email: INVITED, password: 'wrong-password-1', ip: null }),
+        ).rejects.toThrow();
+      }
+
+      await accept();
+
+      await expect(
+        login.execute({ email: INVITED, password: NEW_PASSWORD, ip: null }),
+      ).resolves.toBeDefined();
+    });
+
     it('refuses when the account no longer exists', async () => {
       ctx.accounts.accounts.clear();
 

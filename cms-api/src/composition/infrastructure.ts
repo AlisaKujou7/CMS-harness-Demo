@@ -15,6 +15,7 @@ import { PrismaLoginLockoutRepository } from '../modules/auth/adapters/out/persi
 import { PrismaPasswordResetTokenRepository } from '../modules/auth/adapters/out/persistence/prisma-password-reset-token.repository.js';
 import { PrismaRefreshTokenRepository } from '../modules/auth/adapters/out/persistence/prisma-refresh-token.repository.js';
 import type { HttpConfig } from '../shared/adapters/http/tokens.js';
+import { BullMqEmailQueue } from '../shared/adapters/out/bullmq-email-queue.js';
 import {
   ConsoleEmailSender,
   SmtpEmailSender,
@@ -28,7 +29,9 @@ import { SystemClock, Uuidv4Generator } from '../shared/adapters/out/system.js';
 import type { EmailSender, Logger } from '../shared/ports/system.port.js';
 import type { Infrastructure } from './app.module.js';
 
-function createEmailSender(config: AppConfig, logger: Logger): EmailSender {
+const EMAIL_DELIVERY = { attempts: 5, backoffMs: 30_000 };
+
+export function createEmailSender(config: AppConfig, logger: Logger): EmailSender {
   const { provider, from, smtp } = config.email;
   if (provider === 'console') return new ConsoleEmailSender(logger);
   return new SmtpEmailSender(nodemailer.createTransport(toSmtpOptions(smtp)), from);
@@ -42,8 +45,17 @@ function toHttpConfig(config: AppConfig): HttpConfig {
     rateLimits: {
       login: { limit: config.rateLimitLoginPerMinute, windowSeconds: 60 },
       passwordReset: { limit: config.rateLimitPasswordResetPerHour, windowSeconds: 3600 },
+      invitation: { limit: config.rateLimitInvitationPerHour, windowSeconds: 3600 },
     },
   };
+}
+
+function createEmailQueue(config: AppConfig, logger: Logger): BullMqEmailQueue {
+  const queue = new BullMqEmailQueue(config.redisUrl, EMAIL_DELIVERY);
+  queue.onConnectionError((error) => {
+    logger.error('Email queue connection error', { error: error.message });
+  });
+  return queue;
 }
 
 export interface RunningInfrastructure {
@@ -59,6 +71,7 @@ export function createInfrastructure(config: AppConfig): RunningInfrastructure {
   redis.on('error', (error: Error) => {
     logger.error('Redis connection error', { error: error.message });
   });
+  const emailQueue = createEmailQueue(config, logger);
   const clock = new SystemClock();
   const ids = new Uuidv4Generator();
 
@@ -79,7 +92,7 @@ export function createInfrastructure(config: AppConfig): RunningInfrastructure {
     ids,
     tx: db,
     audit: new PrismaAuditLog(db, clock, ids),
-    email: createEmailSender(config, logger),
+    email: emailQueue,
     logger,
     config: {
       accessTokenTtlSeconds: config.accessTokenTtlSeconds,
@@ -96,6 +109,7 @@ export function createInfrastructure(config: AppConfig): RunningInfrastructure {
     db,
     dispose: async () => {
       redis.disconnect();
+      await emailQueue.close();
       await db.disconnect();
     },
   };

@@ -10,6 +10,7 @@ const TABLES = [
   'audit_events',
   'api_keys',
   'password_reset_tokens',
+  'invitation_tokens',
   'refresh_tokens',
   'login_lockouts',
   'users',
@@ -59,10 +60,13 @@ export async function createTestDatabase(): Promise<TestDatabase> {
   return {
     url,
     context,
+    // Append-only triggers would refuse this. Replica mode skips them for this connection only.
     truncate: () =>
-      context.client
-        .$executeRawUnsafe(`TRUNCATE ${TABLES.join(', ')} CASCADE`)
-        .then(() => undefined),
+      withClient(url, async (client) => {
+        await client.query(
+          `SET session_replication_role = replica; TRUNCATE ${TABLES.join(', ')} CASCADE`,
+        );
+      }),
     seedUser: (id, overrides = {}) =>
       context.client.user
         .create({

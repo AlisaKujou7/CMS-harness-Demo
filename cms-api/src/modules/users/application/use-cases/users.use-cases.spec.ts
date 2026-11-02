@@ -15,6 +15,7 @@ import {
   EmailTakenError,
   LastAdminError,
   UserInUseError,
+  UserNotActiveError,
   UserNotFoundError,
   UserNotInvitedError,
 } from '../../domain/errors/user.errors.js';
@@ -221,6 +222,26 @@ describe('users use cases', () => {
       expect(users.users.get('user-1')?.updatedAt).toEqual(new Date('2026-01-01T00:00:00Z'));
     });
 
+    it('cannot undo a deactivation that lands after it read the user', async () => {
+      const stale = users.users.get('user-1');
+      users.add(aUser({ status: 'deactivated' }));
+      users.findById = () => Promise.resolve(stale ?? null);
+
+      await update({ name: 'Renamed' });
+
+      expect(users.users.get('user-1')?.status).toBe('deactivated');
+    });
+
+    it('cannot undo a role change that lands after it read the user', async () => {
+      const stale = users.users.get('user-1');
+      users.add(aUser({ role: 'author' }));
+      users.findById = () => Promise.resolve(stale ?? null);
+
+      await update({ name: 'Renamed' });
+
+      expect(users.users.get('user-1')?.role).toBe('author');
+    });
+
     it('stamps the change time', async () => {
       await update({ role: 'author' });
 
@@ -379,6 +400,18 @@ describe('users use cases', () => {
     beforeEach(() => {
       users.add(aUser());
     });
+
+    it.each(['invited', 'deactivated'] as const)(
+      'refuses a %s user, because no email would be sent (UR-A05)',
+      async (status) => {
+        users.add(aUser({ status }));
+
+        await expect(reset()).rejects.toThrow(UserNotActiveError);
+
+        expect(audit.events).toEqual([]);
+        expect(events.published).toEqual([]);
+      },
+    );
 
     it('audits the admin and publishes a reset request for the user', async () => {
       await reset();

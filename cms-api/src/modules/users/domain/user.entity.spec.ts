@@ -6,6 +6,7 @@ import {
   InvalidUserNameError,
   LastAdminError,
   UserInUseError,
+  UserNotActiveError,
   UserNotFoundError,
   UserNotInvitedError,
 } from './errors/user.errors.js';
@@ -100,6 +101,11 @@ describe('User state questions', () => {
     expect(restored('editor', 'active').isInvited()).toBe(false);
   });
 
+  it('knows whether it is active', () => {
+    expect(restored('editor', 'active').isActive()).toBe(true);
+    expect(restored('editor', 'invited').isActive()).toBe(false);
+  });
+
   it('knows whether it is deactivated', () => {
     expect(restored('editor', 'deactivated').isDeactivated()).toBe(true);
     expect(restored('editor', 'active').isDeactivated()).toBe(false);
@@ -113,6 +119,7 @@ describe('user errors', () => {
     [new LastAdminError(), 'conflict', 'LAST_ADMIN'],
     [new UserInUseError(), 'conflict', 'USER_IN_USE'],
     [new UserNotInvitedError(), 'conflict', 'USER_NOT_INVITED'],
+    [new UserNotActiveError(), 'conflict', 'USER_NOT_ACTIVE'],
     [new InvalidUserNameError(), 'validation', 'VALIDATION_ERROR'],
   ])('%o maps to the right kind and code', (error, kind, code) => {
     expect(error.kind).toBe(kind);

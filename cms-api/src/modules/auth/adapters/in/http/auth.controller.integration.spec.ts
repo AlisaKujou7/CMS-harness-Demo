@@ -336,9 +336,13 @@ describe('auth endpoints', () => {
       expect((res.body as { error: { code: string } }).error.code).toBe('INVALID_INVITATION');
     });
 
-    it('limits attempts per IP', async () => {
+    it('has its own limit, so a shared office IP can onboard several people', async () => {
+      const forgot = () =>
+        http(app).post('/api/admin/auth/password/forgot').send({ email: 'x@example.com' });
+      for (let i = 0; i < 5; i += 1) await forgot().expect(204);
       const submit = () => http(app).post(ACCEPT).send({ token: 'x', new_password: NEW_PASSWORD });
-      for (let i = 0; i < 5; i += 1) await submit().expect(422);
+
+      for (let i = 0; i < 20; i += 1) await submit().expect(422);
 
       await submit().expect(429);
     });

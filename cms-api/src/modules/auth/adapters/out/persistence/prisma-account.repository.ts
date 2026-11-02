@@ -31,8 +31,12 @@ export class PrismaAccountRepository implements AccountRepository {
     await this.db.client.user.update({ where: { id }, data: { passwordHash } });
   }
 
-  async activate(id: string, passwordHash: string): Promise<void> {
-    await this.db.client.user.update({ where: { id }, data: { passwordHash, status: 'active' } });
+  async activate(id: string, passwordHash: string): Promise<boolean> {
+    const { count } = await this.db.client.user.updateMany({
+      where: { id, status: 'invited' },
+      data: { passwordHash, status: 'active' },
+    });
+    return count === 1;
   }
 
   async recordLogin(id: string, at: Date): Promise<void> {

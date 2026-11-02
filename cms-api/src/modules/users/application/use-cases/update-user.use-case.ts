@@ -2,6 +2,7 @@ import type { UserRole } from '../../../../shared/kernel/actor.js';
 import type { User } from '../../domain/entities/user.entity.js';
 import { assertCanManageUsers } from '../policies/user.policy.js';
 import type { UpdateUserUseCase, UserCommand, UserSummary } from '../ports/in/users.ports.js';
+import type { UserChanges } from '../ports/out/user-repository.port.js';
 import { assertAnotherAdminRemains, loadUser, toUserSummary } from '../services/user-helpers.js';
 import type { UsersDeps } from '../users-deps.js';
 
@@ -12,6 +13,14 @@ function describeChanges(before: User, after: User): Record<string, unknown> {
   if (before.name !== after.name) summary['name'] = { from: before.name, to: after.name };
   if (before.role !== after.role) summary['role'] = { from: before.role, to: after.role };
   return summary;
+}
+
+function changedFields(before: User, after: User): UserChanges {
+  return {
+    updatedAt: after.updatedAt,
+    ...(before.name === after.name ? {} : { name: after.name }),
+    ...(before.role === after.role ? {} : { role: after.role }),
+  };
 }
 
 export class UpdateUser implements UpdateUserUseCase {
@@ -29,7 +38,7 @@ export class UpdateUser implements UpdateUserUseCase {
     if (Object.keys(summary).length === 0) return toUserSummary(before);
 
     if (after.role !== 'admin') await assertAnotherAdminRemains(this.deps.users, before);
-    await this.deps.users.save(after);
+    await this.deps.users.update(after.id, changedFields(before, after));
     await this.deps.audit.record({
       actorId: command.actor.id,
       actorIp: command.ip,

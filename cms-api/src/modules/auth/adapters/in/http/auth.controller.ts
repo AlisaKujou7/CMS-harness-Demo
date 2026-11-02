@@ -93,7 +93,7 @@ export class AuthController {
 
   @Post('invitations/accept')
   @HttpCode(204)
-  @RateLimit('passwordReset')
+  @RateLimit('invitation')
   @UseGuards(RateLimitGuard)
   async acceptInvitation(@Body() body: unknown, @ClientIp() ip: string | null): Promise<void> {
     const input = parseInput(resetRequest, body);

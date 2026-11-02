@@ -27,6 +27,7 @@ export function createFakeInfrastructure() {
       rateLimits: {
         login: { limit: 10, windowSeconds: 60 },
         passwordReset: { limit: 5, windowSeconds: 3600 },
+        invitation: { limit: 20, windowSeconds: 3600 },
       },
     },
   } satisfies Infrastructure;

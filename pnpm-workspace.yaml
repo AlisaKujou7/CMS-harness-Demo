@@ -11,5 +11,6 @@ allowBuilds:
   argon2: true
   prisma: true
   cpu-features: false
+  msgpackr-extract: false
   protobufjs: false
   ssh2: false

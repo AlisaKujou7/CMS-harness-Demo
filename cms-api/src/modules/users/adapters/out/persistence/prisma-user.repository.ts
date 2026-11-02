@@ -5,7 +5,10 @@ import {
   type PagedResult,
   type PageRequest,
 } from '../../../../../shared/kernel/paged-result.js';
-import type { UserRepository } from '../../../application/ports/out/user-repository.port.js';
+import type {
+  UserChanges,
+  UserRepository,
+} from '../../../application/ports/out/user-repository.port.js';
 import { User } from '../../../domain/entities/user.entity.js';
 import { EmailTakenError, UserInUseError } from '../../../domain/errors/user.errors.js';
 
@@ -54,24 +57,26 @@ export class PrismaUserRepository implements UserRepository {
     return pagedResult(rows.map(toDomain), total, page);
   }
 
-  // Updates only what this module owns, so it cannot overwrite a login time or a password set
-  // by the auth module between this read and write.
-  async save(user: User): Promise<void> {
-    const owned = {
-      name: user.name,
-      role: user.role,
-      status: user.status,
-      updatedAt: user.updatedAt,
-    };
+  async create(user: User): Promise<void> {
     try {
-      await this.db.client.user.upsert({
-        where: { id: user.id },
-        create: { ...owned, id: user.id, email: user.email, createdAt: user.createdAt },
-        update: owned,
+      await this.db.client.user.create({
+        data: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          status: user.status,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
+        },
       });
     } catch (error) {
       throw hasCode(error, UNIQUE_VIOLATION) ? new EmailTakenError() : error;
     }
+  }
+
+  async update(id: string, changes: UserChanges): Promise<void> {
+    await this.db.client.user.update({ where: { id }, data: changes });
   }
 
   async delete(id: string): Promise<void> {
