@@ -170,13 +170,36 @@ const SCENARIOS = [
   {
     name: 'test that asserts nothing lets mutants survive',
     files: {
-      'cms-api/src/shared/kernel/zzq.ts':
-        'export const f = (a: number, b: number) => (a > b ? a + b : a - b);\n',
-      'cms-api/src/shared/kernel/zzq.spec.ts':
+      [`${API}/auth/domain/zzq.ts`]: `export const f = (a: number, b: number) => [${Array.from(
+        { length: 12 },
+        (_, i) => `a > b + ${String(i)} ? a + b : a - b`,
+      ).join(', ')}];\n`,
+      [`${API}/auth/domain/zzq.spec.ts`]:
         "import { expect, it } from 'vitest';\nimport { f } from './zzq.js';\nit('runs', () => {\n  f(2, 1);\n  f(1, 2);\n  expect(true).toBe(true);\n});\n",
     },
-    command: 'pnpm --filter cms-api test:mutation',
-    expect: /below|threshold/i,
+    command: 'pnpm --filter cms-api test:mutation && node tools/gates/check.mjs mutation',
+    expect: /M-TEST-07/,
+  },
+  {
+    name: 'domain entity with a public mutable field',
+    files: { [`${API}/zzq/domain/bad.ts`]: 'export class Bad {\n  status = 1;\n}\n' },
+    command: LINT,
+    expect: /M-HEX-08/,
+  },
+  {
+    name: 'outbound port without a fake',
+    files: {
+      [`${API}/zzq/application/ports/out/bad.port.ts`]:
+        'export interface ZzqGateway {\n  call(): Promise<void>;\n}\n',
+    },
+    command: 'node tools/gates/check.mjs architecture',
+    expect: /M-HEX-06 port ZzqGateway/,
+  },
+  {
+    name: 'use case without a spec',
+    files: { [`${API}/zzq/application/bad.use-case.ts`]: 'export const a = 1;\n' },
+    command: 'node tools/gates/check.mjs architecture',
+    expect: /M-HEX-07 use case bad\.use-case/,
   },
 ];
 

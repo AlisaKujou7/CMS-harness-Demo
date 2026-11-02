@@ -22,8 +22,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: node tools/gates/run-gate.mjs --only=format,strict,types,lint,arch,todos,tools,duplication
 
+  # Testcontainers starts Postgres and Redis through the runner Docker daemon.
   tests:
-    name: Unit tests and coverage
+    name: All tests and coverage
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,19 +35,6 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: node tools/gates/run-gate.mjs --only=coverage
-
-  integration:
-    name: Integration tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: node tools/gates/run-gate.mjs --only=integration
 
   mutation:
     name: Mutation testing

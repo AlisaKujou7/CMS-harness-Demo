@@ -27,4 +27,17 @@ Node 26 LTS, pnpm 12 and Docker. Versions are explained in
 | `pnpm gate`           | Run the full G-03 gate                                    |
 | `pnpm gate:self-test` | Plant real violations and prove that the gates catch them |
 
+## Run the API locally
+
+```bash
+cp cms-api/.env.example cms-api/.env
+docker compose -f cms-api/docker-compose.dev.yml up -d --wait
+pnpm --filter cms-api exec prisma migrate deploy
+pnpm --filter cms-api build
+cd cms-api && SEED_ADMIN_EMAIL=you@example.com SEED_ADMIN_PASSWORD=choose-a-password-1 node --env-file=.env dist/composition/seed-admin.js
+node --env-file=.env dist/main.js
+```
+
+Set `JWT_SECRET` in `.env` first. It refuses the placeholder.
+
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow.

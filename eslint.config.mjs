@@ -85,6 +85,25 @@ export default tseslint.config(
   },
 
   {
+    // M-HEX-08: domain state changes through methods that return a new value.
+    files: ['cms-api/src/modules/*/domain/**/*.ts'],
+    ignores: ['**/*.spec.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "PropertyDefinition[readonly!=true][static!=true][accessibility!='private']",
+          message: 'M-HEX-08: public domain fields must be readonly.',
+        },
+        {
+          selector: "MethodDefinition[kind='set']",
+          message: 'M-HEX-08: domain entities have no setters.',
+        },
+      ],
+    },
+  },
+
+  {
     files: ['cms-web/src/**/*.tsx'],
     ignores: ['**/*.spec.tsx'],
     rules: {

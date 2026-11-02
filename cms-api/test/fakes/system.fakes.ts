@@ -1,3 +1,6 @@
+import type { Actor } from '../../src/shared/kernel/actor.js';
+import { UnauthenticatedError } from '../../src/shared/kernel/app-error.js';
+import type { AccessTokenAuthenticator } from '../../src/shared/ports/access-token-authenticator.port.js';
 import type {
   AuditEventInput,
   AuditLog,
@@ -12,6 +15,19 @@ import type {
   ReadinessProbe,
   TransactionRunner,
 } from '../../src/shared/ports/system.port.js';
+
+export class FakeAccessTokenAuthenticator implements AccessTokenAuthenticator {
+  private readonly actors = new Map<string, Actor>();
+
+  allow(token: string, actor: Actor): void {
+    this.actors.set(token, actor);
+  }
+
+  authenticate(token: string): Promise<Actor> {
+    const actor = this.actors.get(token);
+    return actor ? Promise.resolve(actor) : Promise.reject(new UnauthenticatedError());
+  }
+}
 
 export class FakeClock implements Clock {
   private current: Date;

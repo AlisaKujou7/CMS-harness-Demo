@@ -19,7 +19,55 @@ const ALLOWED_LICENSES = new Set([
   'BSD-3-Clause',
   'ISC',
   'MPL-2.0',
+  'MIT-0',
+  '0BSD',
 ]);
+
+export function findPortsWithoutFakes(portSources, fakeSources) {
+  const fakes = fakeSources.join('\n');
+  const ports = portSources.flatMap((source) =>
+    [...source.matchAll(/export interface (\w+)[^{]*\{([^}]*)\}/g)]
+      .filter(([, , body]) => body.includes('('))
+      .map(([, name]) => name),
+  );
+  return ports.filter((port) => !new RegExp(`implements\\s+${port}\\b`).test(fakes));
+}
+
+export function findUntestedUseCases(useCaseNames, specSources) {
+  const specs = specSources.join('\n');
+  return useCaseNames.filter((name) => !specs.includes(`/${name}.js`));
+}
+
+// 05-METRICS 3.2 and 3.3. Each entry is scored as one group per module or path.
+const MUTATION_BARS = [
+  { pattern: /^src\/modules\/[^/]+\/domain\//, depth: 4, minimum: 90 },
+  { pattern: /^src\/modules\/auth\/application\//, depth: 4, minimum: 90 },
+  { pattern: /^src\/shared\/kernel\//, depth: 3, minimum: 80 },
+];
+const DETECTED = new Set(['Killed', 'Timeout']);
+const COUNTED = new Set(['Killed', 'Timeout', 'Survived', 'NoCoverage']);
+
+export function findWeakMutationScores(report) {
+  const groups = new Map();
+  for (const [path, file] of Object.entries(report.files)) {
+    const bar = MUTATION_BARS.find(({ pattern }) => pattern.test(path));
+    if (!bar) continue;
+    const group = path.split('/').slice(0, bar.depth).join('/');
+    const entry = groups.get(group) ?? { minimum: bar.minimum, detected: 0, total: 0 };
+    for (const { status } of file.mutants) {
+      if (!COUNTED.has(status)) continue;
+      entry.total += 1;
+      if (DETECTED.has(status)) entry.detected += 1;
+    }
+    groups.set(group, entry);
+  }
+  return [...groups].flatMap(([group, { minimum, detected, total }]) => {
+    const score = total === 0 ? 100 : (detected / total) * 100;
+    return score < minimum
+      ? [`M-TEST-07 ${group} scores ${score.toFixed(1)}, below ${String(minimum)}`]
+      : [];
+  });
+}
 
 export function findMissingStrictFlags(tsconfig) {
   const options = tsconfig.compilerOptions ?? {};

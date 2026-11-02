@@ -22,6 +22,11 @@ The stricter or more specific document wins unless noted.
 - Endpoints missing from 02-SRS §7 but required by FR and UR items are added: reject, archive, accept invite, admin password reset, user deletion.
 - MFA (Q-2) is deferred to Phase 2 until the Security Lead says otherwise.
 - Presentational components are the default, and a component that reads state is named `*Container.tsx` so lint can tell them apart.
+- Migrations: NFR-MAIN-03 says reversible and 07-OPS-ARCH §12.2 says forward-only. They are forward-only, and reversibility comes from the expand and contract pattern, so the previous release keeps working against a newer schema.
+- Rate limiter outage: it fails open and logs, since account lockout lives in Postgres and still applies. No document decides this.
+- `POST /api/admin/auth/password/change` is added for the Profile screen in 02-SRS §4.1, which §7 omits.
+- Authentication reads users through an `Account` view in the auth module. The users module owns the user lifecycle from phase 2, and both use the `users` table.
+- Inbound and outbound ports of a module share grouped files (`auth.ports.ts`, `repositories.port.ts`) rather than one file per port as the 04-ARCH §4.10 tree shows. The dependency rules are unaffected.
 
 ## Consequences
 

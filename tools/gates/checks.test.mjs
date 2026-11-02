@@ -5,11 +5,121 @@ import {
   evaluateTestRatio,
   findDisallowedLicenses,
   findMissingStrictFlags,
+  findPortsWithoutFakes,
   findUnlinkedTodos,
+  findUntestedUseCases,
+  findWeakMutationScores,
   isLicenseAllowed,
 } from './checks.mjs';
 
 const KB = 1024;
+
+describe('findPortsWithoutFakes (M-HEX-06)', () => {
+  const ports = `
+    export interface Clock { now(): Date; }
+    export interface EmailMessage { readonly to: string; }
+    export interface Cache { get(key: string): Promise<string>; }
+  `;
+
+  it('lists ports that no fake implements, ignoring plain data types', () => {
+    const fakes = 'export class FakeClock implements Clock {}';
+
+    assert.deepEqual(findPortsWithoutFakes([ports], [fakes]), ['Cache']);
+  });
+
+  it('accepts ports whose fakes exist in any file', () => {
+    const fakes = ['class A implements Clock {}', 'class B implements Cache {}'];
+
+    assert.deepEqual(findPortsWithoutFakes([ports], fakes), []);
+  });
+
+  it('does not confuse a port with one whose name merely contains it', () => {
+    assert.deepEqual(findPortsWithoutFakes([ports], ['class A implements ClockPort {}']), [
+      'Clock',
+      'Cache',
+    ]);
+  });
+});
+
+describe('findUntestedUseCases (M-HEX-07)', () => {
+  it('lists use cases that no spec imports', () => {
+    const useCases = ['login.use-case', 'logout.use-case'];
+    const specs = ["import { Login } from './login.use-case.js';"];
+
+    assert.deepEqual(findUntestedUseCases(useCases, specs), ['logout.use-case']);
+  });
+});
+
+describe('findWeakMutationScores (M-TEST-07)', () => {
+  const report = (entries) => ({
+    files: Object.fromEntries(
+      Object.entries(entries).map(([path, statuses]) => [
+        path,
+        { mutants: statuses.map((status) => ({ status })) },
+      ]),
+    ),
+  });
+  const statuses = (killed, survived) => [
+    ...Array(killed).fill('Killed'),
+    ...Array(survived).fill('Survived'),
+  ];
+
+  it('accepts critical code at exactly 90%', () => {
+    const result = findWeakMutationScores(
+      report({ 'src/modules/auth/domain/a.ts': statuses(9, 1) }),
+    );
+
+    assert.deepEqual(result, []);
+  });
+
+  it('flags a critical group below 90%', () => {
+    const result = findWeakMutationScores(
+      report({ 'src/modules/auth/application/a.ts': statuses(8, 2) }),
+    );
+
+    assert.equal(result.length, 1);
+    assert.match(result[0], /M-TEST-07.*src\/modules\/auth\/application.*80\.0/);
+  });
+
+  it('holds every domain and the kernel to 90%', () => {
+    const result = findWeakMutationScores(
+      report({
+        'src/modules/content/domain/a.ts': statuses(1, 1),
+        'src/shared/kernel/a.ts': statuses(1, 1),
+      }),
+    );
+
+    assert.equal(result.length, 2);
+  });
+
+  it('counts timeouts as killed, and uncovered mutants against the score', () => {
+    const ok = findWeakMutationScores(
+      report({ 'src/shared/kernel/a.ts': [...statuses(9, 0), 'Timeout'] }),
+    );
+    const weak = findWeakMutationScores(
+      report({ 'src/shared/kernel/a.ts': [...statuses(1, 0), 'NoCoverage'] }),
+    );
+
+    assert.deepEqual(ok, []);
+    assert.equal(weak.length, 1);
+  });
+
+  it('ignores mutants Stryker could not run', () => {
+    const result = findWeakMutationScores(
+      report({ 'src/shared/kernel/a.ts': [...statuses(1, 0), 'Ignored', 'CompileError'] }),
+    );
+
+    assert.deepEqual(result, []);
+  });
+
+  it('does not hold other code to the critical bar', () => {
+    const result = findWeakMutationScores(
+      report({ 'src/modules/content/adapters/in/a.ts': statuses(1, 9) }),
+    );
+
+    assert.deepEqual(result, []);
+  });
+});
 
 describe('findMissingStrictFlags', () => {
   const allFlags = {
@@ -91,6 +201,11 @@ describe('isLicenseAllowed', () => {
     for (const license of ['MIT', 'Apache-2.0', 'BSD-2-Clause', 'BSD-3-Clause', 'ISC', 'MPL-2.0']) {
       assert.equal(isLicenseAllowed(license), true, license);
     }
+  });
+
+  it('accepts the attribution-free licenses added by ADR-0014', () => {
+    assert.equal(isLicenseAllowed('MIT-0'), true);
+    assert.equal(isLicenseAllowed('0BSD'), true);
   });
 
   it('rejects GPL family and unknown licenses', () => {

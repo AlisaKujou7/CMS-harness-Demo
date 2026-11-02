@@ -9,7 +9,10 @@ import {
   evaluateTestRatio,
   findDisallowedLicenses,
   findMissingStrictFlags,
+  findPortsWithoutFakes,
   findUnlinkedTodos,
+  findUntestedUseCases,
+  findWeakMutationScores,
 } from './checks.mjs';
 
 const EXIT_SKIP = 78;
@@ -83,6 +86,35 @@ const checks = {
     return report(output === '' ? [] : findDisallowedLicenses(JSON.parse(output)));
   },
 
+  architecture() {
+    const api = join(ROOT, 'cms-api');
+    const files = (dir, test) => [...walk(join(api, dir))].filter((path) => test.test(path));
+    const read = (paths) => paths.map((path) => readFileSync(path, 'utf8'));
+
+    const ports = [...files('src', /[\\/]ports[\\/](out[\\/])?[^\\/]+\.port\.ts$/)].filter(
+      (path) => !/[\\/]ports[\\/]in[\\/]/.test(path),
+    );
+    const missingFakes = findPortsWithoutFakes(read(ports), read(files('test/fakes', /\.ts$/)));
+    const useCases = files('src/modules', /\.use-case\.ts$/).map((path) =>
+      path.split(/[\\/]/).at(-1).replace(/\.ts$/, ''),
+    );
+    const untested = findUntestedUseCases(useCases, read(files('src', /\.spec\.ts$/)));
+
+    return report([
+      ...missingFakes.map((port) => `M-HEX-06 port ${port} has no fake in test/fakes`),
+      ...untested.map((name) => `M-HEX-07 use case ${name} has no spec importing it`),
+    ]);
+  },
+
+  mutation() {
+    const path = join(ROOT, 'cms-api', 'reports', 'mutation', 'mutation.json');
+    if (!existsSync(path)) {
+      console.error('No mutation report: run the mutation tests first');
+      return 1;
+    }
+    return report(findWeakMutationScores(JSON.parse(readFileSync(path, 'utf8'))));
+  },
+
   ratio() {
     if (!existsSync(join(ROOT, '.git'))) {
       console.error('Not a git repository yet');
@@ -104,7 +136,9 @@ const checks = {
       console.error('gitleaks is not installed');
       return EXIT_SKIP;
     }
-    const result = run('gitleaks detect --no-banner --no-git --source .');
+    // Scans commit history. The pre-commit hook covers staged files, and ignored local files such
+    // as .env are not part of the repository.
+    const result = run('gitleaks git --no-banner .');
     console.error(result.stdout + result.stderr);
     return result.status === 0 ? 0 : 1;
   },
