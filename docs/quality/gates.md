@@ -6,27 +6,27 @@ changes. `pnpm gate` runs the local steps, and `pnpm gate:self-test` proves that
 
 ## G-03 PR gate
 
-| Check                               | Metric                 | Status                                       |
-| ----------------------------------- | ---------------------- | -------------------------------------------- |
-| TypeScript compile and strict flags | M-TS-01..05            | Enforced. Self-tested                        |
-| ESLint and Prettier, 0 warnings     | M-LINT-01..03          | Enforced                                     |
-| Complexity and size limits          | M-CPX-01..07           | Enforced. Self-tested for complexity         |
-| `any` and undocumented suppressions | M-DEBT-04..06          | Enforced. Self-tested for `any`              |
-| Unlinked TODO and FIXME             | M-DEBT-02              | Enforced. Self-tested                        |
-| Skipped and focused tests           | M-TEST-05              | Enforced. Self-tested for skipped tests      |
-| Hexagonal rules                     | M-HEX-01..05           | Enforced. Self-tested                        |
-| Circular dependencies               | M-DEP-01               | Enforced. Self-tested                        |
-| Reactive rules                      | M-RX-01,02,04,05,06,07 | Enforced. Self-tested for 01, 04 and 06      |
-| Coverage, overall and per layer     | §3.2, §3.3             | Enforced. Self-tested                        |
-| Mutation score                      | M-TDD-03, M-TEST-06    | Enforced on the full suite. Self-tested      |
-| Duplication                         | M-DUP-01               | Enforced. Self-tested                        |
-| Bundle budgets                      | M-BUN-01..03           | Enforced                                     |
-| License allow-list                  | M-LIC-01..03           | Enforced for production dependencies         |
-| Dependency CVEs, critical and high  | M-SEC-01,02,05         | Enforced                                     |
-| Commit and PR title format          | M-PR-06                | Enforced                                     |
-| Test-to-code ratio                  | M-TDD-01,06            | Rule unit-tested. Needs git, so skipped here |
-| Secret scan                         | M-SAST-02              | CI only. gitleaks is not installed locally   |
-| SAST (CodeQL)                       | M-SAST-01              | CI workflow written, never run               |
+| Check                               | Metric                 | Status                                    |
+| ----------------------------------- | ---------------------- | ----------------------------------------- |
+| TypeScript compile and strict flags | M-TS-01..05            | Enforced. Self-tested                     |
+| ESLint and Prettier, 0 warnings     | M-LINT-01..03          | Enforced                                  |
+| Complexity and size limits          | M-CPX-01..07           | Enforced. Self-tested for complexity      |
+| `any` and undocumented suppressions | M-DEBT-04..06          | Enforced. Self-tested for `any`           |
+| Unlinked TODO and FIXME             | M-DEBT-02              | Enforced. Self-tested                     |
+| Skipped and focused tests           | M-TEST-05              | Enforced. Self-tested for skipped tests   |
+| Hexagonal rules                     | M-HEX-01..05           | Enforced. Self-tested                     |
+| Circular dependencies               | M-DEP-01               | Enforced. Self-tested                     |
+| Reactive rules                      | M-RX-01,02,04,05,06,07 | Enforced. Self-tested for 01, 04 and 06   |
+| Coverage, overall and per layer     | §3.2, §3.3             | Enforced. Self-tested                     |
+| Mutation score                      | M-TDD-03, M-TEST-06    | Enforced on the full suite. Self-tested   |
+| Duplication                         | M-DUP-01               | Enforced. Self-tested                     |
+| Bundle budgets                      | M-BUN-01..03           | Enforced                                  |
+| License allow-list                  | M-LIC-01..03           | Enforced for production dependencies      |
+| Dependency CVEs, critical and high  | M-SEC-01,02,05         | Enforced                                  |
+| Commit and PR title format          | M-PR-06                | Enforced                                  |
+| Test-to-code ratio                  | M-TDD-01,06            | Skipped until `origin/main` exists        |
+| Secret scan                         | M-SAST-02              | Enforced locally, in pre-commit and in CI |
+| SAST (CodeQL)                       | M-SAST-01              | CI workflow written, never run            |
 
 ## Not enforced yet
 
