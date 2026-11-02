@@ -28,4 +28,11 @@ export class PrismaInvitationTokenRepository implements InvitationTokenRepositor
       data: { usedAt: at },
     });
   }
+
+  async deleteExpiredBefore(cutoff: Date): Promise<number> {
+    const { count } = await this.db.client.invitationToken.deleteMany({
+      where: { expiresAt: { lt: cutoff } },
+    });
+    return count;
+  }
 }

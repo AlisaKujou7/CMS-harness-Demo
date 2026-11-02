@@ -108,3 +108,7 @@ export interface RevokeApiKeyUseCase {
 export interface AuthenticateApiKeyUseCase {
   execute(key: string): Promise<{ readonly apiKeyId: string }>;
 }
+
+export interface PurgeExpiredTokensUseCase {
+  execute(): Promise<number>;
+}

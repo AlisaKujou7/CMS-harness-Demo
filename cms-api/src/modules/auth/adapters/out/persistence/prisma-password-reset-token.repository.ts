@@ -28,4 +28,11 @@ export class PrismaPasswordResetTokenRepository implements PasswordResetTokenRep
       data: { usedAt: at },
     });
   }
+
+  async deleteExpiredBefore(cutoff: Date): Promise<number> {
+    const { count } = await this.db.client.passwordResetToken.deleteMany({
+      where: { expiresAt: { lt: cutoff } },
+    });
+    return count;
+  }
 }

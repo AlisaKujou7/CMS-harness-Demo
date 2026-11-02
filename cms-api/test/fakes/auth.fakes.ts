@@ -112,6 +112,17 @@ export class InMemoryRefreshTokenRepository implements RefreshTokenRepository {
     }
     return Promise.resolve();
   }
+
+  deleteExpiredBefore(cutoff: Date): Promise<number> {
+    let deleted = 0;
+    for (const token of this.tokens.values()) {
+      if (token.expiresAt < cutoff) {
+        this.tokens.delete(token.id);
+        deleted += 1;
+      }
+    }
+    return Promise.resolve(deleted);
+  }
 }
 
 export class InMemoryPasswordResetTokenRepository implements PasswordResetTokenRepository {
@@ -142,6 +153,17 @@ export class InMemoryPasswordResetTokenRepository implements PasswordResetTokenR
     }
     return Promise.resolve();
   }
+
+  deleteExpiredBefore(cutoff: Date): Promise<number> {
+    let deleted = 0;
+    for (const token of this.tokens.values()) {
+      if (token.expiresAt < cutoff) {
+        this.tokens.delete(token.id);
+        deleted += 1;
+      }
+    }
+    return Promise.resolve(deleted);
+  }
 }
 
 export class InMemoryInvitationTokenRepository implements InvitationTokenRepository {
@@ -171,6 +193,17 @@ export class InMemoryInvitationTokenRepository implements InvitationTokenReposit
       }
     }
     return Promise.resolve();
+  }
+
+  deleteExpiredBefore(cutoff: Date): Promise<number> {
+    let deleted = 0;
+    for (const token of this.tokens.values()) {
+      if (token.expiresAt < cutoff) {
+        this.tokens.delete(token.id);
+        deleted += 1;
+      }
+    }
+    return Promise.resolve(deleted);
   }
 }
 

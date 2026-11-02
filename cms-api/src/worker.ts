@@ -1,17 +1,26 @@
-import { createEmailSender } from './composition/infrastructure.js';
+import { createEmailSender, createInfrastructure } from './composition/infrastructure.js';
+import { createMaintenanceJobs } from './composition/maintenance-jobs.js';
 import { loadEnv } from './config/env.schema.js';
 import { startEmailWorker } from './shared/adapters/out/bullmq-email-queue.js';
-import { createPinoLogger } from './shared/adapters/out/pino-logger.js';
+import { startMaintenance } from './shared/adapters/out/bullmq-maintenance.js';
 
 const config = loadEnv(process.env);
-const logger = createPinoLogger({ level: config.logLevel, service: 'cms-worker' });
-const worker = startEmailWorker(config.redisUrl, createEmailSender(config, logger), logger);
+const running = createInfrastructure(config, 'cms-worker');
+const { logger } = running.infrastructure;
+const emailWorker = startEmailWorker(config.redisUrl, createEmailSender(config, logger), logger);
+const maintenance = await startMaintenance(
+  config.redisUrl,
+  createMaintenanceJobs(running.infrastructure, config.scheduledPublishIntervalMs),
+  logger,
+);
 logger.info('Worker started');
 
 async function shutdown(signal: string): Promise<void> {
   try {
     logger.info('Shutting down', { signal });
-    await worker.close();
+    await maintenance.close();
+    await emailWorker.close();
+    await running.dispose();
     process.exit(0);
   } catch (error) {
     logger.error('Shutdown failed', { error: String(error) });

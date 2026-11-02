@@ -29,6 +29,7 @@ export interface RefreshTokenRepository {
   markRotatedIfActive(id: string, at: Date): Promise<boolean>;
   revokeIfActive(id: string, at: Date): Promise<boolean>;
   revokeAllForUser(userId: string, at: Date): Promise<void>;
+  deleteExpiredBefore(cutoff: Date): Promise<number>;
 }
 
 export interface PasswordResetTokenRepository {
@@ -37,6 +38,7 @@ export interface PasswordResetTokenRepository {
   // Returns false when already used, so a link cannot work twice even concurrently.
   consumeIfUnused(id: string, at: Date): Promise<boolean>;
   invalidateForUser(userId: string, at: Date): Promise<void>;
+  deleteExpiredBefore(cutoff: Date): Promise<number>;
 }
 
 export interface InvitationTokenRepository {
@@ -45,6 +47,7 @@ export interface InvitationTokenRepository {
   // Returns false when already used, so a link cannot be accepted twice even concurrently.
   consumeIfUnused(id: string, at: Date): Promise<boolean>;
   invalidateForUser(userId: string, at: Date): Promise<void>;
+  deleteExpiredBefore(cutoff: Date): Promise<number>;
 }
 
 export interface ApiKeyRepository {
