@@ -65,7 +65,8 @@ changes. `pnpm gate` runs the local steps, and `pnpm gate:self-test` proves that
 - The critical path bar in §3.3 asks for 90% on the HTTP adapters of auth too. Only domain and
   application are held to it, and adapters only count toward the overall 80%.
 - M-HEX-07 asks for an integration test per use case. The check proves that a spec imports each one.
-- Real SMTP delivery has not been exercised. Tests use a Nodemailer JSON transport.
+- SMTP is tested against a real server with STARTTLS, but not against a production provider or with authentication.
+- Graceful shutdown in `main.ts` has not been exercised, because Windows delivers no SIGTERM. Phase 8 can verify it in a container.
 
 ## Known dependency findings
 

@@ -15,6 +15,8 @@ export interface AccountRepository {
 
 export interface LoginLockoutRepository {
   find(userId: string): Promise<LoginLockout>;
+  // Call inside a transaction: the row stays locked until it ends.
+  findForUpdate(userId: string): Promise<LoginLockout>;
   save(userId: string, lockout: LoginLockout): Promise<void>;
   clear(userId: string): Promise<void>;
 }
@@ -22,7 +24,8 @@ export interface LoginLockoutRepository {
 export interface RefreshTokenRepository {
   save(token: RefreshToken): Promise<void>;
   findByHash(tokenHash: string): Promise<RefreshToken | null>;
-  // Returns false when the token was already revoked, which is how a concurrent reuse shows up.
+  // Both return false when the token was already revoked or rotated, so only one caller can win.
+  markRotatedIfActive(id: string, at: Date): Promise<boolean>;
   revokeIfActive(id: string, at: Date): Promise<boolean>;
   revokeAllForUser(userId: string, at: Date): Promise<void>;
 }
@@ -30,6 +33,8 @@ export interface RefreshTokenRepository {
 export interface PasswordResetTokenRepository {
   save(token: PasswordResetToken): Promise<void>;
   findByHash(tokenHash: string): Promise<PasswordResetToken | null>;
+  // Returns false when already used, so a link cannot work twice even concurrently.
+  consumeIfUnused(id: string, at: Date): Promise<boolean>;
   invalidateForUser(userId: string, at: Date): Promise<void>;
 }
 
@@ -43,6 +48,8 @@ export interface InvitationTokenRepository {
 
 export interface ApiKeyRepository {
   save(key: ApiKey): Promise<void>;
+  touchLastUsed(id: string, at: Date): Promise<void>;
+  revoke(id: string, at: Date): Promise<void>;
   findById(id: string): Promise<ApiKey | null>;
   findByHash(keyHash: string): Promise<ApiKey | null>;
   findAll(): Promise<readonly ApiKey[]>;

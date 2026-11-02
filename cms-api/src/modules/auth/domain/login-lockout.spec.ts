@@ -15,7 +15,8 @@ describe('LoginLockout', () => {
     const lockout = LoginLockout.none();
 
     expect(lockout.isLocked(T0)).toBe(false);
-    expect(lockout.failureCount).toBe(0);
+    expect(lockout.failureTimes).toEqual([]);
+    expect(lockout.lockedUntil).toBeNull();
   });
 
   it('stays unlocked after 4 failures', () => {
@@ -26,22 +27,29 @@ describe('LoginLockout', () => {
     expect(failTimes(5).isLocked(T0)).toBe(true);
   });
 
-  it('counts a failure at exactly 10 minutes as inside the window', () => {
+  it('counts a failure exactly 10 minutes old as inside the window', () => {
     const lockout = failTimes(4).recordFailure(minutes(10));
 
     expect(lockout.isLocked(minutes(10))).toBe(true);
   });
 
-  it('restarts the count when a failure falls after the 10 minute window', () => {
-    const lockout = failTimes(4).recordFailure(minutes(11));
+  it('forgets a failure older than 10 minutes', () => {
+    const lockout = failTimes(4).recordFailure(new Date(minutes(10).getTime() + 1));
 
-    expect(lockout.failureCount).toBe(1);
+    expect(lockout.failureTimes).toHaveLength(1);
     expect(lockout.isLocked(minutes(11))).toBe(false);
-    expect(lockout.windowStartedAt).toEqual(minutes(11));
   });
 
-  it('keeps the original window start for failures inside the window', () => {
-    expect(failTimes(2).recordFailure(minutes(3)).windowStartedAt).toEqual(T0);
+  it('locks on any 5 failures inside 10 minutes, wherever the first one was (FR-AUTH-06)', () => {
+    let lockout = LoginLockout.none().recordFailure(T0);
+    for (let i = 0; i < 3; i += 1) lockout = lockout.recordFailure(minutes(9));
+
+    lockout = lockout.recordFailure(minutes(11));
+    expect(lockout.isLocked(minutes(11))).toBe(false);
+
+    lockout = lockout.recordFailure(minutes(11));
+
+    expect(lockout.isLocked(minutes(11))).toBe(true);
   });
 
   it('is still locked one millisecond before 15 minutes pass', () => {
@@ -55,9 +63,9 @@ describe('LoginLockout', () => {
   });
 
   it('counts afresh after a lock has expired', () => {
-    const lockout = failTimes(5).recordFailure(minutes(16));
+    const lockout = failTimes(5).recordFailure(minutes(15));
 
-    expect(lockout.failureCount).toBe(1);
+    expect(lockout.failureTimes).toEqual([minutes(15)]);
     expect(lockout.lockedUntil).toBeNull();
   });
 
@@ -66,20 +74,19 @@ describe('LoginLockout', () => {
 
     before.recordFailure(T0);
 
-    expect(before.failureCount).toBe(1);
+    expect(before.failureTimes).toHaveLength(1);
   });
 
   it('round-trips through its persisted state', () => {
     const lockout = failTimes(5);
 
     const restored = LoginLockout.restore({
-      failureCount: lockout.failureCount,
-      windowStartedAt: lockout.windowStartedAt,
+      failureTimes: lockout.failureTimes,
       lockedUntil: lockout.lockedUntil,
     });
 
     expect(restored.isLocked(T0)).toBe(true);
-    expect(restored.failureCount).toBe(5);
+    expect(restored.failureTimes).toHaveLength(5);
     expect(restored.lockedUntil).toEqual(minutes(15));
   });
 });

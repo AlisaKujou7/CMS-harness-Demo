@@ -40,13 +40,13 @@ describe('auth flow against real infrastructure', () => {
 
   beforeAll(async () => {
     db = await createTestDatabase();
-    redis = new Redis(inject('redisUrl'));
+    redis = new Redis(`${inject('redisUrl')}/1`);
     const config = loadEnv({
       NODE_ENV: 'staging',
       PUBLIC_URL: 'https://cms.example.com',
       CORS_ALLOWED_ORIGINS: 'https://cms.example.com',
       DATABASE_URL: db.url,
-      REDIS_URL: inject('redisUrl'),
+      REDIS_URL: `${inject('redisUrl')}/1`,
       JWT_SECRET: 'a'.repeat(64),
       ARGON2_MEMORY_KB: '1024',
       ARGON2_ITERATIONS: '1',
@@ -72,7 +72,7 @@ describe('auth flow against real infrastructure', () => {
 
   beforeEach(async () => {
     await db.truncate();
-    await redis.flushall();
+    await redis.flushdb();
     await db.seedUser(ADMIN_ID, {
       email: ADMIN_EMAIL,
       role: 'admin',
@@ -106,11 +106,7 @@ describe('auth flow against real infrastructure', () => {
       .set(CSRF_HEADER)
       .expect(401);
 
-    await expect(auditActions()).resolves.toEqual([
-      'auth.login.success',
-      'auth.logout',
-      'auth.session.reuse_detected',
-    ]);
+    await expect(auditActions()).resolves.toEqual(['auth.login.success', 'auth.logout']);
   });
 
   it('kills every session when a rotated refresh token is replayed, and the revocation commits', async () => {
@@ -121,6 +117,10 @@ describe('auth flow against real infrastructure', () => {
       .set('Cookie', stolen)
       .set(CSRF_HEADER)
       .expect(200);
+
+    await db.context.client.$executeRawUnsafe(
+      `UPDATE refresh_tokens SET rotated_at = rotated_at - interval '11 seconds' WHERE rotated_at IS NOT NULL`,
+    );
 
     await client()
       .post('/api/admin/auth/refresh')
@@ -136,13 +136,52 @@ describe('auth flow against real infrastructure', () => {
     await expect(auditActions()).resolves.toContain('auth.session.reuse_detected');
   });
 
+  it('gives two tabs refreshing at once a working session each', async () => {
+    const session = await login().expect(200);
+    const cookie = cookieOf(session.headers['set-cookie']);
+    const refresh = () =>
+      client().post('/api/admin/auth/refresh').set('Cookie', cookie).set(CSRF_HEADER);
+
+    const [a, b] = await Promise.all([refresh(), refresh()]);
+
+    expect([a.status, b.status]).toEqual([200, 200]);
+    await expect(auditActions()).resolves.not.toContain('auth.session.reuse_detected');
+    for (const res of [a, b]) {
+      await client()
+        .post('/api/admin/auth/refresh')
+        .set('Cookie', cookieOf(res.headers['set-cookie']))
+        .set(CSRF_HEADER)
+        .expect(200);
+    }
+  });
+
+  it('lets only 5 parallel wrong guesses reach the password check (FR-AUTH-06)', async () => {
+    const { hasher } = running.infrastructure;
+    const verify = hasher.verify.bind(hasher);
+    const { passwordHash } = await db.context.client.user.findUniqueOrThrow({
+      where: { id: ADMIN_ID },
+    });
+    let verifications = 0;
+    // Locked attempts verify against a decoy hash for timing, which is not a guess at this account.
+    hasher.verify = (hash, password) => {
+      if (hash === passwordHash) verifications += 1;
+      return verify(hash, password);
+    };
+
+    await Promise.all(Array.from({ length: 8 }, () => login('wrong-password-1')));
+    hasher.verify = verify;
+
+    expect(verifications).toBe(5);
+    await login().expect(401);
+  });
+
   it('locks the account in the database after 5 failures (FR-AUTH-06)', async () => {
     for (let i = 0; i < 5; i += 1) await login('wrong-password-1').expect(401);
 
     await login().expect(401);
 
     const row = await db.context.client.loginLockout.findUnique({ where: { userId: ADMIN_ID } });
-    expect(row?.failureCount).toBe(5);
+    expect(row?.failureTimes).toHaveLength(5);
     expect(row?.lockedUntil).not.toBeNull();
     await expect(auditActions()).resolves.toContain('auth.login.locked');
   });

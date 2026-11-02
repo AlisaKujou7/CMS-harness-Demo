@@ -73,10 +73,14 @@ export class SequentialIdGenerator implements IdGenerator {
 
 export class FakeTransactionRunner implements TransactionRunner {
   runs = 0;
+  private tail: Promise<unknown> = Promise.resolve();
 
+  // Runs one at a time, as row locks make contended transactions do in the real adapter.
   run<T>(work: () => Promise<T>): Promise<T> {
     this.runs += 1;
-    return work();
+    const result = this.tail.then(work);
+    this.tail = result.catch(() => undefined);
+    return result;
   }
 }
 

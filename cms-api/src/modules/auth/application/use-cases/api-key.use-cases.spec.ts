@@ -172,6 +172,20 @@ describe('API key use cases', () => {
       expect(ctx.apiKeys.keys.get(id)?.lastUsedAt).toEqual(ctx.clock.now());
     });
 
+    it('cannot undo a revocation that lands while it is authenticating', async () => {
+      const { id, key } = await create();
+      const findByHash = ctx.apiKeys.findByHash.bind(ctx.apiKeys);
+      ctx.apiKeys.findByHash = async (hash) => {
+        const stale = await findByHash(hash);
+        await new RevokeApiKey(ctx).execute({ actor: admin, id, ip: null });
+        return stale;
+      };
+
+      await authenticate(key);
+
+      expect(ctx.apiKeys.keys.get(id)?.isActive()).toBe(false);
+    });
+
     it('writes last use at most once a minute to keep the read path cheap', async () => {
       const { id, key } = await create();
       await authenticate(key);

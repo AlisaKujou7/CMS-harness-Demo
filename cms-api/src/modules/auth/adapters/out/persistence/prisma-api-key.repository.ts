@@ -6,8 +6,7 @@ export class PrismaApiKeyRepository implements ApiKeyRepository {
   constructor(private readonly db: PrismaContext) {}
 
   async save(key: ApiKey): Promise<void> {
-    const data = { ...key };
-    await this.db.client.apiKey.upsert({ where: { id: key.id }, create: data, update: data });
+    await this.db.client.apiKey.create({ data: { ...key } });
   }
 
   async findById(id: string): Promise<ApiKey | null> {
@@ -23,5 +22,20 @@ export class PrismaApiKeyRepository implements ApiKeyRepository {
   async findAll(): Promise<readonly ApiKey[]> {
     const rows = await this.db.client.apiKey.findMany({ orderBy: { createdAt: 'desc' } });
     return rows.map((row) => ApiKey.restore(row));
+  }
+
+  // Conditional single-column writes, so neither can overwrite the other from a stale read.
+  async touchLastUsed(id: string, at: Date): Promise<void> {
+    await this.db.client.apiKey.updateMany({
+      where: { id, revokedAt: null },
+      data: { lastUsedAt: at },
+    });
+  }
+
+  async revoke(id: string, at: Date): Promise<void> {
+    await this.db.client.apiKey.updateMany({
+      where: { id, revokedAt: null },
+      data: { revokedAt: at },
+    });
   }
 }

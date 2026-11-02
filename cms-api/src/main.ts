@@ -10,14 +10,22 @@ const { infrastructure, dispose } = createInfrastructure(config);
 
 const app = await NestFactory.create(createAppModule(infrastructure), { logger: false });
 configureApp(app, infrastructure);
-app.enableShutdownHooks();
 await app.listen(config.httpPort);
 infrastructure.logger.info('API listening', { port: config.httpPort });
 
-async function shutdown(): Promise<void> {
-  await app.close();
-  await dispose();
+// The only shutdown path. Nest's enableShutdownHooks would also close the app and then re-raise
+// the signal, ending the process before the connections below are released.
+async function shutdown(signal: string): Promise<void> {
+  try {
+    infrastructure.logger.info('Shutting down', { signal });
+    await app.close();
+    await dispose();
+    process.exit(0);
+  } catch (error) {
+    infrastructure.logger.error('Shutdown failed', { error: String(error) });
+    process.exit(1);
+  }
 }
 
-process.once('SIGTERM', () => void shutdown());
-process.once('SIGINT', () => void shutdown());
+process.once('SIGTERM', () => void shutdown('SIGTERM'));
+process.once('SIGINT', () => void shutdown('SIGINT'));

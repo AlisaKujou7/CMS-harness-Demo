@@ -10,6 +10,7 @@ export interface RateLimitPolicy {
 
 export interface HttpConfig {
   readonly secureCookies: boolean;
+  readonly trustProxy: boolean;
   readonly corsOrigins: readonly string[];
   readonly rateLimits: {
     readonly login: RateLimitPolicy;

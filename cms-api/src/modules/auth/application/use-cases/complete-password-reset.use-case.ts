@@ -17,15 +17,14 @@ export class CompletePasswordReset implements CompletePasswordResetUseCase {
     const token = await this.deps.resetTokens.findByHash(
       this.deps.opaqueTokens.hash(command.token),
     );
-    if (!token) throw new InvalidResetTokenError();
+    if (!token?.isUsable(now)) throw new InvalidResetTokenError();
 
-    const consumed = token.consume(now);
     const account = await this.deps.accounts.findById(token.userId);
     if (!account?.canLogin()) throw new InvalidResetTokenError();
 
     const passwordHash = await this.deps.hasher.hash(command.newPassword);
-    await this.deps.tx.run(async () => {
-      await this.deps.resetTokens.save(consumed);
+    const completed = await this.deps.tx.run(async () => {
+      if (!(await this.deps.resetTokens.consumeIfUnused(token.id, now))) return false;
       await this.deps.accounts.updatePassword(account.id, passwordHash);
       await this.deps.refreshTokens.revokeAllForUser(account.id, now);
       await this.deps.lockouts.clear(account.id);
@@ -37,6 +36,8 @@ export class CompletePasswordReset implements CompletePasswordResetUseCase {
         targetId: account.id,
         summary: {},
       });
+      return true;
     });
+    if (!completed) throw new InvalidResetTokenError();
   }
 }

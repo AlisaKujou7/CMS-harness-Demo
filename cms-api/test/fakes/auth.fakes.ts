@@ -63,6 +63,10 @@ export class InMemoryLoginLockoutRepository implements LoginLockoutRepository {
     return Promise.resolve(this.lockouts.get(userId) ?? LoginLockout.none());
   }
 
+  findForUpdate(userId: string): Promise<LoginLockout> {
+    return this.find(userId);
+  }
+
   save(userId: string, lockout: LoginLockout): Promise<void> {
     this.lockouts.set(userId, lockout);
     return Promise.resolve();
@@ -85,6 +89,13 @@ export class InMemoryRefreshTokenRepository implements RefreshTokenRepository {
   findByHash(tokenHash: string): Promise<RefreshToken | null> {
     const found = [...this.tokens.values()].find((token) => token.tokenHash === tokenHash);
     return Promise.resolve(found ?? null);
+  }
+
+  markRotatedIfActive(id: string, at: Date): Promise<boolean> {
+    const token = this.tokens.get(id);
+    if (!token || token.revokedAt !== null) return Promise.resolve(false);
+    this.tokens.set(id, token.markRotated(at));
+    return Promise.resolve(true);
   }
 
   revokeIfActive(id: string, at: Date): Promise<boolean> {
@@ -115,6 +126,13 @@ export class InMemoryPasswordResetTokenRepository implements PasswordResetTokenR
   findByHash(tokenHash: string): Promise<PasswordResetToken | null> {
     const found = [...this.tokens.values()].find((token) => token.tokenHash === tokenHash);
     return Promise.resolve(found ?? null);
+  }
+
+  consumeIfUnused(id: string, at: Date): Promise<boolean> {
+    const token = this.tokens.get(id);
+    if (!token || token.usedAt !== null) return Promise.resolve(false);
+    this.tokens.set(id, PasswordResetToken.restore({ ...token, usedAt: at }));
+    return Promise.resolve(true);
   }
 
   invalidateForUser(userId: string, at: Date): Promise<void> {
@@ -162,6 +180,18 @@ export class InMemoryApiKeyRepository implements ApiKeyRepository {
 
   save(key: ApiKey): Promise<void> {
     this.keys.set(key.id, key);
+    return Promise.resolve();
+  }
+
+  touchLastUsed(id: string, at: Date): Promise<void> {
+    const key = this.keys.get(id);
+    if (key?.isActive()) this.keys.set(id, key.markUsed(at));
+    return Promise.resolve();
+  }
+
+  revoke(id: string, at: Date): Promise<void> {
+    const key = this.keys.get(id);
+    if (key) this.keys.set(id, key.revoke(at));
     return Promise.resolve();
   }
 

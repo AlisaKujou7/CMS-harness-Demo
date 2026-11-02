@@ -43,7 +43,7 @@ describe('RefreshTokenSession', () => {
 
     const old = await ctx.refreshTokens.findByHash(`sha:${firstToken}`);
     const next = await ctx.refreshTokens.findByHash(`sha:${refreshToken}`);
-    expect(old?.state(ctx.clock.now())).toBe('revoked');
+    expect(old?.state(ctx.clock.now())).toBe('rotated');
     expect(next?.state(ctx.clock.now())).toBe('active');
     expect(next?.familyId).toBe(old?.familyId);
   });
@@ -78,24 +78,31 @@ describe('RefreshTokenSession', () => {
   });
 
   describe('reuse detection', () => {
-    it('rejects a token that was already rotated', async () => {
+    const pastGrace = () => {
+      ctx.clock.advanceMs(10_000);
+    };
+
+    it('rejects a token that was rotated more than 10 seconds ago', async () => {
       await use(firstToken);
+      pastGrace();
 
       await expect(use(firstToken)).rejects.toThrow(InvalidRefreshTokenError);
     });
 
     it('revokes every session of the user, including the newest token', async () => {
       const { refreshToken } = await use(firstToken);
+      pastGrace();
 
       await expect(use(firstToken)).rejects.toThrow();
 
       await expect(use(refreshToken)).rejects.toThrow(InvalidRefreshTokenError);
-      const states = [...ctx.refreshTokens.tokens.values()].map((t) => t.state(ctx.clock.now()));
-      expect(new Set(states)).toEqual(new Set(['revoked']));
+      const newest = await ctx.refreshTokens.findByHash(`sha:${refreshToken}`);
+      expect(newest?.state(ctx.clock.now())).toBe('revoked');
     });
 
     it('writes a security audit event', async () => {
       await use(firstToken);
+      pastGrace();
 
       await expect(use(firstToken)).rejects.toThrow();
 
@@ -108,24 +115,69 @@ describe('RefreshTokenSession', () => {
         summary: {},
       });
     });
+  });
 
-    it('treats losing a concurrent rotation as reuse', async () => {
-      const original = ctx.refreshTokens.revokeIfActive.bind(ctx.refreshTokens);
-      ctx.refreshTokens.revokeIfActive = async (id, at) => {
+  describe('a token revoked for an ordinary reason', () => {
+    const signInAgain = () =>
+      new Login(ctx).execute({ email: 'alice@example.com', password: VALID_PASSWORD, ip: null });
+
+    it('is refused without touching other sessions after logout', async () => {
+      const other = await signInAgain();
+      await new Logout(ctx).execute({ refreshToken: firstToken, ip: null });
+      ctx.audit.events.length = 0;
+
+      await expect(use(firstToken)).rejects.toThrow(InvalidRefreshTokenError);
+
+      await expect(use(other.refreshToken)).resolves.toBeDefined();
+      expect(ctx.audit.events).toEqual([]);
+    });
+
+    it('does not kill a session started after a password change on another device', async () => {
+      const deviceB = firstToken;
+      await ctx.refreshTokens.revokeAllForUser('user-1', ctx.clock.now());
+      const deviceA = await signInAgain();
+      ctx.audit.events.length = 0;
+
+      await expect(use(deviceB)).rejects.toThrow(InvalidRefreshTokenError);
+
+      await expect(use(deviceA.refreshToken)).resolves.toBeDefined();
+      expect(ctx.audit.actions()).not.toContain('auth.session.reuse_detected');
+    });
+  });
+
+  describe('concurrent refreshes from two tabs sharing a cookie', () => {
+    it('gives the second tab a working session inside the grace period', async () => {
+      const first = await use(firstToken);
+      ctx.clock.advanceMs(9_999);
+
+      const second = await use(firstToken);
+
+      expect(second.refreshToken).not.toBe(first.refreshToken);
+      await expect(use(first.refreshToken)).resolves.toBeDefined();
+      await expect(use(second.refreshToken)).resolves.toBeDefined();
+      expect(ctx.audit.actions()).not.toContain('auth.session.reuse_detected');
+    });
+
+    it('treats losing the race to rotate as being inside the grace period', async () => {
+      const original = ctx.refreshTokens.markRotatedIfActive.bind(ctx.refreshTokens);
+      ctx.refreshTokens.markRotatedIfActive = async (id, at) => {
         await original(id, at);
         return false;
       };
 
-      await expect(use(firstToken)).rejects.toThrow(InvalidRefreshTokenError);
+      await expect(use(firstToken)).resolves.toBeDefined();
 
-      expect(ctx.audit.actions()).toEqual(['auth.session.reuse_detected']);
-      expect(ctx.signer.signed).toHaveLength(1);
+      expect(ctx.audit.events).toEqual([]);
     });
 
-    it('does not treat a token revoked by logout differently from reuse', async () => {
-      await new Logout(ctx).execute({ refreshToken: firstToken, ip: null });
+    it('refuses when the race was lost to a logout rather than a rotation', async () => {
+      ctx.refreshTokens.markRotatedIfActive = async (id, at) => {
+        await ctx.refreshTokens.revokeIfActive(id, at);
+        return false;
+      };
 
       await expect(use(firstToken)).rejects.toThrow(InvalidRefreshTokenError);
+      expect(ctx.audit.events).toEqual([]);
     });
   });
 

@@ -15,7 +15,11 @@ import { PrismaLoginLockoutRepository } from '../modules/auth/adapters/out/persi
 import { PrismaPasswordResetTokenRepository } from '../modules/auth/adapters/out/persistence/prisma-password-reset-token.repository.js';
 import { PrismaRefreshTokenRepository } from '../modules/auth/adapters/out/persistence/prisma-refresh-token.repository.js';
 import type { HttpConfig } from '../shared/adapters/http/tokens.js';
-import { ConsoleEmailSender, SmtpEmailSender } from '../shared/adapters/out/email-senders.js';
+import {
+  ConsoleEmailSender,
+  SmtpEmailSender,
+  toSmtpOptions,
+} from '../shared/adapters/out/email-senders.js';
 import { createPinoLogger } from '../shared/adapters/out/pino-logger.js';
 import { PrismaContext } from '../shared/adapters/out/prisma-context.js';
 import { CompositeReadinessProbe } from '../shared/adapters/out/readiness-probe.js';
@@ -27,18 +31,13 @@ import type { Infrastructure } from './app.module.js';
 function createEmailSender(config: AppConfig, logger: Logger): EmailSender {
   const { provider, from, smtp } = config.email;
   if (provider === 'console') return new ConsoleEmailSender(logger);
-  const transport = nodemailer.createTransport({
-    host: smtp.host,
-    port: smtp.port,
-    secure: smtp.secure,
-    auth: { user: smtp.user, pass: smtp.password },
-  });
-  return new SmtpEmailSender(transport, from);
+  return new SmtpEmailSender(nodemailer.createTransport(toSmtpOptions(smtp)), from);
 }
 
 function toHttpConfig(config: AppConfig): HttpConfig {
   return {
     secureCookies: config.secureCookies,
+    trustProxy: config.trustProxy,
     corsOrigins: config.corsOrigins,
     rateLimits: {
       login: { limit: config.rateLimitLoginPerMinute, windowSeconds: 60 },

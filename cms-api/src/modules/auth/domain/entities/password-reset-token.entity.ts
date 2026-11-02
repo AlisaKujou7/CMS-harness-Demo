@@ -1,5 +1,3 @@
-import { InvalidResetTokenError } from '../errors/auth.errors.js';
-
 const LIFETIME_MS = 60 * 60_000;
 
 export interface PasswordResetTokenProps {
@@ -46,10 +44,5 @@ export class PasswordResetToken implements PasswordResetTokenProps {
 
   isUsable(now: Date): boolean {
     return this.usedAt === null && now < this.expiresAt;
-  }
-
-  consume(now: Date): PasswordResetToken {
-    if (!this.isUsable(now)) throw new InvalidResetTokenError();
-    return new PasswordResetToken({ ...this, usedAt: now });
   }
 }

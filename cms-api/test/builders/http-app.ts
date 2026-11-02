@@ -22,6 +22,7 @@ export function createFakeInfrastructure() {
     events: new InProcessEventPublisher(ctx.logger),
     http: {
       secureCookies: true,
+      trustProxy: true,
       corsOrigins: ['https://cms.example.com'],
       rateLimits: {
         login: { limit: 10, windowSeconds: 60 },

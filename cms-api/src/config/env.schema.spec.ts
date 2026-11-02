@@ -61,6 +61,12 @@ describe('loadEnv', () => {
     expect(env.refreshTokenTtlMs).toBe(1_209_600_000);
   });
 
+  it('trusts a proxy only when told to', () => {
+    expect(loadEnv(VALID).trustProxy).toBe(false);
+    expect(loadEnv({ ...VALID, TRUST_PROXY: 'false' }).trustProxy).toBe(false);
+    expect(loadEnv({ ...VALID, TRUST_PROXY: 'true' }).trustProxy).toBe(true);
+  });
+
   it('removes a trailing slash from the public URL', () => {
     expect(loadEnv({ ...VALID, PUBLIC_URL: 'https://cms.example.com/' }).publicUrl).toBe(
       'https://cms.example.com',

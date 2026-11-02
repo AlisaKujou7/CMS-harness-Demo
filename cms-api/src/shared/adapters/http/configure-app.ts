@@ -19,8 +19,12 @@ export function configureApp(
   app: INestApplication,
   infrastructure: { readonly logger: Logger; readonly http: HttpConfig },
 ): void {
-  // nginx is the single proxy in front of the API (07-OPS-ARCH 5.5).
-  (app.getHttpAdapter().getInstance() as Express).set('trust proxy', 1);
+  // One hop when nginx is in front (07-OPS-ARCH 5.5). Without a proxy the header is client input,
+  // and honoring it would let anyone choose the IP that rate limits and audit events see.
+  (app.getHttpAdapter().getInstance() as Express).set(
+    'trust proxy',
+    infrastructure.http.trustProxy ? 1 : false,
+  );
   app.use(requestId);
   app.use(
     helmet({

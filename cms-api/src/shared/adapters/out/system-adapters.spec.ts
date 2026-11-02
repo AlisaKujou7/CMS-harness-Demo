@@ -2,7 +2,7 @@ import { Writable } from 'node:stream';
 import nodemailer from 'nodemailer';
 import { describe, expect, it } from 'vitest';
 import { InMemoryLogger } from '../../../../test/fakes/system.fakes.js';
-import { ConsoleEmailSender, SmtpEmailSender } from './email-senders.js';
+import { ConsoleEmailSender, SmtpEmailSender, toSmtpOptions } from './email-senders.js';
 import { createPinoLogger } from './pino-logger.js';
 import { CompositeReadinessProbe } from './readiness-probe.js';
 import { SystemClock, Uuidv4Generator } from './system.js';
@@ -139,6 +139,38 @@ describe('SmtpEmailSender', () => {
         text: 'Body',
       }),
     ).rejects.toThrow('smtp down');
+  });
+});
+
+describe('toSmtpOptions', () => {
+  const smtp = { host: 'mail', port: 587, secure: true, user: 'u', password: 'p' };
+
+  it('upgrades with STARTTLS on port 587 and refuses to send in clear text', () => {
+    expect(toSmtpOptions(smtp)).toEqual({
+      host: 'mail',
+      port: 587,
+      secure: false,
+      requireTLS: true,
+      auth: { user: 'u', pass: 'p' },
+    });
+  });
+
+  it('uses implicit TLS on port 465', () => {
+    expect(toSmtpOptions({ ...smtp, port: 465 })).toMatchObject({
+      secure: true,
+      requireTLS: false,
+    });
+  });
+
+  it('allows plain SMTP only when secure is off', () => {
+    expect(toSmtpOptions({ ...smtp, secure: false })).toMatchObject({
+      secure: false,
+      requireTLS: false,
+    });
+  });
+
+  it('omits authentication when no user is configured', () => {
+    expect(toSmtpOptions({ ...smtp, user: '', password: '' })).not.toHaveProperty('auth');
   });
 });
 

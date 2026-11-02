@@ -85,10 +85,10 @@ describe('Login', () => {
       ]);
     });
 
-    it('persists the session inside a transaction', async () => {
+    it('uses one transaction to admit the attempt and one to persist the session', async () => {
       await attempt();
 
-      expect(ctx.tx.runs).toBe(1);
+      expect(ctx.tx.runs).toBe(2);
     });
   });
 
@@ -160,6 +160,26 @@ describe('Login', () => {
     it('clears earlier failures after a successful login', async () => {
       await failTimes(4);
       await attempt();
+      await failTimes(4);
+
+      await expect(attempt()).resolves.toBeDefined();
+    });
+
+    it('charges an attempt before verifying, so parallel guesses cannot exceed the limit', async () => {
+      let verifications = 0;
+      const verify = ctx.hasher.verify.bind(ctx.hasher);
+      ctx.hasher.verify = async (hash, password) => {
+        verifications += 1;
+        await new Promise((resolve) => setImmediate(resolve));
+        return verify(hash, password);
+      };
+
+      await Promise.allSettled(Array.from({ length: 20 }, () => attempt('wrong-password-1')));
+
+      expect(verifications).toBe(5);
+    });
+
+    it('still admits the correct password on the 5th attempt', async () => {
       await failTimes(4);
 
       await expect(attempt()).resolves.toBeDefined();

@@ -112,7 +112,8 @@ export class AuthController {
 
   @Post('password/change')
   @HttpCode(204)
-  @UseGuards(AccessTokenGuard)
+  @RateLimit('login')
+  @UseGuards(RateLimitGuard, AccessTokenGuard)
   async change(
     @Body() body: unknown,
     @CurrentActor() actor: Actor,

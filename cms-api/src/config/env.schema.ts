@@ -36,6 +36,7 @@ const schema = z
     NODE_ENV: z.enum(['production', 'staging', 'development']),
     HTTP_PORT: count(3000),
     PUBLIC_URL: z.url(),
+    TRUST_PROXY: z.enum(['true', 'false']).default('false'),
     CORS_ALLOWED_ORIGINS: z.string(),
     DATABASE_URL: z.string().min(1),
     REDIS_URL: z.string().min(1),
@@ -86,6 +87,7 @@ function toConfig(env: z.output<typeof schema>) {
   return {
     nodeEnv: env.NODE_ENV,
     httpPort: env.HTTP_PORT,
+    trustProxy: env.TRUST_PROXY === 'true',
     publicUrl: env.PUBLIC_URL.replace(/\/$/, ''),
     corsOrigins: env.CORS_ALLOWED_ORIGINS.split(',').map((origin) => origin.trim()),
     databaseUrl: env.DATABASE_URL,

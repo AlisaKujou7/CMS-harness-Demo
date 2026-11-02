@@ -6,17 +6,20 @@ export class PrismaPasswordResetTokenRepository implements PasswordResetTokenRep
   constructor(private readonly db: PrismaContext) {}
 
   async save(token: PasswordResetToken): Promise<void> {
-    const data = { ...token };
-    await this.db.client.passwordResetToken.upsert({
-      where: { id: token.id },
-      create: data,
-      update: data,
-    });
+    await this.db.client.passwordResetToken.create({ data: { ...token } });
   }
 
   async findByHash(tokenHash: string): Promise<PasswordResetToken | null> {
     const row = await this.db.client.passwordResetToken.findUnique({ where: { tokenHash } });
     return row && PasswordResetToken.restore(row);
+  }
+
+  async consumeIfUnused(id: string, at: Date): Promise<boolean> {
+    const { count } = await this.db.client.passwordResetToken.updateMany({
+      where: { id, usedAt: null },
+      data: { usedAt: at },
+    });
+    return count === 1;
   }
 
   async invalidateForUser(userId: string, at: Date): Promise<void> {

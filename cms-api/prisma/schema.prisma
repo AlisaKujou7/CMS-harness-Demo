@@ -46,8 +46,7 @@ model User {
 
 model LoginLockout {
   userId          String    @id @map("user_id") @db.Uuid
-  failureCount    Int       @map("failure_count")
-  windowStartedAt DateTime? @map("window_started_at") @db.Timestamptz(3)
+  failureTimes DateTime[] @map("failure_times") @db.Timestamptz(3)
   lockedUntil     DateTime? @map("locked_until") @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -63,6 +62,7 @@ model RefreshToken {
   issuedAt  DateTime  @map("issued_at") @db.Timestamptz(3)
   expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
   revokedAt DateTime? @map("revoked_at") @db.Timestamptz(3)
+  rotatedAt DateTime? @map("rotated_at") @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

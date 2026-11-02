@@ -137,6 +137,27 @@ describe('auth endpoints', () => {
       expect(infra.audit.events[0]?.actorIp).toBe('198.51.100.7');
     });
 
+    it('ignores X-Forwarded-For when not behind a trusted proxy', async () => {
+      await app.close();
+      app = await createTestApp({ ...infra, http: { ...infra.http, trustProxy: false } });
+
+      await logIn().set('X-Forwarded-For', '198.51.100.7');
+
+      expect(infra.audit.events[0]?.actorIp).not.toBe('198.51.100.7');
+    });
+
+    it('cannot dodge the rate limit by rotating X-Forwarded-For without a proxy', async () => {
+      await app.close();
+      app = await createTestApp({ ...infra, http: { ...infra.http, trustProxy: false } });
+      for (let i = 0; i < 10; i += 1) {
+        await logIn()
+          .set('X-Forwarded-For', `198.51.100.${String(i)}`)
+          .expect(200);
+      }
+
+      await logIn().set('X-Forwarded-For', '198.51.100.99').expect(429);
+    });
+
     it('returns 429 with Retry-After on the 11th attempt in a minute (SEC-07)', async () => {
       for (let i = 0; i < 10; i += 1) await logIn().expect(200);
 
@@ -194,6 +215,7 @@ describe('auth endpoints', () => {
       const login = await logIn();
       const cookie = cookieOf(login.headers['set-cookie']);
       await http(app).post(REFRESH).set('Cookie', cookie).set(CSRF_HEADER).expect(200);
+      infra.clock.advanceMs(10_000);
 
       await http(app).post(REFRESH).set('Cookie', cookie).set(CSRF_HEADER).expect(401);
     });
@@ -364,6 +386,18 @@ describe('auth endpoints', () => {
         .post(LOGIN)
         .send({ email: 'alice@example.com', password: NEW_PASSWORD })
         .expect(200);
+    });
+
+    it('is rate limited per IP like login', async () => {
+      await logIn();
+      const guess = () =>
+        http(app)
+          .post(CHANGE)
+          .set('Authorization', 'Bearer access-1')
+          .send({ current_password: 'wrong-password-1', new_password: NEW_PASSWORD });
+      for (let i = 0; i < 9; i += 1) await guess().expect(422);
+
+      await guess().expect(429);
     });
 
     it('returns 422 for a wrong current password', async () => {

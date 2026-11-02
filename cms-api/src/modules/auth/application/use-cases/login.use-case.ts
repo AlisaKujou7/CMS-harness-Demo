@@ -5,6 +5,7 @@ import { RefreshToken } from '../../domain/entities/refresh-token.entity.js';
 import { InvalidCredentialsError } from '../../domain/errors/auth.errors.js';
 import type { AuthDeps } from '../auth-deps.js';
 import type { LoginCommand, LoginUseCase, SessionResult } from '../ports/in/auth.ports.js';
+import { admitPasswordAttempt } from '../services/password-attempts.js';
 import { toSessionResult } from '../services/session-result.js';
 
 export class Login implements LoginUseCase {
@@ -14,16 +15,13 @@ export class Login implements LoginUseCase {
     const account = await this.findAccount(command.email);
     if (!account) return this.rejectUnknownAccount(command);
 
-    const now = this.deps.clock.now();
-    const lockout = await this.deps.lockouts.find(account.id);
-    if (lockout.isLocked(now)) {
+    if (!(await admitPasswordAttempt(this.deps, account.id))) {
       await this.deps.hasher.verifyAgainstNothing(command.password);
       await this.audit(account, command, 'auth.login.locked', {});
       throw new InvalidCredentialsError();
     }
 
     if (!(await this.passwordMatches(account, command.password))) {
-      await this.deps.lockouts.save(account.id, lockout.recordFailure(now));
       await this.audit(account, command, 'auth.login.failure', { reason: 'bad_credentials' });
       throw new InvalidCredentialsError();
     }

@@ -14,7 +14,15 @@ export class PrismaRefreshTokenRepository implements RefreshTokenRepository {
     return row && RefreshToken.restore(row);
   }
 
-  // A conditional update, so only one concurrent caller can win.
+  // Conditional updates, so only one concurrent caller can win.
+  async markRotatedIfActive(id: string, at: Date): Promise<boolean> {
+    const { count } = await this.db.client.refreshToken.updateMany({
+      where: { id, revokedAt: null },
+      data: { revokedAt: at, rotatedAt: at },
+    });
+    return count === 1;
+  }
+
   async revokeIfActive(id: string, at: Date): Promise<boolean> {
     const { count } = await this.db.client.refreshToken.updateMany({
       where: { id, revokedAt: null },

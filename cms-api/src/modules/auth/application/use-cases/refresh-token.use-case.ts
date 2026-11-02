@@ -15,21 +15,19 @@ export class RefreshTokenSession implements RefreshTokenUseCase {
   // A rejection is returned out of the transaction, not thrown inside it: revoking a compromised
   // token family has to commit even though the request fails.
   async execute(command: SessionTokenCommand): Promise<SessionResult> {
-    const session = await this.deps.tx.run(() => this.rotate(command));
+    const session = await this.deps.tx.run(() => this.refresh(command));
     if (!session) throw new InvalidRefreshTokenError();
     return session;
   }
 
-  private async rotate(command: SessionTokenCommand): Promise<SessionResult | null> {
+  private async refresh(command: SessionTokenCommand): Promise<SessionResult | null> {
     const now = this.deps.clock.now();
-    const token = await this.deps.refreshTokens.findByHash(
-      this.deps.opaqueTokens.hash(command.refreshToken),
-    );
+    const tokenHash = this.deps.opaqueTokens.hash(command.refreshToken);
+    const token = await this.deps.refreshTokens.findByHash(tokenHash);
     if (!token) return null;
 
     const state = token.state(now);
-    if (state === 'revoked') return this.handleReuse(token, command);
-    if (state === 'expired') return null;
+    if (state === 'revoked' || state === 'expired') return null;
 
     const account = await this.deps.accounts.findById(token.userId);
     if (!account?.canLogin()) {
@@ -37,9 +35,25 @@ export class RefreshTokenSession implements RefreshTokenUseCase {
       return null;
     }
 
-    const wonRotation = await this.deps.refreshTokens.revokeIfActive(token.id, now);
-    if (!wonRotation) return this.handleReuse(token, command);
-    return this.issueReplacement(token, account);
+    if (state === 'active' && (await this.deps.refreshTokens.markRotatedIfActive(token.id, now))) {
+      return this.issueReplacement(token, account);
+    }
+
+    // Already rotated, or a concurrent request got here first: judge it by its current state.
+    const current = (await this.deps.refreshTokens.findByHash(tokenHash)) ?? token;
+    return this.handleUsedToken(current, account, command);
+  }
+
+  private handleUsedToken(
+    token: RefreshToken,
+    account: Account,
+    command: SessionTokenCommand,
+  ): Promise<SessionResult | null> {
+    const now = this.deps.clock.now();
+    if (token.state(now) !== 'rotated') return Promise.resolve(null);
+    return token.isInGracePeriod(now)
+      ? this.issueReplacement(token, account)
+      : this.handleReuse(token, command);
   }
 
   private async issueReplacement(token: RefreshToken, account: Account): Promise<SessionResult> {

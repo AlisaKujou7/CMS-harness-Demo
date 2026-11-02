@@ -7,6 +7,7 @@ import { RateLimit, RateLimitGuard } from './rate-limit.guard.js';
 
 const http = {
   secureCookies: true,
+  trustProxy: true,
   corsOrigins: [],
   rateLimits: {
     login: { limit: 1, windowSeconds: 60 },

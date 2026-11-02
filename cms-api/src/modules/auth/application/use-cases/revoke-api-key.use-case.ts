@@ -17,7 +17,7 @@ export class RevokeApiKey implements RevokeApiKeyUseCase {
     const key = await this.deps.apiKeys.findById(command.id);
     if (!key) throw new ApiKeyNotFoundError();
 
-    await this.deps.apiKeys.save(key.revoke(this.deps.clock.now()));
+    await this.deps.apiKeys.revoke(key.id, this.deps.clock.now());
     await this.deps.audit.record({
       actorId: command.actor.id,
       actorIp: command.ip,

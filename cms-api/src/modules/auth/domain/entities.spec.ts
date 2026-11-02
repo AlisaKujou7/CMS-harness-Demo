@@ -135,6 +135,40 @@ describe('RefreshToken', () => {
     expect(token.revokedAt).toEqual(after(MIN));
   });
 
+  describe('after rotation', () => {
+    const rotated = () => issue().markRotated(after(MIN));
+
+    it('is distinct from a revoked token', () => {
+      expect(rotated().state(after(MIN))).toBe('rotated');
+      expect(rotated().rotatedAt).toEqual(after(MIN));
+      expect(rotated().revokedAt).toEqual(after(MIN));
+    });
+
+    it('stays in the grace period for just under 10 seconds', () => {
+      expect(rotated().isInGracePeriod(after(MIN + 9_999))).toBe(true);
+      expect(rotated().isInGracePeriod(after(MIN + 10_000))).toBe(false);
+    });
+
+    it('is outside the grace period when it was never rotated', () => {
+      expect(issue().isInGracePeriod(T0)).toBe(false);
+      expect(issue().revoke(T0).isInGracePeriod(T0)).toBe(false);
+    });
+
+    it('reports expired once past the family lifetime, so an ancient replay is not theft', () => {
+      const short = issue(5 * MIN).markRotated(after(MIN));
+
+      expect(short.state(after(5 * MIN - 1))).toBe('rotated');
+      expect(short.state(after(5 * MIN))).toBe('expired');
+    });
+
+    it('starts its replacement clean', () => {
+      const child = rotated().rotate({ id: 't2', tokenHash: 'h2', now: after(MIN) });
+
+      expect(child.rotatedAt).toBeNull();
+      expect(child.revokedAt).toBeNull();
+    });
+  });
+
   it('round-trips through persisted state', () => {
     const token = issue().revoke(after(MIN));
 
@@ -152,21 +186,10 @@ describe('PasswordResetToken', () => {
     expect(token.isUsable(after(60 * MIN))).toBe(false);
   });
 
-  it('is unusable after being consumed once as FR-AUTH-08 requires', () => {
-    const used = issue().consume(after(MIN));
+  it('is unusable once used', () => {
+    const used = PasswordResetToken.restore({ ...issue(), usedAt: after(MIN) });
 
-    expect(used.usedAt).toEqual(after(MIN));
     expect(used.isUsable(after(MIN))).toBe(false);
-  });
-
-  it('refuses a second use', () => {
-    const used = issue().consume(after(MIN));
-
-    expect(() => used.consume(after(2 * MIN))).toThrow(InvalidResetTokenError);
-  });
-
-  it('refuses use after expiry', () => {
-    expect(() => issue().consume(after(60 * MIN))).toThrow(InvalidResetTokenError);
   });
 
   it('round-trips through persisted state', () => {

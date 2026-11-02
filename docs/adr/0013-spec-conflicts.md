@@ -33,6 +33,10 @@ The stricter or more specific document wins unless noted.
 - Invitations use their own table and a 7 day token, separate from password resets, so one link can never act as the other.
 - Audit log: a trigger rejects UPDATE and DELETE for everyone, and the `cms_app` role also lacks those permissions plus TRUNCATE, as the FR-AUDIT-03 acceptance test asks. Exporting the log is itself audited.
 - `POST /api/admin/users/{id}/reset-password`, `POST /api/admin/users/{id}/resend-invite`, `DELETE /api/admin/users/{id}`, `POST /api/admin/auth/invitations/accept` and `GET /api/admin/auth/me` are added. 02-SRS §7 omits them, while FR-USER, UR-A05 and the Profile screen need them.
+- Account lockout: an attempt is charged before the password is checked, under a row lock, and a correct password clears it. This is what limits parallel guesses to 5. Failure times are stored so the 10 minute window slides, as FR-AUTH-06 words it. Changing a password shares the same counter.
+- The migration that replaced the lockout columns drops them in one step instead of using expand and contract, because no release has shipped. Later migrations follow 07-OPS-ARCH §12.3.
+- `TRUST_PROXY` defaults to false, so a client cannot choose its own IP unless a proxy is declared. Deployments behind nginx must set it, or every client shares one rate limit bucket.
+- `SMTP_SECURE=true` means mail must be encrypted: implicit TLS on port 465 and required STARTTLS on any other port.
 
 ## Consequences
 

@@ -90,7 +90,7 @@ describe('auth persistence adapters', () => {
     it('returns an empty lockout for a user with no failures', async () => {
       const lockout = await repo().find(USER);
 
-      expect(lockout.failureCount).toBe(0);
+      expect(lockout.failureTimes).toEqual([]);
       expect(lockout.isLocked(T0)).toBe(false);
     });
 
@@ -102,9 +102,28 @@ describe('auth persistence adapters', () => {
 
       const stored = await repo().find(USER);
 
-      expect(stored.failureCount).toBe(5);
-      expect(stored.windowStartedAt).toEqual(T0);
+      expect(stored.failureTimes).toEqual([T0, T0, T0, T0, T0]);
       expect(stored.isLocked(T0)).toBe(true);
+    });
+
+    it('serializes concurrent attempts so none of them is lost', async () => {
+      const attempt = () =>
+        db.context.run(async () => {
+          const lockout = await repo().findForUpdate(USER);
+          await repo().save(USER, lockout.recordFailure(T0));
+        });
+
+      await Promise.all(Array.from({ length: 4 }, attempt));
+
+      await expect(repo().find(USER)).resolves.toMatchObject({
+        failureTimes: [T0, T0, T0, T0],
+      });
+    });
+
+    it('returns an empty lockout from findForUpdate for a user with no failures', async () => {
+      const lockout = await db.context.run(() => repo().findForUpdate(USER));
+
+      expect(lockout.failureTimes).toEqual([]);
     });
 
     it('clears a lockout, and clearing nothing is harmless', async () => {
@@ -113,7 +132,7 @@ describe('auth persistence adapters', () => {
       await repo().clear(USER);
       await repo().clear(USER);
 
-      await expect(repo().find(USER)).resolves.toMatchObject({ failureCount: 0 });
+      await expect(repo().find(USER)).resolves.toMatchObject({ failureTimes: [] });
     });
   });
 
@@ -152,11 +171,21 @@ describe('auth persistence adapters', () => {
       expect(stored?.revokedAt).toEqual(later(1));
     });
 
+    it('marks a rotation so that it differs from a revocation', async () => {
+      await repo().save(token(1));
+
+      await expect(repo().markRotatedIfActive(id(1), later(1))).resolves.toBe(true);
+
+      const stored = await repo().findByHash('hash-1');
+      expect(stored?.state(later(1))).toBe('rotated');
+      expect(stored?.rotatedAt).toEqual(later(1));
+    });
+
     it('lets exactly one concurrent rotation win', async () => {
       await repo().save(token(1));
 
       const results = await Promise.all(
-        Array.from({ length: 8 }, () => repo().revokeIfActive(id(1), later(1))),
+        Array.from({ length: 8 }, () => repo().markRotatedIfActive(id(1), later(1))),
       );
 
       expect(results.filter(Boolean)).toHaveLength(1);
@@ -189,14 +218,21 @@ describe('auth persistence adapters', () => {
     const token = (n: number, userId = USER) =>
       PasswordResetToken.issue({ id: id(n), userId, tokenHash: `reset-${String(n)}`, now: T0 });
 
-    it('round-trips a token and persists its consumption', async () => {
+    it('round-trips a token', async () => {
       await repo().save(token(1));
+
       await expect(repo().findByHash('reset-1')).resolves.toEqual(token(1));
+    });
 
-      await repo().save(token(1).consume(later(1)));
+    it('lets exactly one concurrent use of a link win (FR-AUTH-08)', async () => {
+      await repo().save(token(1));
 
-      const stored = await repo().findByHash('reset-1');
-      expect(stored?.usedAt).toEqual(later(1));
+      const results = await Promise.all(
+        Array.from({ length: 8 }, () => repo().consumeIfUnused(id(1), later(1))),
+      );
+
+      expect(results.filter(Boolean)).toHaveLength(1);
+      await expect(repo().findByHash('reset-1')).resolves.toMatchObject({ usedAt: later(1) });
     });
 
     it('returns null for an unknown hash', async () => {
@@ -206,7 +242,8 @@ describe('auth persistence adapters', () => {
     it('invalidates only the open tokens of that user', async () => {
       await repo().save(token(1));
       await repo().save(token(2, OTHER_USER));
-      await repo().save(token(3).consume(later(1)));
+      await repo().save(token(3));
+      await repo().consumeIfUnused(id(3), later(1));
 
       await repo().invalidateForUser(USER, later(5));
 
@@ -240,15 +277,37 @@ describe('auth persistence adapters', () => {
       await expect(repo().findByHash('nope')).resolves.toBeNull();
     });
 
-    it('persists revocation and last use', async () => {
+    it('records last use and revocation separately', async () => {
       await repo().save(key(1));
 
-      await repo().save(key(1).markUsed(later(50)).revoke(later(60)));
+      await repo().touchLastUsed(id(1), later(50));
+      await repo().revoke(id(1), later(60));
 
       await expect(repo().findById(id(1))).resolves.toMatchObject({
         lastUsedAt: later(50),
         revokedAt: later(60),
       });
+    });
+
+    it('never clears a revocation when recording use from a stale read', async () => {
+      await repo().save(key(1));
+      await repo().revoke(id(1), later(60));
+
+      await repo().touchLastUsed(id(1), later(70));
+
+      await expect(repo().findById(id(1))).resolves.toMatchObject({
+        lastUsedAt: null,
+        revokedAt: later(60),
+      });
+    });
+
+    it('keeps the first revocation time', async () => {
+      await repo().save(key(1));
+      await repo().revoke(id(1), later(60));
+
+      await repo().revoke(id(1), later(70));
+
+      await expect(repo().findById(id(1))).resolves.toMatchObject({ revokedAt: later(60) });
     });
 
     it('lists the newest first', async () => {

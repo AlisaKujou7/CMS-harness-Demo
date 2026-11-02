@@ -14,7 +14,7 @@ export class AuthenticateApiKey implements AuthenticateApiKeyUseCase {
     const now = this.deps.clock.now();
     const lastUsedMs = apiKey.lastUsedAt?.getTime() ?? Number.NEGATIVE_INFINITY;
     if (now.getTime() - lastUsedMs >= LAST_USED_WRITE_INTERVAL_MS) {
-      await this.deps.apiKeys.save(apiKey.markUsed(now));
+      await this.deps.apiKeys.touchLastUsed(apiKey.id, now);
     }
     return { apiKeyId: apiKey.id };
   }

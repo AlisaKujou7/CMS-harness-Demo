@@ -138,6 +138,15 @@ describe('CompletePasswordReset', () => {
     await expect(signIn(ctx, NEW_PASSWORD)).resolves.toBeDefined();
   });
 
+  it('refuses when it loses a concurrent use of the same link (FR-AUTH-08)', async () => {
+    ctx.resetTokens.consumeIfUnused = () => Promise.resolve(false);
+
+    await expect(reset()).rejects.toThrow(InvalidResetTokenError);
+
+    await expect(signIn(ctx, VALID_PASSWORD)).resolves.toBeDefined();
+    expect(ctx.audit.actions()).not.toContain('auth.password.reset_completed');
+  });
+
   it('refuses a link after 60 minutes (FR-AUTH-07)', async () => {
     ctx.clock.advanceMinutes(60);
 
@@ -237,6 +246,44 @@ describe('ChangePassword', () => {
     await expect(signIn(ctx, VALID_PASSWORD)).resolves.toBeDefined();
   });
 
+  describe('guessing the current password', () => {
+    const wrong = async (times: number) => {
+      for (let i = 0; i < times; i += 1) {
+        await expect(run('wrong-password-1')).rejects.toThrow(IncorrectCurrentPasswordError);
+      }
+    };
+
+    it('audits a wrong guess', async () => {
+      await wrong(1);
+
+      expect(ctx.audit.events.at(-1)).toMatchObject({
+        actorId: 'user-1',
+        action: 'auth.password.change_failed',
+        targetId: 'user-1',
+      });
+    });
+
+    it('refuses even the right password after 5 wrong guesses', async () => {
+      await wrong(5);
+
+      await expect(run()).rejects.toThrow(IncorrectCurrentPasswordError);
+    });
+
+    it('shares the lockout with login, so guessing here cannot continue there', async () => {
+      await wrong(5);
+
+      await expect(signIn(ctx, VALID_PASSWORD)).rejects.toThrow();
+    });
+
+    it('clears the count once the right password is given', async () => {
+      await wrong(4);
+      await run();
+      await run(NEW_PASSWORD, 'another-pass-3');
+
+      await expect(signIn(ctx, 'another-pass-3')).resolves.toBeDefined();
+    });
+  });
+
   it('describes a wrong current password as a field error', () => {
     const error = new IncorrectCurrentPasswordError();
 
@@ -273,7 +320,7 @@ describe('ChangePassword', () => {
   it('applies its writes inside a transaction', async () => {
     await run();
 
-    expect(ctx.tx.runs).toBe(1);
+    expect(ctx.tx.runs).toBe(2);
   });
 
   it('refuses when the account has disappeared or has no password', async () => {

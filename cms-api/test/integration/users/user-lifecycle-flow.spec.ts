@@ -56,7 +56,7 @@ describe('user lifecycle against real infrastructure', () => {
       PUBLIC_URL: 'https://cms.example.com',
       CORS_ALLOWED_ORIGINS: 'https://cms.example.com',
       DATABASE_URL: db.url,
-      REDIS_URL: inject('redisUrl'),
+      REDIS_URL: `${inject('redisUrl')}/2`,
       JWT_SECRET: 'a'.repeat(64),
       ARGON2_MEMORY_KB: '1024',
       ARGON2_ITERATIONS: '1',
