@@ -14,13 +14,40 @@
     "test:mutation": "stryker run"
   },
   "devDependencies": {
+    "@nestjs/testing": "^12.3.2",
     "@stryker-mutator/core": "^10.1.1",
     "@stryker-mutator/vitest-runner": "^10.1.1",
+    "@testcontainers/postgresql": "^12.2.1",
+    "@testcontainers/redis": "^12.2.1",
     "@types/node": "^26.6.6",
+    "@types/nodemailer": "^8.0.2",
+    "@types/pg": "^8.23.1",
+    "@types/supertest": "^7.2.1",
     "@vitest/coverage-v8": "^5.0.5",
     "dependency-cruiser": "^18.7.0",
+    "dotenv": "^18.0.9",
     "fast-check": "^4.10.2",
+    "prisma": "7.10.1",
+    "supertest": "^7.3.1",
+    "testcontainers": "^12.2.1",
     "typescript": "6.0.3",
     "vitest": "^5.0.5"
+  },
+  "dependencies": {
+    "@nestjs/common": "^12.3.2",
+    "@nestjs/core": "^12.3.2",
+    "@nestjs/platform-express": "^12.3.2",
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
+    "argon2": "^0.45.1",
+    "helmet": "^8.3.0",
+    "ioredis": "^6.0.0",
+    "jose": "^6.2.14",
+    "nodemailer": "^10.3.1",
+    "pg": "^8.23.1",
+    "pino": "^10.4.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "zod": "^4.6.7"
   }
 }

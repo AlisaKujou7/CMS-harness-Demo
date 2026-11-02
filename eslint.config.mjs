@@ -57,6 +57,8 @@ export default tseslint.config(
       '@eslint-community/eslint-comments/require-description': 'error',
       '@eslint-community/eslint-comments/no-unused-disable': 'error',
       '@typescript-eslint/consistent-type-imports': 'error',
+      // Immutable entities copy themselves by spreading their fields back into a constructor.
+      '@typescript-eslint/no-misused-spread': 'off',
     },
   },
 

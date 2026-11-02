@@ -1,3 +1,5 @@
+import { AppError } from './app-error.js';
+
 export const DEFAULT_PAGE_SIZE = 25;
 export const MAX_PAGE_SIZE = 100;
 
@@ -12,10 +14,14 @@ export interface PagedResult<T> extends PageRequest {
   readonly totalPages: number;
 }
 
-export class InvalidPageRequestError extends Error {
+export class InvalidPageRequestError extends AppError {
   constructor(field: string, value: number) {
-    super(`${field} must be a positive integer, got ${String(value)}`);
-    this.name = 'InvalidPageRequestError';
+    super({
+      kind: 'validation',
+      code: 'VALIDATION_ERROR',
+      message: `${field} must be a positive integer, got ${String(value)}`,
+      details: { field },
+    });
   }
 }
 
