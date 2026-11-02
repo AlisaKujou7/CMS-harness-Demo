@@ -153,13 +153,13 @@ const SCENARIOS = [
       ['a', 'b'].map((suffix) => [
         `cms-api/src/shared/zzq-${suffix}.ts`,
         `export function dup${suffix}(a: number, b: number): number {\n${Array.from(
-          { length: 40 },
+          { length: 1000 },
           (_, i) => `  a = a * ${String(i)} + b - ${String(i * 3)};`,
         ).join('\n')}\n  return a;\n}\n`,
       ]),
     ),
     command: 'pnpm dup',
-    expect: /threshold|Clone|clones/i,
+    expect: /too many duplicates/i,
   },
   {
     name: 'unlinked TODO',
