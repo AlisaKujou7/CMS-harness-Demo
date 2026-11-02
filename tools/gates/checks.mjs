@@ -42,6 +42,7 @@ export function findUntestedUseCases(useCaseNames, specSources) {
 const MUTATION_BARS = [
   { pattern: /^src\/modules\/[^/]+\/domain\//, depth: 4, minimum: 90 },
   { pattern: /^src\/modules\/auth\/application\//, depth: 4, minimum: 90 },
+  { pattern: /^src\/modules\/content\/application\//, depth: 4, minimum: 90 },
   { pattern: /^src\/shared\/kernel\//, depth: 3, minimum: 80 },
 ];
 const DETECTED = new Set(['Killed', 'Timeout']);

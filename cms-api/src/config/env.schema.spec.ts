@@ -34,6 +34,36 @@ describe('parseDurationMs', () => {
   });
 });
 
+describe('content settings', () => {
+  const minimal = {
+    NODE_ENV: 'development',
+    PUBLIC_URL: 'http://localhost:3000',
+    CORS_ALLOWED_ORIGINS: 'http://localhost:5173',
+    DATABASE_URL: 'postgres://x',
+    REDIS_URL: 'redis://x',
+    JWT_SECRET: 'a'.repeat(64),
+    EMAIL_PROVIDER: 'console',
+  };
+
+  it('defaults the category list and publish interval', () => {
+    expect(loadEnv(minimal)).toMatchObject({
+      contentCategories: ['news', 'guides', 'announcements'],
+      scheduledPublishIntervalMs: 30_000,
+    });
+  });
+
+  it('reads them, tidying the list', () => {
+    const config = loadEnv({
+      ...minimal,
+      CONTENT_CATEGORIES: ' a, b ,,c',
+      WORKER_SCHEDULED_PUBLISH_INTERVAL_SEC: '5',
+    });
+
+    expect(config.contentCategories).toEqual(['a', 'b', 'c']);
+    expect(config.scheduledPublishIntervalMs).toBe(5000);
+  });
+});
+
 describe('loadEnv', () => {
   it('parses a complete configuration and applies defaults', () => {
     const env = loadEnv(VALID);

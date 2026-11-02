@@ -24,6 +24,23 @@ enum UserStatus {
   @@map("user_status")
 }
 
+enum ContentType {
+  article
+  page
+
+  @@map("content_type")
+}
+
+enum ContentStatus {
+  draft
+  in_review
+  published
+  unpublished
+  archived
+
+  @@map("content_status")
+}
+
 model User {
   id           String     @id @db.Uuid
   email        String     @unique
@@ -40,6 +57,8 @@ model User {
   resetTokens PasswordResetToken[]
   invitationTokens InvitationToken[]
   apiKeys     ApiKey[]
+  authoredContent Content[]
+  contentVersions ContentVersion[]
 
   @@map("users")
 }
@@ -126,4 +145,59 @@ model AuditEvent {
   @@index([action, occurredAt(sort: Desc)])
   @@index([targetType, targetId])
   @@map("audit_events")
+}
+
+// Media ids stay plain UUIDs until the media table exists (phase 4).
+model Content {
+  id              String        @id @db.Uuid
+  type            ContentType
+  title           String
+  slug            String
+  body            Json
+  status          ContentStatus
+  authorId        String        @map("author_id") @db.Uuid
+  featuredImageId String?       @map("featured_image_id") @db.Uuid
+  socialImageId   String?       @map("social_image_id") @db.Uuid
+  seoTitle        String?       @map("seo_title")
+  seoDescription  String?       @map("seo_description")
+  tags            String[]
+  category        String?
+  parentId        String?       @map("parent_id") @db.Uuid
+  scheduledAt     DateTime?     @map("scheduled_at") @db.Timestamptz(3)
+  publishedAt     DateTime?     @map("published_at") @db.Timestamptz(3)
+  deletedAt       DateTime?     @map("deleted_at") @db.Timestamptz(3)
+  reviewNote      String?       @map("review_note")
+  version         Int
+  createdAt       DateTime      @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime      @map("updated_at") @db.Timestamptz(3)
+
+  author   User             @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  parent   Content?         @relation("PageHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children Content[]        @relation("PageHierarchy")
+  versions ContentVersion[]
+
+  @@unique([type, slug])
+  @@index([status, publishedAt(sort: Desc)])
+  @@index([authorId, status])
+  @@index([tags], type: Gin)
+  @@index([scheduledAt])
+  @@index([deletedAt])
+  @@index([parentId])
+  @@map("content")
+}
+
+model ContentVersion {
+  id        String   @id @db.Uuid
+  contentId String   @map("content_id") @db.Uuid
+  versionNo Int      @map("version_no")
+  snapshot  Json
+  editorId  String?  @map("editor_id") @db.Uuid
+  createdAt DateTime @map("created_at") @db.Timestamptz(3)
+
+  content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  editor  User?   @relation(fields: [editorId], references: [id], onDelete: Restrict)
+
+  @@unique([contentId, versionNo])
+  @@index([editorId])
+  @@map("content_versions")
 }

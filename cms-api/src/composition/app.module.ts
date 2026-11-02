@@ -1,4 +1,33 @@
 import { type DynamicModule, Module } from '@nestjs/common';
+import { ContentController } from '../modules/content/adapters/in/http/content.controller.js';
+import {
+  CONTENT_USE_CASES,
+  type ContentUseCases,
+} from '../modules/content/adapters/in/http/content.use-cases.js';
+import type { ContentRepository } from '../modules/content/application/ports/out/content-repository.port.js';
+import type { ContentDeps } from '../modules/content/application/content-deps.js';
+import { CreateContent } from '../modules/content/application/use-cases/create-content.use-case.js';
+import {
+  ArchiveContent,
+  DeleteContent,
+  PublishContent,
+  RejectContent,
+  ScheduleContent,
+  SubmitContent,
+  UnpublishContent,
+} from '../modules/content/application/use-cases/lifecycle.use-case.js';
+import {
+  ContentCategories,
+  ContentStats,
+  GetContent,
+  ListContent,
+} from '../modules/content/application/use-cases/read-content.use-case.js';
+import { UpdateContent } from '../modules/content/application/use-cases/update-content.use-case.js';
+import {
+  GetContentVersion,
+  ListContentVersions,
+  RevertContent,
+} from '../modules/content/application/use-cases/versions.use-case.js';
 import { AuditController } from '../modules/audit/adapters/in/http/audit.controller.js';
 import {
   AUDIT_USE_CASES,
@@ -60,6 +89,8 @@ import type { RateLimiter, ReadinessProbe } from '../shared/ports/system.port.js
 
 export interface Infrastructure extends AuthDeps {
   readonly users: UserRepository;
+  readonly contents: ContentRepository;
+  readonly contentCategories: readonly string[];
   readonly auditReader: AuditEventReader;
   readonly events: InProcessEventPublisher;
   readonly rateLimiter: RateLimiter;
@@ -76,6 +107,27 @@ function createUsersUseCases(deps: UsersDeps): UsersUseCases {
     remove: new DeleteUser(deps),
     requestPasswordReset: new RequestUserPasswordReset(deps),
     resendInvitation: new ResendInvitation(deps),
+  };
+}
+
+function createContentUseCases(deps: ContentDeps): ContentUseCases {
+  return {
+    create: new CreateContent(deps),
+    update: new UpdateContent(deps),
+    get: new GetContent(deps),
+    list: new ListContent(deps),
+    stats: new ContentStats(deps),
+    categories: new ContentCategories(deps),
+    submit: new SubmitContent(deps),
+    publish: new PublishContent(deps),
+    reject: new RejectContent(deps),
+    unpublish: new UnpublishContent(deps),
+    archive: new ArchiveContent(deps),
+    schedule: new ScheduleContent(deps),
+    remove: new DeleteContent(deps),
+    versions: new ListContentVersions(deps),
+    version: new GetContentVersion(deps),
+    revert: new RevertContent(deps),
   };
 }
 
@@ -130,12 +182,14 @@ export function createAppModule(infrastructure: Infrastructure): DynamicModule {
       AuthController,
       ApiKeysController,
       UsersController,
+      ContentController,
       AuditController,
       HealthController,
     ],
     providers: [
       { provide: AUTH_USE_CASES, useValue: createAuthUseCases(infrastructure) },
       { provide: USERS_USE_CASES, useValue: createUsersUseCases(infrastructure) },
+      { provide: CONTENT_USE_CASES, useValue: createContentUseCases(infrastructure) },
       { provide: AUDIT_USE_CASES, useValue: createAuditUseCases(infrastructure) },
       {
         provide: ACCESS_TOKEN_AUTHENTICATOR,

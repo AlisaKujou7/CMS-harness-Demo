@@ -7,6 +7,8 @@ import { PrismaContext } from '../../../src/shared/adapters/out/prisma-context.j
 
 const MIGRATIONS_DIR = join(import.meta.dirname, '..', '..', '..', 'prisma', 'migrations');
 const TABLES = [
+  'content_versions',
+  'content',
   'audit_events',
   'api_keys',
   'password_reset_tokens',

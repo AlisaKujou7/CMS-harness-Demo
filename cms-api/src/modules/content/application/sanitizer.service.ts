@@ -1,5 +1,5 @@
 import { InvalidContentError } from '../domain/errors/content.errors.js';
-import type { RichTextMark, RichTextNode } from '../domain/services/rich-text.js';
+import { cleanText, type RichTextMark, type RichTextNode } from '../domain/services/rich-text.js';
 
 const MAX_DEPTH = 32;
 const MAX_NODES = 100_000;
@@ -53,7 +53,7 @@ function stringAttrs(attrs: Attrs, names: readonly string[]): Record<string, str
   const kept: Record<string, string> = {};
   for (const name of names) {
     const value = attrs[name];
-    if (typeof value === 'string') kept[name] = value;
+    if (typeof value === 'string') kept[name] = cleanText(value);
   }
   return kept;
 }
@@ -105,7 +105,7 @@ function sanitizeLink(attrs: unknown): RichTextMark | null {
   return {
     type: 'link',
     attrs: {
-      href: attrs['href'],
+      href: cleanText(attrs['href']),
       ...stringAttrs(attrs, ['title']),
       ...(blank ? { target: '_blank', rel: 'noopener noreferrer' } : {}),
     },
@@ -128,7 +128,8 @@ function sanitizeMarks(marks: unknown): { marks?: RichTextMark[] } {
 
 function sanitizeText(node: Record<string, unknown>, inCode: boolean): RichTextNode[] {
   if (typeof node['text'] !== 'string') return [];
-  const text = inCode ? node['text'] : stripDangerousMarkup(node['text']);
+  const clean = cleanText(node['text']);
+  const text = inCode ? clean : stripDangerousMarkup(clean);
   return text === '' ? [] : [{ type: 'text', text, ...sanitizeMarks(node['marks']) }];
 }
 
@@ -140,7 +141,7 @@ function sanitizeImage(node: Record<string, unknown>): RichTextNode[] {
     {
       type: 'image',
       attrs: {
-        src: attrs['src'],
+        src: cleanText(attrs['src']),
         ...stringAttrs(attrs, ['alt', 'title']),
         ...(typeof mediaId === 'string' && UUID.test(mediaId) ? { mediaId } : {}),
       },

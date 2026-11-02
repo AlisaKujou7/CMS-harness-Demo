@@ -43,6 +43,23 @@ The stricter or more specific document wins unless noted.
 - Email goes through a BullMQ queue and `dist/worker.js`, which 04-ARCH lists. 07-OPS-ARCH §9.2 sets Redis to `allkeys-lru`, which can evict queued jobs. Phase 8 must use `noeviction` for the queue, on a separate Redis instance from the cache if needed.
 - Queued emails hold reset links in Redis until delivered or retries run out, about 2 minutes, and are then removed. Redis is on the internal network and requires a password.
 - `page` is limited to 1,000,000.
+- FR-CONTENT-06 and FR-SEO-02: the meta description is required to publish but defaults to the body text. An explicit description or a body with text satisfies it, so only an image-only body needs one typed in.
+- 5.4.1 draws no transition from Draft straight to Published, but the FR-CONTENT-04 acceptance test allows it for Editors, so the lifecycle allows it and the role check limits it.
+- 5.4.1 says an edit moves Unpublished to Draft. Published content stays Published when an Editor edits it, and must stay publishable. An Author cannot edit their own content while it is In Review or Published (409), because it is with the Editors until it comes back. Archived content cannot be edited by anyone.
+- `POST /content/{id}/reject`, `POST /content/{id}/archive`, `GET /content/{id}/versions/{no}`, `GET /content/stats` and `GET /content/categories` are added. 02-SRS §7 omits them, while the lifecycle, the dashboard and the editor need them.
+- `PATCH /content/{id}` requires the `version` the editor loaded, and a mismatch returns 409 `CONTENT_CHANGED`. 03-DESIGN §19.4 shows the dialog, but the API needs this to detect the conflict. Saves also check the version in the database, so two simultaneous writers cannot both win.
+- A save that changes nothing creates no version and no audit event.
+- History is only open to those who may edit: an Author can read another author's published article but not its earlier drafts.
+- A revert restores what the item says, not its lifecycle state, and follows the same rules as an edit.
+- A soft-deleted item keeps its slug for its 30 days, because the unique index covers it and FR-CONTENT-13 implies it can be recovered from the database until the purge. Nothing restores it through the API yet, so the Undo that 03-DESIGN §1000 shows for delete and unpublish is still open for phase 6.
+- A slug generated from a title with no Latin letters or digits, such as a Thai title, falls back to `content-<id prefix>`, which the author can edit. FR-CONTENT-02 asks for a URL-safe slug and NFR-I18N does not ask for transliteration.
+- SEC-04 needs executable tags gone from what the API returns, including in text nodes, where they would be inert JSON until a consumer renders them. So `<script>`, `<style>`, `<iframe>`, `<object>` and `<embed>` are removed from text outside code blocks, which also means an article cannot quote those tags outside a code block.
+- The JSON body limit is 2 MB, raised from the 100 KB default, since a rich text tree is much larger than its text. Media does not pass through the API (FR-MEDIA-04).
+- Categories come from the `CONTENT_CATEGORIES` setting, since the Requirements doc §6.2 says "predefined list" without naming one or a screen to manage it. A category is checked only when it changes, so removing one from the list does not block other saves.
+- The list hides Archived items unless `status=archived` is asked for. The date range filters `updated_at`, the date the list shows.
+- Reference columns for media stay plain UUIDs until phase 4 adds the table and its foreign keys.
+- A scheduled publish that can no longer succeed clears the schedule and writes `content.schedule_failed` to the audit log, since retrying would never succeed. Nothing notifies the Editor yet, because no notification feature is in scope.
+- Worker jobs use BullMQ job schedulers. `purge-expired-tokens` also runs there, deleting tokens past their expiry, since replay detection only matters until then.
 
 ## Consequences
 

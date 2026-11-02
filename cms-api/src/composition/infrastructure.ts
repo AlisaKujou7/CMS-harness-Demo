@@ -4,6 +4,7 @@ import type { AppConfig } from '../config/env.schema.js';
 import { PrismaAuditEventReader } from '../modules/audit/adapters/out/persistence/prisma-audit-event-reader.js';
 import { PrismaAuditLog } from '../modules/audit/adapters/out/persistence/prisma-audit-log.js';
 import { PrismaInvitationTokenRepository } from '../modules/auth/adapters/out/persistence/prisma-invitation-token.repository.js';
+import { PrismaContentRepository } from '../modules/content/adapters/out/persistence/prisma-content.repository.js';
 import { PrismaUserRepository } from '../modules/users/adapters/out/persistence/prisma-user.repository.js';
 import { InProcessEventPublisher } from '../shared/adapters/out/in-process-event-publisher.js';
 import { Argon2PasswordHasher } from '../modules/auth/adapters/out/crypto/argon2-password-hasher.js';
@@ -58,14 +59,31 @@ function createEmailQueue(config: AppConfig, logger: Logger): BullMqEmailQueue {
   return queue;
 }
 
+function createRepositories(db: PrismaContext) {
+  return {
+    accounts: new PrismaAccountRepository(db),
+    lockouts: new PrismaLoginLockoutRepository(db),
+    refreshTokens: new PrismaRefreshTokenRepository(db),
+    resetTokens: new PrismaPasswordResetTokenRepository(db),
+    invitationTokens: new PrismaInvitationTokenRepository(db),
+    apiKeys: new PrismaApiKeyRepository(db),
+    users: new PrismaUserRepository(db),
+    contents: new PrismaContentRepository(db),
+    auditReader: new PrismaAuditEventReader(db),
+  };
+}
+
 export interface RunningInfrastructure {
   readonly infrastructure: Infrastructure;
   readonly db: PrismaContext;
   readonly dispose: () => Promise<void>;
 }
 
-export function createInfrastructure(config: AppConfig): RunningInfrastructure {
-  const logger = createPinoLogger({ level: config.logLevel, service: 'cms-api' });
+export function createInfrastructure(
+  config: AppConfig,
+  service = 'cms-api',
+): RunningInfrastructure {
+  const logger = createPinoLogger({ level: config.logLevel, service });
   const db = new PrismaContext(config.databaseUrl);
   const redis = new Redis(config.redisUrl, { maxRetriesPerRequest: 1 });
   redis.on('error', (error: Error) => {
@@ -76,14 +94,8 @@ export function createInfrastructure(config: AppConfig): RunningInfrastructure {
   const ids = new Uuidv4Generator();
 
   const infrastructure: Infrastructure = {
-    accounts: new PrismaAccountRepository(db),
-    lockouts: new PrismaLoginLockoutRepository(db),
-    refreshTokens: new PrismaRefreshTokenRepository(db),
-    resetTokens: new PrismaPasswordResetTokenRepository(db),
-    invitationTokens: new PrismaInvitationTokenRepository(db),
-    apiKeys: new PrismaApiKeyRepository(db),
-    users: new PrismaUserRepository(db),
-    auditReader: new PrismaAuditEventReader(db),
+    ...createRepositories(db),
+    contentCategories: config.contentCategories,
     events: new InProcessEventPublisher(logger),
     hasher: new Argon2PasswordHasher(config.argon2),
     signer: new JoseAccessTokenSigner(config.jwtSecrets, clock),

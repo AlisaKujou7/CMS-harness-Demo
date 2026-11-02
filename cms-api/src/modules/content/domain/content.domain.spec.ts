@@ -567,4 +567,39 @@ describe('content errors', () => {
   it('keeps the message of an invalid field', () => {
     expect(new InvalidContentError('title', 'Too long').message).toBe('Too long');
   });
+
+  it('reads a text node with no text as empty', () => {
+    expect(plainText({ type: 'doc', content: [{ type: 'text' }] })).toBe('');
+  });
+
+  it('joins blocks that sit beside text without running their words together', () => {
+    const doc = {
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'one' }] },
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'two' },
+            { type: 'text', text: '!' },
+          ],
+        },
+      ],
+    };
+
+    expect(plainText(doc)).toBe('one two!');
+  });
+
+  it('removes what PostgreSQL could not store from every text field', () => {
+    const content = Content.create({
+      id: 'id',
+      type: 'article',
+      authorId: 'a',
+      slug: 'a-slug',
+      now: new Date(0),
+      fields: { title: 'T\0itle', seoTitle: 'S\0EO', tags: ['t\0ag'] },
+    });
+
+    expect(content).toMatchObject({ title: 'Title', seoTitle: 'SEO', tags: ['tag'] });
+  });
 });

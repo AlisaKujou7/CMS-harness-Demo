@@ -50,6 +50,8 @@ const schema = z
     RATE_LIMIT_LOGIN_PER_MIN: count(10),
     RATE_LIMIT_PASSWORD_RESET_PER_HOUR: count(5),
     RATE_LIMIT_INVITATION_PER_HOUR: count(30),
+    CONTENT_CATEGORIES: z.string().default('news,guides,announcements'),
+    WORKER_SCHEDULED_PUBLISH_INTERVAL_SEC: count(30),
     EMAIL_PROVIDER: z.enum(['console', 'smtp', 'ses']),
     EMAIL_FROM: z.string().default('no-reply@example.com'),
     EMAIL_FROM_NAME: z.string().default('CMS'),
@@ -84,6 +86,13 @@ function toSecretList(current: string, previous: string | undefined): [string, .
   return previous === undefined ? [current] : [current, previous];
 }
 
+function toCategories(list: string): string[] {
+  return list
+    .split(',')
+    .map((category) => category.trim())
+    .filter((category) => category !== '');
+}
+
 function toConfig(env: z.output<typeof schema>) {
   return {
     nodeEnv: env.NODE_ENV,
@@ -104,6 +113,8 @@ function toConfig(env: z.output<typeof schema>) {
     rateLimitLoginPerMinute: env.RATE_LIMIT_LOGIN_PER_MIN,
     rateLimitPasswordResetPerHour: env.RATE_LIMIT_PASSWORD_RESET_PER_HOUR,
     rateLimitInvitationPerHour: env.RATE_LIMIT_INVITATION_PER_HOUR,
+    contentCategories: toCategories(env.CONTENT_CATEGORIES),
+    scheduledPublishIntervalMs: env.WORKER_SCHEDULED_PUBLISH_INTERVAL_SEC * 1000,
     email: {
       provider: env.EMAIL_PROVIDER,
       from: { address: env.EMAIL_FROM, name: env.EMAIL_FROM_NAME },

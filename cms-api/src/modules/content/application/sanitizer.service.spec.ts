@@ -370,4 +370,100 @@ describe('sanitizeRichText (SEC-04)', () => {
       expect(result.content?.[0]).toEqual(paragraph());
     });
   });
+
+  describe('markup split to survive stripping', () => {
+    const textOf = (text: string) => {
+      const result = sanitizeRichText({
+        type: 'doc',
+        content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+      });
+      return result.content?.[0]?.content?.[0]?.text ?? '';
+    };
+
+    it.each([
+      ['a stray end tag', '</script>safe', 'safe'],
+      ['an unterminated tag', 'before<script src=x', 'before'],
+      ['an unterminated end tag', '<script>x</script', ''],
+      ['another element inside the removed one', '<script>a<iframe>b</script>c', 'c'],
+      ['a different end tag inside', '<script>a</style>b</script>c', 'c'],
+    ])('handles %s', (_name, input, expected) => {
+      expect(textOf(input)).toBe(expected);
+    });
+
+    it('gives up on angle brackets when removal keeps forming new tags', () => {
+      let nested = '<embed>';
+      for (let level = 0; level < 7; level += 1) nested = `<em${nested}bed>`;
+
+      expect(textOf(nested)).not.toContain('<');
+    });
+  });
+
+  it('strips text directly under the document too', () => {
+    const result = sanitizeRichText({
+      type: 'doc',
+      content: [{ type: 'text', text: '<script>x</script>ok' }],
+    });
+
+    expect(result.content).toEqual([{ type: 'text', text: 'ok' }]);
+  });
+
+  it('counts unknown wrappers towards the depth limit', () => {
+    let node: object = { type: 'text', text: 'deep' };
+    for (let level = 0; level < 40; level += 1) node = { type: 'wrapper', content: [node] };
+
+    expect(() => sanitizeRichText({ type: 'doc', content: [node] })).toThrow(InvalidContentError);
+  });
+
+  it('keeps a language only on a code block', () => {
+    const result = sanitizeRichText({
+      type: 'doc',
+      content: [{ type: 'paragraph', attrs: { language: 'ts' }, content: [] }],
+    });
+
+    expect(result.content).toEqual([{ type: 'paragraph', content: [] }]);
+  });
+
+  it('limits how long a URL may be', () => {
+    const hrefOf = (href: string) => {
+      const result = sanitizeRichText({
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'x', marks: [{ type: 'link', attrs: { href } }] }],
+          },
+        ],
+      });
+      return result.content?.[0]?.content?.[0]?.marks;
+    };
+
+    expect(hrefOf(`/${'a'.repeat(2047)}`)).toHaveLength(1);
+    expect(hrefOf(`/${'a'.repeat(2048)}`)).toBeUndefined();
+  });
+
+  it('makes a URL safe to store as JSON', () => {
+    const result = sanitizeRichText({
+      type: 'doc',
+      content: [{ type: 'image', attrs: { src: '/a\ud83d.png' } }],
+    });
+
+    expect(result.content).toEqual([{ type: 'image', attrs: { src: '/a\ufffd.png' } }]);
+  });
+
+  it('removes what PostgreSQL could not store from text and attributes', () => {
+    const result = sanitizeRichText({
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'a\0b\ud83d' }] },
+        { type: 'codeBlock', content: [{ type: 'text', text: 'c\0d' }] },
+        { type: 'image', attrs: { src: '/x.png', alt: 'e\0f' } },
+      ],
+    });
+
+    expect(result.content).toEqual([
+      { type: 'paragraph', content: [{ type: 'text', text: 'ab\ufffd' }] },
+      { type: 'codeBlock', content: [{ type: 'text', text: 'cd' }] },
+      { type: 'image', attrs: { src: '/x.png', alt: 'ef' } },
+    ]);
+  });
 });

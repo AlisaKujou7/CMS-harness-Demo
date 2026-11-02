@@ -12,6 +12,11 @@ export interface RichTextNode {
   readonly text?: string;
 }
 
+// PostgreSQL stores neither NUL nor a lone surrogate in text or jsonb, and would answer with a 500.
+export function cleanText(input: string): string {
+  return input.toWellFormed().replaceAll('\0', '');
+}
+
 export const EMPTY_DOCUMENT: RichTextNode = { type: 'doc', content: [] };
 
 function collectText(node: RichTextNode): string {
