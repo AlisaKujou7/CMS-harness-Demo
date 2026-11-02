@@ -3,7 +3,7 @@ import {
   createInfrastructure,
   VARIANT_QUEUE,
 } from './composition/infrastructure.js';
-import { mediaDeps } from './composition/module-deps.js';
+import { mediaDeps, wirePublicCacheInvalidation } from './composition/module-deps.js';
 import { createMaintenanceJobs } from './composition/maintenance-jobs.js';
 import { loadEnv } from './config/env.schema.js';
 import { startVariantWorker } from './modules/media/adapters/in/queue/variant-worker.js';
@@ -14,6 +14,7 @@ import { startMaintenance } from './shared/adapters/out/bullmq-maintenance.js';
 const config = loadEnv(process.env);
 const running = createInfrastructure(config, 'cms-worker');
 const { logger } = running.infrastructure;
+wirePublicCacheInvalidation(running.infrastructure);
 const emailWorker = startEmailWorker(config.redisUrl, createEmailSender(config, logger), logger);
 const variantWorker = startVariantWorker(
   config.redisUrl,

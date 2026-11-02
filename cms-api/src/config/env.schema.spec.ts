@@ -96,6 +96,38 @@ describe('media settings', () => {
   );
 });
 
+describe('public API settings', () => {
+  const minimal = {
+    NODE_ENV: 'development',
+    PUBLIC_URL: 'http://localhost:3000',
+    CORS_ALLOWED_ORIGINS: 'http://localhost:5173',
+    DATABASE_URL: 'postgres://x',
+    REDIS_URL: 'redis://x',
+    JWT_SECRET: 'a'.repeat(64),
+    EMAIL_PROVIDER: 'console',
+  };
+
+  it('defaults to 60 a minute and 30 seconds of cache (SEC-07, FR-CONTENT-12)', () => {
+    expect(loadEnv(minimal)).toMatchObject({
+      rateLimitPublicApiPerMinute: 60,
+      publicApi: { cacheTtlSeconds: 30, urlRefreshSeconds: 1800 },
+    });
+  });
+
+  it('refreshes URLs at half their lifetime, and never at zero', () => {
+    const short = loadEnv({ ...minimal, MEDIA_READ_URL_TTL_SEC: '1' });
+
+    expect(short.publicApi.urlRefreshSeconds).toBe(1);
+  });
+
+  it('refuses a cache long enough to break the 60 second promise', () => {
+    expect(() => loadEnv({ ...minimal, PUBLIC_CACHE_TTL_SEC: '31' })).toThrow(
+      'PUBLIC_CACHE_TTL_SEC',
+    );
+    expect(loadEnv({ ...minimal, PUBLIC_CACHE_TTL_SEC: '30' }).publicApi.cacheTtlSeconds).toBe(30);
+  });
+});
+
 describe('content settings', () => {
   const minimal = {
     NODE_ENV: 'development',

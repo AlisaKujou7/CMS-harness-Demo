@@ -5,6 +5,7 @@ import { isImage } from '../../domain/services/media-types.js';
 import type { MediaDeps } from '../media-deps.js';
 import type {
   GetMediaUseCase,
+  GetMediaViewsUseCase,
   ImageReferenceReport,
   InspectImageReferencesUseCase,
   ListMediaUseCase,
@@ -40,6 +41,16 @@ export class ListMedia implements ListMediaUseCase {
       result.items.map(({ item, uploaderName }) => toMediaView(this.deps, item, uploaderName)),
     );
     return { ...result, items };
+  }
+}
+
+// What the public API asks through the composition root, so it never needs a storage key.
+export class GetMediaViews implements GetMediaViewsUseCase {
+  constructor(private readonly deps: Pick<MediaDeps, 'media' | 'storage' | 'mediaConfig'>) {}
+
+  async execute(ids: readonly string[]): Promise<readonly MediaView[]> {
+    const items = await this.deps.media.findByIds(ids);
+    return Promise.all(items.map((item) => toMediaView(this.deps, item)));
   }
 }
 

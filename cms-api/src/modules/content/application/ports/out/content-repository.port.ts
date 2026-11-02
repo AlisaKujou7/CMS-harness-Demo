@@ -35,6 +35,26 @@ export interface ContentListItem {
   readonly updatedAt: Date;
 }
 
+export interface PublishedCriteria {
+  readonly type: ContentType;
+  readonly tag?: string;
+  readonly category?: string;
+}
+
+export interface PublishedListItem {
+  readonly id: string;
+  readonly title: string;
+  readonly slug: string;
+  readonly authorName: string;
+  readonly tags: readonly string[];
+  readonly category: string | null;
+  readonly parentId: string | null;
+  readonly featuredImageId: string | null;
+  readonly version: number;
+  readonly publishedAt: Date;
+  readonly updatedAt: Date;
+}
+
 // What a version keeps and a revert restores. Lifecycle state is not part of it (FR-CONTENT-09).
 export interface ContentSnapshot {
   readonly title: string;
@@ -64,6 +84,19 @@ export type ContentVersionSummary = Omit<ContentVersion, 'snapshot'>;
 export type ContentCounts = Readonly<Record<ContentStatus, number>>;
 
 export interface ContentRepository {
+  // The one definition of public (FR-PUBAPI-03): status published, published_at not after now, and
+  // not deleted. These are the only reads that may reach the public API.
+  findPublished(
+    criteria: PublishedCriteria,
+    page: PageRequest,
+    now: Date,
+  ): Promise<PagedResult<PublishedListItem>>;
+  findPublishedBySlug(
+    type: ContentType,
+    slug: string,
+    now: Date,
+  ): Promise<{ readonly content: Content; readonly authorName: string } | null>;
+  countPublishedMediaUsage(mediaId: string, now: Date): Promise<number>;
   // Soft-deleted items do not exist as far as every caller is concerned.
   findById(id: string): Promise<Content | null>;
   findMany(criteria: ContentCriteria, page: PageRequest): Promise<PagedResult<ContentListItem>>;

@@ -29,6 +29,7 @@ export interface VariantResult {
 
 export interface MediaRepository {
   findById(id: string): Promise<MediaItem | null>;
+  findByIds(ids: readonly string[]): Promise<readonly MediaItem[]>;
   findWithUploader(id: string): Promise<MediaWithUploader | null>;
   // Newest first.
   findMany(criteria: MediaCriteria, page: PageRequest): Promise<PagedResult<MediaWithUploader>>;

@@ -20,7 +20,32 @@ import {
 import { PresignUpload } from '../modules/media/application/use-cases/presign-upload.use-case.js';
 import { GetMedia, ListMedia } from '../modules/media/application/use-cases/read-media.use-case.js';
 import type { MediaUploaded } from '../modules/media/domain/events/media.events.js';
-import { contentDeps, mediaDeps } from './module-deps.js';
+import {
+  ApiKeyGuard,
+  API_KEY_AUTHENTICATOR,
+} from '../modules/public-api/adapters/in/http/api-key.guard.js';
+import { PublicController } from '../modules/public-api/adapters/in/http/public.controller.js';
+import {
+  PUBLIC_API_USE_CASES,
+  type PublicApiUseCases,
+} from '../modules/public-api/adapters/in/http/public-api.use-cases.js';
+import type {
+  PublicApiConfig,
+  PublicApiDeps,
+} from '../modules/public-api/application/public-api-deps.js';
+import type { ResponseCache } from '../modules/public-api/application/ports/out/public-sources.port.js';
+import { ListPublishedContent } from '../modules/public-api/application/use-cases/list-published-content.use-case.js';
+import {
+  GetPublicMedia,
+  GetPublishedContent,
+} from '../modules/public-api/application/use-cases/read-public-item.use-case.js';
+import { AuthenticateApiKey } from '../modules/auth/application/use-cases/authenticate-api-key.use-case.js';
+import {
+  contentDeps,
+  mediaDeps,
+  publicApiDeps,
+  wirePublicCacheInvalidation,
+} from './module-deps.js';
 import { ContentController } from '../modules/content/adapters/in/http/content.controller.js';
 import {
   CONTENT_USE_CASES,
@@ -119,6 +144,8 @@ export interface Infrastructure extends AuthDeps {
   readonly images: ImageProcessor;
   readonly variantQueue: MediaVariantQueue;
   readonly mediaConfig: MediaConfig;
+  readonly responseCache: ResponseCache;
+  readonly publicApiConfig: PublicApiConfig;
   readonly auditReader: AuditEventReader;
   readonly events: InProcessEventPublisher;
   readonly rateLimiter: RateLimiter;
@@ -170,6 +197,14 @@ function createMediaUseCases(deps: MediaDeps): MediaUseCases {
   };
 }
 
+function createPublicApiUseCases(deps: PublicApiDeps): PublicApiUseCases {
+  return {
+    list: new ListPublishedContent(deps),
+    get: new GetPublishedContent(deps),
+    media: new GetPublicMedia(deps),
+  };
+}
+
 function createAuditUseCases(infrastructure: Infrastructure): AuditUseCases {
   const deps = { reader: infrastructure.auditReader, audit: infrastructure.audit };
   return { list: new ListAuditEvents(deps), export: new ExportAuditEvents(deps) };
@@ -186,6 +221,7 @@ function wireEvents(infrastructure: Infrastructure): void {
   events.subscribe<UserDeactivated>('UserDeactivated', (event) =>
     revokeSessions.execute(event.userId),
   );
+  wirePublicCacheInvalidation(infrastructure);
   events.subscribe<MediaUploaded>('MediaUploaded', async (event) => {
     if (event.needsVariants) await infrastructure.variantQueue.enqueue(event.mediaId);
   });
@@ -226,6 +262,7 @@ export function createAppModule(infrastructure: Infrastructure): DynamicModule {
       UsersController,
       ContentController,
       MediaController,
+      PublicController,
       AuditController,
       HealthController,
     ],
@@ -234,6 +271,12 @@ export function createAppModule(infrastructure: Infrastructure): DynamicModule {
       { provide: USERS_USE_CASES, useValue: createUsersUseCases(infrastructure) },
       { provide: CONTENT_USE_CASES, useValue: createContentUseCases(contentDeps(infrastructure)) },
       { provide: MEDIA_USE_CASES, useValue: createMediaUseCases(mediaDeps(infrastructure)) },
+      {
+        provide: PUBLIC_API_USE_CASES,
+        useValue: createPublicApiUseCases(publicApiDeps(infrastructure)),
+      },
+      { provide: API_KEY_AUTHENTICATOR, useValue: new AuthenticateApiKey(infrastructure) },
+      ApiKeyGuard,
       { provide: AUDIT_USE_CASES, useValue: createAuditUseCases(infrastructure) },
       {
         provide: ACCESS_TOKEN_AUTHENTICATOR,

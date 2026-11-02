@@ -36,6 +36,7 @@ import {
   SubmitContent,
   UnpublishContent,
 } from './lifecycle.use-case.js';
+import { ReadPublishedContent } from './read-published-content.use-case.js';
 import { PublishDueContent } from './publish-due-content.use-case.js';
 import { PurgeDeletedContent } from './purge-deleted-content.use-case.js';
 import {
@@ -837,6 +838,53 @@ describe('content use cases', () => {
         draft: 1,
         in_review: 1,
       });
+    });
+  });
+
+  describe('ReadPublishedContent (FR-PUBAPI-03)', () => {
+    const read = () => new ReadPublishedContent(deps);
+    const live = {
+      status: 'published' as const,
+      publishedAt: new Date('2026-05-01'),
+      ...publishable,
+    };
+
+    it('lists only what is public as of now', async () => {
+      contents.add(aContent({ ...live, id: 'yes', slug: 'yes' }));
+      contents.add(aContent({ ...live, id: 'draft', slug: 'draft', status: 'draft' }));
+      contents.add(
+        aContent({ ...live, id: 'future', slug: 'future', publishedAt: new Date('2026-07-01') }),
+      );
+
+      const result = await read().list({ type: 'article' }, { page: 1, pageSize: 10 });
+
+      expect(result.items.map((item) => item.id)).toEqual(['yes']);
+    });
+
+    it('finds one by slug, with its SEO defaults and author', async () => {
+      contents.add(aContent({ ...live, slug: 'yes', title: 'T' }));
+
+      await expect(read().findBySlug('article', 'yes')).resolves.toMatchObject({
+        slug: 'yes',
+        authorName: 'Name of author-1',
+        publishedAt: live.publishedAt,
+        effectiveSeo: { title: 'T', description: 'Some text' },
+      });
+    });
+
+    it('finds nothing for what is not public', async () => {
+      contents.add(aContent({ ...live, slug: 'no', status: 'unpublished' }));
+
+      await expect(read().findBySlug('article', 'no')).resolves.toBeNull();
+    });
+
+    it('counts only public use of media', async () => {
+      contents.add(aContent({ ...live, id: 'a', slug: 'a', featuredImageId: MEDIA }));
+      contents.add(
+        aContent({ ...live, id: 'b', slug: 'b', status: 'draft', featuredImageId: MEDIA }),
+      );
+
+      await expect(read().countMediaUsage(MEDIA)).resolves.toBe(1);
     });
   });
 

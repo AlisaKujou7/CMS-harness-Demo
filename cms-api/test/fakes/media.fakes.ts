@@ -67,6 +67,10 @@ export class InMemoryMediaRepository implements MediaRepository {
     return Promise.resolve(this.items.get(id) ?? null);
   }
 
+  findByIds(ids: readonly string[]): Promise<readonly MediaItem[]> {
+    return Promise.resolve(ids.flatMap((id) => this.items.get(id) ?? []));
+  }
+
   findWithUploader(id: string): Promise<MediaWithUploader | null> {
     const item = this.items.get(id);
     return Promise.resolve(item ? this.withUploader(item) : null);

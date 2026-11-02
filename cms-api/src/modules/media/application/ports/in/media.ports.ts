@@ -101,6 +101,10 @@ export interface InspectImageReferencesUseCase {
   execute(ids: readonly string[]): Promise<ImageReferenceReport>;
 }
 
+export interface GetMediaViewsUseCase {
+  execute(ids: readonly string[]): Promise<readonly MediaView[]>;
+}
+
 export interface PurgeDeletedMediaFilesUseCase {
   execute(): Promise<number>;
 }

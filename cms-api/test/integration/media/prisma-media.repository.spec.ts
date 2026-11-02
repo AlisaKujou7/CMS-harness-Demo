@@ -120,6 +120,14 @@ describe('PrismaMediaRepository', () => {
     });
   });
 
+  it('finds several by id, leaving out what does not exist', async () => {
+    await repo.create(item(1));
+
+    const found = await repo.findByIds([id(1), id(2)]);
+
+    expect(found.map((media) => media.id)).toEqual([id(1)]);
+  });
+
   it('gives the type of each id that exists, keyed in lowercase', async () => {
     await repo.create(item(1));
 

@@ -51,6 +51,10 @@ const schema = z
     RATE_LIMIT_LOGIN_PER_MIN: count(10),
     RATE_LIMIT_PASSWORD_RESET_PER_HOUR: count(5),
     RATE_LIMIT_INVITATION_PER_HOUR: count(30),
+    RATE_LIMIT_PUBLIC_API_PER_MIN: count(60),
+    // FR-CONTENT-12 allows 60 seconds in all, and this is spent twice: in the server's cache, then
+    // in the client's.
+    PUBLIC_CACHE_TTL_SEC: count(30).pipe(z.number().max(30)),
     OBJECT_STORAGE_PROVIDER: z.enum(['minio', 's3']).default('s3'),
     OBJECT_STORAGE_ENDPOINT: optionalString,
     OBJECT_STORAGE_REGION: z.string().default('us-east-1'),
@@ -158,6 +162,12 @@ function toConfig(env: z.output<typeof schema>) {
     rateLimitLoginPerMinute: env.RATE_LIMIT_LOGIN_PER_MIN,
     rateLimitPasswordResetPerHour: env.RATE_LIMIT_PASSWORD_RESET_PER_HOUR,
     rateLimitInvitationPerHour: env.RATE_LIMIT_INVITATION_PER_HOUR,
+    rateLimitPublicApiPerMinute: env.RATE_LIMIT_PUBLIC_API_PER_MIN,
+    publicApi: {
+      cacheTtlSeconds: env.PUBLIC_CACHE_TTL_SEC,
+      // Half the signed URLs' life, so a response cannot be reused past them.
+      urlRefreshSeconds: Math.max(Math.floor(env.MEDIA_READ_URL_TTL_SEC / 2), 1),
+    },
     objectStorage: toObjectStorage(env),
     media: toMedia(env),
     contentCategories: toCategories(env.CONTENT_CATEGORIES),

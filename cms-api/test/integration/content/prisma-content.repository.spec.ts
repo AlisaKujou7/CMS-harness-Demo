@@ -256,6 +256,69 @@ describe('PrismaContentRepository', () => {
     await expect(repo.countByStatus(OTHER)).resolves.toMatchObject({ draft: 1, published: 0 });
   });
 
+  describe('what is public (FR-PUBAPI-03, RK-04)', () => {
+    const NOW = after(60);
+    const live = { status: 'published' as const, publishedAt: after(1) };
+    const listed = async (criteria: Partial<Parameters<typeof repo.findPublished>[0]> = {}) => {
+      const result = await repo.findPublished({ type: 'article', ...criteria }, PAGE, NOW);
+      return result.items.map((row) => row.slug);
+    };
+
+    it.each([
+      ['a draft', { status: 'draft' as const }],
+      ['in review', { status: 'in_review' as const }],
+      ['unpublished', { status: 'unpublished' as const }],
+      ['archived', { status: 'archived' as const }],
+      ['soft-deleted', { deletedAt: T0 }],
+      ['published later than now', { publishedAt: after(61) }],
+      ['with no publish date', { publishedAt: null }],
+      ['of another type', { type: 'page' as const }],
+    ])('excludes content that is %s', async (_name, change) => {
+      await repo.create(item(1, { ...live, slug: 'hidden', ...change }));
+
+      await expect(listed()).resolves.toEqual([]);
+      await expect(repo.findPublishedBySlug('article', 'hidden', NOW)).resolves.toBeNull();
+    });
+
+    it('includes content published exactly now', async () => {
+      await repo.create(item(1, { ...live, slug: 'now', publishedAt: NOW }));
+
+      await expect(listed()).resolves.toEqual(['now']);
+    });
+
+    it('lists newest first with the author, the featured image id, and no body', async () => {
+      await repo.create(item(1, { ...live, slug: 'old', tags: ['x'], category: 'news' }));
+      await repo.create(item(2, { ...live, slug: 'new', publishedAt: after(2) }));
+
+      const result = await repo.findPublished({ type: 'article' }, { page: 1, pageSize: 1 }, NOW);
+
+      expect(result).toMatchObject({ total: 2, totalPages: 2 });
+      expect(result.items[0]).toMatchObject({ slug: 'new', authorName: 'Ann Author' });
+      expect(result.items[0]).not.toHaveProperty('body');
+      await expect(listed({ tag: 'x' })).resolves.toEqual(['old']);
+      await expect(listed({ tag: 'y' })).resolves.toEqual([]);
+      await expect(listed({ category: 'news' })).resolves.toEqual(['old']);
+    });
+
+    it('finds one by slug, with its author', async () => {
+      await repo.create(item(1, { ...live, slug: 'one', title: 'One' }));
+
+      const found = await repo.findPublishedBySlug('article', 'one', NOW);
+
+      expect(found?.content.title).toBe('One');
+      expect(found?.authorName).toBe('Ann Author');
+    });
+
+    it('counts only public use of media', async () => {
+      const media = new PrismaMediaRepository(db.context);
+      await media.create(aMediaItem({ id: id(90), storageKey: 'k', uploadedBy: AUTHOR }));
+      await repo.create(item(1, { ...live, slug: 'a', featuredImageId: id(90) }));
+      await repo.create(item(2, { slug: 'b', featuredImageId: id(90) }));
+
+      await expect(repo.countPublishedMediaUsage(id(90), NOW)).resolves.toBe(1);
+    });
+  });
+
   it('knows whether a page has live children', async () => {
     await repo.create(item(1, { type: 'page' }));
     await expect(repo.hasChildren(id(1))).resolves.toBe(false);

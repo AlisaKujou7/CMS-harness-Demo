@@ -27,7 +27,12 @@ import {
   PurgeAbandonedUploads,
   PurgeDeletedMediaFiles,
 } from './media-background.use-case.js';
-import { GetMedia, InspectImageReferences, ListMedia } from './read-media.use-case.js';
+import {
+  GetMedia,
+  GetMediaViews,
+  InspectImageReferences,
+  ListMedia,
+} from './read-media.use-case.js';
 
 const admin: Actor = { id: 'admin-1', role: 'admin' };
 const editor: Actor = { id: 'editor-1', role: 'editor' };
@@ -309,6 +314,15 @@ describe('media use cases', () => {
         totalPages: 2,
       });
     });
+  });
+
+  it('GetMediaViews returns signed views of what exists', async () => {
+    media.add(aMediaItem());
+
+    const views = await new GetMediaViews(deps).execute([MEDIA_ID, 'gone']);
+
+    expect(views.map((view) => view.id)).toEqual([MEDIA_ID]);
+    expect(views[0]?.url).toContain('https://storage.test/');
   });
 
   describe('InspectImageReferences', () => {

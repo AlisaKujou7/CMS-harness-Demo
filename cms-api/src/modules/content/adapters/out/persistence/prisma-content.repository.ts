@@ -22,6 +22,8 @@ import type {
   ContentSortField,
   ContentVersion,
   ContentVersionSummary,
+  PublishedCriteria,
+  PublishedListItem,
 } from '../../../application/ports/out/content-repository.port.js';
 import { Content, type ContentType } from '../../../domain/entities/content.entity.js';
 import {
@@ -111,8 +113,72 @@ function toWhere(criteria: ContentCriteria): Prisma.ContentWhereInput {
   };
 }
 
+function publicWhere(now: Date) {
+  return { status: 'published', publishedAt: { lte: now }, deletedAt: null } as const;
+}
+
 export class PrismaContentRepository implements ContentRepository {
   constructor(private readonly db: PrismaContext) {}
+
+  async findPublished(
+    criteria: PublishedCriteria,
+    page: PageRequest,
+    now: Date,
+  ): Promise<PagedResult<PublishedListItem>> {
+    const { type, tag, category } = criteria;
+    const where: Prisma.ContentWhereInput = {
+      ...publicWhere(now),
+      type,
+      ...(tag === undefined ? {} : { tags: { has: tag } }),
+      ...defined({ category }),
+    };
+    const [rows, total] = await Promise.all([
+      this.db.client.content.findMany({
+        where,
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          tags: true,
+          category: true,
+          parentId: true,
+          featuredImageId: true,
+          version: true,
+          publishedAt: true,
+          updatedAt: true,
+          author: { select: { name: true } },
+        },
+        orderBy: [{ publishedAt: 'desc' }, { id: 'desc' }],
+        skip: (page.page - 1) * page.pageSize,
+        take: page.pageSize,
+      }),
+      this.db.client.content.count({ where }),
+    ]);
+    const items = rows.map(({ author, publishedAt, ...row }) => ({
+      ...row,
+      authorName: author.name,
+      publishedAt: publishedAt as Date,
+    }));
+    return pagedResult(items, total, page);
+  }
+
+  async findPublishedBySlug(
+    type: ContentType,
+    slug: string,
+    now: Date,
+  ): Promise<{ content: Content; authorName: string } | null> {
+    const row = await this.db.client.content.findFirst({
+      where: { ...publicWhere(now), type, slug },
+      include: { author: { select: { name: true } } },
+    });
+    return row && { content: toDomain(row), authorName: row.author.name };
+  }
+
+  countPublishedMediaUsage(mediaId: string, now: Date): Promise<number> {
+    return this.db.client.content.count({
+      where: { ...publicWhere(now), referencedMediaIds: { has: mediaId } },
+    });
+  }
 
   async findById(id: string): Promise<Content | null> {
     const row = await this.db.client.content.findFirst({ where: { id, deletedAt: null } });

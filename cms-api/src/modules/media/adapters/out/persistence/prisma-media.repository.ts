@@ -76,6 +76,11 @@ export class PrismaMediaRepository implements MediaRepository {
     return row && toDomain(row);
   }
 
+  async findByIds(ids: readonly string[]): Promise<readonly MediaItem[]> {
+    const rows = await this.db.client.mediaItem.findMany({ where: { id: { in: [...ids] } } });
+    return rows.map(toDomain);
+  }
+
   async findWithUploader(id: string): Promise<MediaWithUploader | null> {
     const row = await this.db.client.mediaItem.findUnique({
       where: { id },

@@ -1,5 +1,5 @@
 import type { Actor } from '../../../../../shared/kernel/actor.js';
-import type { PagedResult } from '../../../../../shared/kernel/paged-result.js';
+import type { PagedResult, PageRequest } from '../../../../../shared/kernel/paged-result.js';
 import type { ContentType } from '../../../domain/entities/content.entity.js';
 import type { ContentStatus } from '../../../domain/services/content-lifecycle.service.js';
 import type { RichTextNode } from '../../../domain/services/rich-text.js';
@@ -9,6 +9,8 @@ import type {
   ContentListItem,
   ContentSnapshot,
   ContentVersionSummary,
+  PublishedCriteria,
+  PublishedListItem,
 } from '../out/content-repository.port.js';
 
 export interface ContentView {
@@ -146,6 +148,17 @@ export interface GetContentVersionUseCase {
 
 export interface RevertContentUseCase {
   execute(command: ContentCommand & { readonly versionNo: number }): Promise<ContentView>;
+}
+
+export interface PublishedDetail extends Omit<ContentView, 'publishedAt'> {
+  readonly authorName: string;
+  readonly publishedAt: Date;
+}
+
+export interface PublishedContentQueries {
+  list(criteria: PublishedCriteria, page: PageRequest): Promise<PagedResult<PublishedListItem>>;
+  findBySlug(type: ContentType, slug: string): Promise<PublishedDetail | null>;
+  countMediaUsage(mediaId: string): Promise<number>;
 }
 
 export interface PublishDueContentUseCase {

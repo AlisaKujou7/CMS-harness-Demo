@@ -9,6 +9,8 @@ import type {
   ContentRepository,
   ContentVersion,
   ContentVersionSummary,
+  PublishedCriteria,
+  PublishedListItem,
 } from '../../src/modules/content/application/ports/out/content-repository.port.js';
 import type { Content } from '../../src/modules/content/domain/entities/content.entity.js';
 import { type ContentType } from '../../src/modules/content/domain/entities/content.entity.js';
@@ -42,6 +44,15 @@ function matches(content: Content, criteria: ContentCriteria): boolean {
   );
 }
 
+function isPublic(content: Content, now: Date): boolean {
+  return (
+    content.status === 'published' &&
+    content.publishedAt !== null &&
+    content.publishedAt <= now &&
+    content.deletedAt === null
+  );
+}
+
 export class InMemoryContentRepository implements ContentRepository {
   readonly contents = new Map<string, Content>();
   readonly versions: ContentVersion[] = [];
@@ -56,6 +67,48 @@ export class InMemoryContentRepository implements ContentRepository {
     const content = this.contents.get(id);
     if (!content) throw new Error(`No content ${id}`);
     return content;
+  }
+
+  findPublished(
+    criteria: PublishedCriteria,
+    page: PageRequest,
+    now: Date,
+  ): Promise<PagedResult<PublishedListItem>> {
+    const { type, tag, category } = criteria;
+    const all = [...this.contents.values()]
+      .filter(
+        (content) =>
+          isPublic(content, now) &&
+          content.type === type &&
+          (tag === undefined || content.tags.includes(tag)) &&
+          (category === undefined || content.category === category),
+      )
+      .sort((a, b) => (b.publishedAt as Date).getTime() - (a.publishedAt as Date).getTime());
+    const start = (page.page - 1) * page.pageSize;
+    const items = all.slice(start, start + page.pageSize).map((content) => ({
+      ...content,
+      publishedAt: content.publishedAt as Date,
+      authorName: `Name of ${content.authorId}`,
+    }));
+    return Promise.resolve(pagedResult(items, all.length, page));
+  }
+
+  findPublishedBySlug(
+    type: ContentType,
+    slug: string,
+    now: Date,
+  ): Promise<{ content: Content; authorName: string } | null> {
+    const content = [...this.contents.values()].find(
+      (candidate) => isPublic(candidate, now) && candidate.type === type && candidate.slug === slug,
+    );
+    return Promise.resolve(content ? { content, authorName: `Name of ${content.authorId}` } : null);
+  }
+
+  countPublishedMediaUsage(mediaId: string, now: Date): Promise<number> {
+    const using = [...this.contents.values()].filter(
+      (content) => isPublic(content, now) && referencedMediaIds(content).includes(mediaId),
+    );
+    return Promise.resolve(using.length);
   }
 
   findById(id: string): Promise<Content | null> {

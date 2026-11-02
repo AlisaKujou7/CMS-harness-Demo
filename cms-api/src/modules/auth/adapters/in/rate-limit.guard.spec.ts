@@ -9,10 +9,12 @@ const http = {
   secureCookies: true,
   trustProxy: true,
   corsOrigins: [],
+  publicCacheSeconds: 30,
   rateLimits: {
     login: { limit: 1, windowSeconds: 60 },
     passwordReset: { limit: 5, windowSeconds: 3600 },
     invitation: { limit: 20, windowSeconds: 3600 },
+    publicApi: { limit: 60, windowSeconds: 60 },
   },
 };
 

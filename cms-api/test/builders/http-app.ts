@@ -5,6 +5,7 @@ import { createAppModule, type Infrastructure } from '../../src/composition/app.
 import { configureApp } from '../../src/shared/adapters/http/configure-app.js';
 import { InProcessEventPublisher } from '../../src/shared/adapters/out/in-process-event-publisher.js';
 import { InMemoryContentRepository } from '../fakes/content.fakes.js';
+import { InMemoryResponseCache } from '../fakes/public-api.fakes.js';
 import {
   FakeImageProcessor,
   FakeSvgSanitizer,
@@ -33,6 +34,8 @@ export function createFakeInfrastructure() {
     svg: new FakeSvgSanitizer(),
     images: new FakeImageProcessor(),
     variantQueue: new RecordingVariantQueue(),
+    responseCache: new InMemoryResponseCache(),
+    publicApiConfig: { cacheTtlSeconds: 30, urlRefreshSeconds: 1800 },
     mediaConfig: {
       maxUploadBytes: 20 * 1024 * 1024,
       uploadUrlTtlSeconds: 900,
@@ -44,10 +47,12 @@ export function createFakeInfrastructure() {
       secureCookies: true,
       trustProxy: true,
       corsOrigins: ['https://cms.example.com'],
+      publicCacheSeconds: 30,
       rateLimits: {
         login: { limit: 10, windowSeconds: 60 },
         passwordReset: { limit: 5, windowSeconds: 3600 },
         invitation: { limit: 20, windowSeconds: 3600 },
+        publicApi: { limit: 1000, windowSeconds: 60 },
       },
     },
   } satisfies Infrastructure;

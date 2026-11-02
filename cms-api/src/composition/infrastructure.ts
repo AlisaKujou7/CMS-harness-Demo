@@ -9,6 +9,7 @@ import { SharpImageProcessor } from '../modules/media/adapters/out/image/sharp-i
 import { PrismaMediaRepository } from '../modules/media/adapters/out/persistence/prisma-media.repository.js';
 import { BullMqVariantQueue } from '../modules/media/adapters/out/queue/bullmq-variant-queue.js';
 import { S3ObjectStorage } from '../modules/media/adapters/out/storage/s3-object-storage.js';
+import { RedisResponseCache } from '../modules/public-api/adapters/out/redis-response-cache.js';
 import { PrismaContentRepository } from '../modules/content/adapters/out/persistence/prisma-content.repository.js';
 import { PrismaUserRepository } from '../modules/users/adapters/out/persistence/prisma-user.repository.js';
 import { InProcessEventPublisher } from '../shared/adapters/out/in-process-event-publisher.js';
@@ -49,10 +50,12 @@ function toHttpConfig(config: AppConfig): HttpConfig {
     secureCookies: config.secureCookies,
     trustProxy: config.trustProxy,
     corsOrigins: config.corsOrigins,
+    publicCacheSeconds: config.publicApi.cacheTtlSeconds,
     rateLimits: {
       login: { limit: config.rateLimitLoginPerMinute, windowSeconds: 60 },
       passwordReset: { limit: config.rateLimitPasswordResetPerHour, windowSeconds: 3600 },
       invitation: { limit: config.rateLimitInvitationPerHour, windowSeconds: 3600 },
+      publicApi: { limit: config.rateLimitPublicApiPerMinute, windowSeconds: 60 },
     },
   };
 }
@@ -71,6 +74,14 @@ function createVariantQueue(config: AppConfig, logger: Logger): BullMqVariantQue
     logger.error('Media variant queue connection error', { error: error.message });
   });
   return queue;
+}
+
+function createMediaAdapters(config: AppConfig) {
+  return {
+    storage: new S3ObjectStorage(config.objectStorage),
+    svg: new XmlSvgSanitizer(),
+    images: new SharpImageProcessor(),
+  };
 }
 
 function createSecurity(config: AppConfig, clock: SystemClock) {
@@ -115,22 +126,21 @@ export function createInfrastructure(
   const emailQueue = createEmailQueue(config, logger);
   const variantQueue = createVariantQueue(config, logger);
   const clock = new SystemClock();
-  const ids = new Uuidv4Generator();
 
   const infrastructure: Infrastructure = {
     ...createRepositories(db),
     contentCategories: config.contentCategories,
-    storage: new S3ObjectStorage(config.objectStorage),
-    svg: new XmlSvgSanitizer(),
-    images: new SharpImageProcessor(),
+    ...createMediaAdapters(config),
     variantQueue,
     mediaConfig: config.media,
+    responseCache: new RedisResponseCache(redis, logger),
+    publicApiConfig: config.publicApi,
     events: new InProcessEventPublisher(logger),
     ...createSecurity(config, clock),
     clock,
-    ids,
+    ids: new Uuidv4Generator(),
     tx: db,
-    audit: new PrismaAuditLog(db, clock, ids),
+    audit: new PrismaAuditLog(db, clock, new Uuidv4Generator()),
     email: emailQueue,
     logger,
     config: {
