@@ -1,0 +1,7 @@
+AIAGENT_POC/
+node_modules/
+dist/
+coverage/
+reports/
+.stryker-tmp/
+pnpm-lock.yaml

@@ -1,0 +1,11 @@
+{
+  "threshold": 3,
+  "minTokens": 50,
+  "maxLines": 1000,
+  "reporters": ["console"],
+  "format": ["typescript", "tsx", "javascript"],
+  "path": ["cms-api/src", "cms-web/src"],
+  "ignore": ["**/*.spec.ts", "**/*.spec.tsx", "**/*.generated.ts"],
+  "gitignore": true,
+  "exitCode": 1
+}

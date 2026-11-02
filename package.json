@@ -1,0 +1,52 @@
+{
+  "name": "cms",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Headless CMS MVP monorepo. Specs live in AIAGENT_POC/.",
+  "type": "module",
+  "packageManager": "pnpm@12.16.1",
+  "engines": {
+    "node": ">=26.13.0 <27"
+  },
+  "scripts": {
+    "prepare": "husky",
+    "gate": "node tools/gates/run-gate.mjs",
+    "gate:fast": "node tools/gates/run-gate.mjs --fast",
+    "gate:self-test": "node tools/gates/self-test.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "pnpm -r typecheck",
+    "depcruise": "pnpm -r depcruise",
+    "test": "pnpm -r test",
+    "test:unit": "pnpm -r test:unit",
+    "test:cov": "pnpm -r test:cov",
+    "test:integration": "pnpm -r test:integration",
+    "test:mutation": "pnpm -r test:mutation",
+    "test:tools": "node --test \"tools/gates/*.test.mjs\"",
+    "dup": "jscpd"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,mjs,cjs}": [
+      "prettier --check",
+      "eslint --max-warnings 0"
+    ],
+    "*.{json,md,yml,yaml,css,html}": "prettier --check"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.2.4",
+    "@commitlint/config-conventional": "^21.2.4",
+    "@eslint-community/eslint-plugin-eslint-comments": "^4.8.1",
+    "@eslint/js": "^10.0.1",
+    "@vitest/eslint-plugin": "^1.6.28",
+    "eslint": "^10.14.0",
+    "eslint-plugin-sonarjs": "^4.2.2",
+    "globals": "^17.13.0",
+    "husky": "^9.1.7",
+    "jscpd": "^5.4.2",
+    "lint-staged": "^17.6.0",
+    "prettier": "^3.9.10",
+    "typescript": "6.0.3",
+    "typescript-eslint": "^8.72.1"
+  }
+}

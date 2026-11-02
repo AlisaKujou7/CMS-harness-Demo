@@ -1,0 +1,12 @@
+node_modules/
+dist/
+coverage/
+reports/
+.stryker-tmp/
+*.tsbuildinfo
+*.log
+
+# Secrets: only .env.example is ever committed (07-OPS-ARCH 7.1)
+.env
+.env.*
+!.env.example

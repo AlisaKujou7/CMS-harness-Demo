@@ -1,0 +1,46 @@
+// Types and scopes follow 08-GIT-WORKFLOW 7.1. `red` and `green` are the TDD bookmarks.
+export default {
+  extends: ['@commitlint/config-conventional'],
+  rules: {
+    'type-enum': [
+      2,
+      'always',
+      [
+        'feat',
+        'fix',
+        'refactor',
+        'perf',
+        'test',
+        'docs',
+        'build',
+        'ci',
+        'chore',
+        'revert',
+        'red',
+        'green',
+      ],
+    ],
+    'scope-enum': [
+      2,
+      'always',
+      [
+        'auth',
+        'users',
+        'content',
+        'media',
+        'audit',
+        'public-api',
+        'notifications',
+        'shared',
+        'infra',
+        'ci',
+        'docs',
+        'web',
+        'release',
+      ],
+    ],
+    'header-max-length': [2, 'always', 72],
+    'subject-case': [2, 'always', 'lower-case'],
+    'subject-full-stop': [2, 'never', '.'],
+  },
+};
