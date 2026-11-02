@@ -170,6 +170,15 @@ describe('RefreshTokenSession', () => {
       expect(ctx.audit.events).toEqual([]);
     });
 
+    it('refuses when the user was deleted during the race, which removes the token', async () => {
+      ctx.refreshTokens.markRotatedIfActive = (id) => {
+        ctx.refreshTokens.tokens.delete(id);
+        return Promise.resolve(false);
+      };
+
+      await expect(use(firstToken)).rejects.toThrow(InvalidRefreshTokenError);
+    });
+
     it('refuses when the race was lost to a logout rather than a rotation', async () => {
       ctx.refreshTokens.markRotatedIfActive = async (id, at) => {
         await ctx.refreshTokens.revokeIfActive(id, at);
