@@ -1,7 +1,10 @@
 import type { Actor } from '../../../../shared/kernel/actor.js';
 import { ForbiddenError } from '../../../../shared/kernel/app-error.js';
 import type { Content } from '../../domain/entities/content.entity.js';
-import { InvalidTransitionError } from '../../domain/errors/content.errors.js';
+import {
+  ContentScheduledError,
+  InvalidTransitionError,
+} from '../../domain/errors/content.errors.js';
 
 // 02-SRS 5.3.1. The routes check roles too, so this is the second of the two layers FR-AUTHZ-01
 // asks for, and the one that knows who owns what.
@@ -33,6 +36,7 @@ export function assertCanSubmit(actor: Actor, content: Content): void {
 // Once submitted or live, an author's content is in the hands of Editors until it comes back.
 export function assertCanEdit(actor: Actor, content: Content): void {
   assertOwnerOrModerator(actor, content);
+  if (!seesAllContent(actor) && content.scheduledAt !== null) throw new ContentScheduledError();
   if (
     !seesAllContent(actor) &&
     (content.status === 'in_review' || content.status === 'published')

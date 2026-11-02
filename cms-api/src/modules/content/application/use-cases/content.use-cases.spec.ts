@@ -15,6 +15,7 @@ import { Content } from '../../domain/entities/content.entity.js';
 import {
   ConcurrentModificationError,
   ContentNotFoundError,
+  ContentScheduledError,
   InvalidContentError,
   InvalidTransitionError,
   MissingRequiredFieldsError,
@@ -176,6 +177,61 @@ describe('content use cases', () => {
       expect(last?.slug).toBe(`hello-world-${String(last?.id.slice(0, 8))}`);
     });
 
+    describe('when someone takes a generated slug at the same moment', () => {
+      const conflictTimes = (times: number) => {
+        const insert = contents.create.bind(contents);
+        let remaining = times;
+        contents.create = (content) => {
+          if (remaining === 0) return insert(content);
+          remaining -= 1;
+          return Promise.reject(new SlugConflictError());
+        };
+      };
+
+      it('tries again instead of asking the caller to fix a slug they never chose', async () => {
+        conflictTimes(1);
+
+        await expect(create()).resolves.toMatchObject({ slug: 'hello-world' });
+        expect(tx.runs).toBe(2);
+      });
+
+      it('falls back to the id on the last attempt', async () => {
+        conflictTimes(4);
+
+        const view = await create();
+
+        expect(view.slug).toBe(`hello-world-${view.id.slice(0, 8)}`);
+        expect(tx.runs).toBe(5);
+      });
+
+      it('reports the conflict for a slug the caller chose', async () => {
+        conflictTimes(1);
+
+        await expect(create({ slug: 'mine' })).rejects.toThrow(SlugConflictError);
+        expect(tx.runs).toBe(1);
+      });
+
+      it('does not retry any other failure', async () => {
+        contents.create = () => Promise.reject(new Error('database went away'));
+
+        await expect(create()).rejects.toThrow('database went away');
+        expect(tx.runs).toBe(1);
+      });
+    });
+
+    it('takes the slug from the title without its markup', async () => {
+      await expect(create({ title: '<script>x</script>Clean title' })).resolves.toMatchObject({
+        title: 'Clean title',
+        slug: 'clean-title',
+      });
+    });
+
+    it('can reuse the slug of a deleted item', async () => {
+      contents.add(aContent({ id: 'gone', slug: 'hello-world', deletedAt: new Date() }));
+
+      await expect(create()).resolves.toMatchObject({ slug: 'hello-world' });
+    });
+
     it('uses a supplied slug and refuses one that is taken (FR-CONTENT-03)', async () => {
       await expect(create({ slug: 'Custom-Slug' })).resolves.toMatchObject({ slug: 'custom-slug' });
       await expect(create({ slug: 'custom-slug' })).rejects.toThrow(SlugConflictError);
@@ -274,6 +330,30 @@ describe('content use cases', () => {
       });
     });
 
+    it('sees an unchanged body as unchanged whatever order its keys came back in', async () => {
+      stored({
+        version: 3,
+        body: {
+          content: [{ content: [{ text: 'Same', type: 'text' }], type: 'paragraph' }],
+          type: 'doc',
+        },
+      });
+
+      const view = await update(author, { body: aTextBody('Same') });
+
+      expect(view.version).toBe(3);
+      expect(contents.versions).toEqual([]);
+    });
+
+    it('still sees a real change to the body', async () => {
+      stored({ version: 3, body: aTextBody('Before') });
+
+      const view = await update(author, { body: aTextBody('After') });
+
+      expect(view.version).toBe(4);
+      expect(audit.events[0]?.summary).toEqual({ fields: ['body'] });
+    });
+
     it('refuses a save from a version someone else has moved past (conflict dialog)', async () => {
       stored({ version: 4 });
 
@@ -360,6 +440,20 @@ describe('content use cases', () => {
           await expect(update(author)).rejects.toThrow(InvalidTransitionError);
         },
       );
+
+      it('stops an Author changing a scheduled draft, which an Editor approved', async () => {
+        stored({ version: 3, scheduledAt: new Date('2026-06-02T00:00:00Z') });
+
+        await expect(update(author)).rejects.toThrow(ContentScheduledError);
+        expect(contents.get(ID).title).toBe('A Title');
+      });
+
+      it('lets an Editor change a scheduled draft', async () => {
+        const scheduledAt = new Date('2026-06-02T00:00:00Z');
+        stored({ version: 3, scheduledAt });
+
+        await expect(update(editor)).resolves.toMatchObject({ title: 'New title', scheduledAt });
+      });
 
       it('lets an Editor edit published content, which stays published', async () => {
         stored({ version: 3, status: 'published', ...publishable });
@@ -755,6 +849,12 @@ describe('content use cases', () => {
         await expect(revert(author, 2)).rejects.toThrow(InvalidTransitionError);
       });
 
+      it('stops an Author reverting a scheduled draft', async () => {
+        contents.add(aContent({ ...contents.get(ID), scheduledAt: new Date('2026-06-02') }));
+
+        await expect(revert(author, 2)).rejects.toThrow(ContentScheduledError);
+      });
+
       it('reports a version that does not exist', async () => {
         await expect(revert(author, 99)).rejects.toThrow(ContentNotFoundError);
       });
@@ -926,8 +1026,33 @@ describe('content use cases', () => {
         action: 'content.purge',
         targetType: 'content',
         targetId: null,
-        summary: { count: 1 },
+        summary: { count: 1, ids: ['old'] },
       });
+    });
+
+    it('works through a large backlog in batches, naming what each one removed', async () => {
+      const old = new Date(clock.now().getTime() - 31 * DAY_MS);
+      for (let n = 0; n < 201; n += 1) {
+        contents.add(aContent({ id: `old-${String(n)}`, slug: `s-${String(n)}`, deletedAt: old }));
+      }
+
+      await expect(run()).resolves.toBe(201);
+
+      expect(contents.contents.size).toBe(0);
+      expect(audit.events.map((event) => event.summary['count'])).toEqual([100, 100, 1]);
+      expect(tx.runs).toBe(3);
+    });
+
+    it('stops once a batch comes back exactly empty after a full one', async () => {
+      const old = new Date(clock.now().getTime() - 31 * DAY_MS);
+      for (let n = 0; n < 100; n += 1) {
+        contents.add(aContent({ id: `old-${String(n)}`, slug: `s-${String(n)}`, deletedAt: old }));
+      }
+
+      await expect(run()).resolves.toBe(100);
+
+      expect(audit.events).toHaveLength(1);
+      expect(tx.runs).toBe(2);
     });
 
     it('audits nothing when there was nothing to purge', async () => {

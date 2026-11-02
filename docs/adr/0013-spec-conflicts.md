@@ -51,14 +51,16 @@ The stricter or more specific document wins unless noted.
 - A save that changes nothing creates no version and no audit event.
 - History is only open to those who may edit: an Author can read another author's published article but not its earlier drafts.
 - A revert restores what the item says, not its lifecycle state, and follows the same rules as an edit.
-- A soft-deleted item keeps its slug for its 30 days, because the unique index covers it and FR-CONTENT-13 implies it can be recovered from the database until the purge. Nothing restores it through the API yet, so the Undo that 03-DESIGN §1000 shows for delete and unpublish is still open for phase 6.
+- A soft-deleted item gives up its slug at once, enforced by a partial unique index on live rows, because nothing can show or free a slug during those 30 days. Nothing restores deleted content through the API yet, so the Undo that 03-DESIGN shows for delete and unpublish is still open for phase 6, and a restore must handle a slug taken in the meantime.
 - A slug generated from a title with no Latin letters or digits, such as a Thai title, falls back to `content-<id prefix>`, which the author can edit. FR-CONTENT-02 asks for a URL-safe slug and NFR-I18N does not ask for transliteration.
-- SEC-04 needs executable tags gone from what the API returns, including in text nodes, where they would be inert JSON until a consumer renders them. So `<script>`, `<style>`, `<iframe>`, `<object>` and `<embed>` are removed from text outside code blocks, which also means an article cannot quote those tags outside a code block.
-- The JSON body limit is 2 MB, raised from the 100 KB default, since a rich text tree is much larger than its text. Media does not pass through the API (FR-MEDIA-04).
+- SEC-04 needs executable tags gone from what the API returns, and no list of dangerous tags is ever complete, so every HTML tag is removed from title, SEO fields, tags, category, review notes, image and link attributes, and text nodes. `<script>`, `<style>`, `<iframe>` and `<object>` lose their content too when they have an end tag. Formatting lives in marks, so a real tag in text has no meaning. An article can only quote tags inside a code block, which keeps its text exactly, so consumers must escape code blocks when rendering them. A comparison such as `1 < 2` stays.
+- An Author cannot edit or revert their draft while it is scheduled (409 `CONTENT_SCHEDULED`), because an Editor approved that text and the worker would publish changes nobody reviewed. An Editor can edit it or cancel the schedule.
+- The JSON body limit is 2 MB on content routes only, since a rich text tree is much larger than its text. Every other route keeps the 100 KB default, and media does not pass through the API (FR-MEDIA-04).
 - Categories come from the `CONTENT_CATEGORIES` setting, since the Requirements doc §6.2 says "predefined list" without naming one or a screen to manage it. A category is checked only when it changes, so removing one from the list does not block other saves.
 - The list hides Archived items unless `status=archived` is asked for. The date range filters `updated_at`, the date the list shows.
 - Reference columns for media stay plain UUIDs until phase 4 adds the table and its foreign keys.
 - A scheduled publish that can no longer succeed clears the schedule and writes `content.schedule_failed` to the audit log, since retrying would never succeed. Nothing notifies the Editor yet, because no notification feature is in scope.
+- Purging runs in batches of 100, each in its own transaction, and each audit event names the ids removed.
 - Worker jobs use BullMQ job schedulers. `purge-expired-tokens` also runs there, deleting tokens past their expiry, since replay detection only matters until then.
 
 ## Consequences

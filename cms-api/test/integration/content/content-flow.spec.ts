@@ -176,6 +176,51 @@ describe('content lifecycle against real infrastructure', () => {
     expect(content.title).toBe('Nul and lone � here');
   });
 
+  it('sees a body it stored as unchanged when the editor sends it again', async () => {
+    const editor = await tokenOf('editor@example.com');
+    const body = {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'Link', marks: [{ type: 'link', attrs: { href: '/a' } }] },
+          ],
+        },
+      ],
+    };
+    const created = await create(editor, { body });
+
+    const saved = await client()
+      .patch(`${CONTENT}/${created.id}`)
+      .set('Authorization', editor)
+      .send({ version: created.version, body })
+      .expect(200);
+
+    expect((saved.body as Created).data.version).toBe(created.version);
+  });
+
+  it('gives simultaneous creates of one title their own slugs', async () => {
+    const editor = await tokenOf('editor@example.com');
+
+    const created = await Promise.all([1, 2, 3, 4].map(() => create(editor, { title: 'Same' })));
+
+    expect(new Set(created.map((content) => content.id)).size).toBe(4);
+  });
+
+  it('lets a new item take the slug of a deleted one', async () => {
+    const editor = await tokenOf('editor@example.com');
+    const first = await create(editor, { slug: 'about' });
+    await client().delete(`${CONTENT}/${first.id}`).set('Authorization', editor).expect(204);
+
+    await create(editor, { slug: 'about' });
+    await client()
+      .post(CONTENT)
+      .set('Authorization', editor)
+      .send({ type: 'article', title: 'Other', slug: 'about' })
+      .expect(409);
+  });
+
   it('rolls everything back when the audit write fails', async () => {
     const editor = await tokenOf('editor@example.com');
     const { id } = await create(editor);

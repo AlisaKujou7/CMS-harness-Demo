@@ -92,17 +92,20 @@ describe('PrismaContentRepository', () => {
     await repo.create(item(2, { type: 'page', parentId: id(1) }));
 
     await expect(repo.findById(id(2))).resolves.toMatchObject({ parentId: id(1) });
-    await expect(repo.purgeDeletedBefore(after(1))).resolves.toBe(1);
+    await expect(repo.purgeDeletedBefore(after(1), 10)).resolves.toEqual([id(1)]);
     await expect(repo.findById(id(2))).resolves.toMatchObject({ parentId: null });
   });
 
-  it('hides soft-deleted content from reads but not from the slug check', async () => {
-    await repo.create(item(1, { slug: 'kept', deletedAt: T0 }));
-
-    await expect(repo.findById(id(1))).resolves.toBeNull();
+  it('hides soft-deleted content, which gives up its slug', async () => {
+    await repo.create(item(1, { slug: 'kept' }));
     await expect(repo.slugExists('article', 'kept')).resolves.toBe(true);
     await expect(repo.slugExists('page', 'kept')).resolves.toBe(false);
-    await expect(repo.slugExists('article', 'free')).resolves.toBe(false);
+
+    await repo.save(item(1, { slug: 'kept', version: 2, deletedAt: T0 }));
+
+    await expect(repo.findById(id(1))).resolves.toBeNull();
+    await expect(repo.slugExists('article', 'kept')).resolves.toBe(false);
+    await expect(repo.create(item(2, { slug: 'kept' }))).resolves.toBeUndefined();
   });
 
   describe('slug uniqueness (FR-CONTENT-03)', () => {
@@ -284,7 +287,7 @@ describe('PrismaContentRepository', () => {
       await repo.addVersion(aVersion(id(1), 1), 50);
       await repo.save(item(1, { version: 2, deletedAt: T0 }));
 
-      await repo.purgeDeletedBefore(after(1));
+      await repo.purgeDeletedBefore(after(1), 10);
 
       await expect(repo.findVersions(id(1), PAGE)).resolves.toMatchObject({ total: 0 });
     });
@@ -312,9 +315,16 @@ describe('PrismaContentRepository', () => {
     await repo.create(item(2, { deletedAt: after(3) }));
     await repo.create(item(3));
 
-    await expect(repo.purgeDeletedBefore(after(2))).resolves.toBe(1);
-    await expect(repo.slugExists('article', 'item-1')).resolves.toBe(false);
-    await expect(repo.slugExists('article', 'item-2')).resolves.toBe(true);
+    await expect(repo.purgeDeletedBefore(after(2), 10)).resolves.toEqual([id(1)]);
+    await expect(db.context.client.content.count()).resolves.toBe(2);
+  });
+
+  it('purges the oldest first and no more than the limit', async () => {
+    await repo.create(item(1, { deletedAt: after(2) }));
+    await repo.create(item(2, { deletedAt: after(1) }));
+
+    await expect(repo.purgeDeletedBefore(after(3), 1)).resolves.toEqual([id(2)]);
+    await expect(db.context.client.content.count()).resolves.toBe(1);
   });
 
   it('stops a user who wrote content being deleted', async () => {

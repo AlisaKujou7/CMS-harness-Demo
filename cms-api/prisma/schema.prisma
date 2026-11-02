@@ -176,7 +176,9 @@ model Content {
   children Content[]        @relation("PageHierarchy")
   versions ContentVersion[]
 
-  @@unique([type, slug])
+  // Uniqueness comes from content_type_slug_live_key, a partial index on live rows that this schema
+  // language cannot express. See migration 20260516000000_content_review_fixes.
+  @@index([type, slug])
   @@index([status, publishedAt(sort: Desc)])
   @@index([authorId, status])
   @@index([tags], type: Gin)

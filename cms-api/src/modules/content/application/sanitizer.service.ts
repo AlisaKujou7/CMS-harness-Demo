@@ -1,10 +1,10 @@
 import { InvalidContentError } from '../domain/errors/content.errors.js';
-import { cleanText, type RichTextMark, type RichTextNode } from '../domain/services/rich-text.js';
+import type { RichTextMark, RichTextNode } from '../domain/services/rich-text.js';
+import { cleanText, safeText } from '../domain/services/text-safety.js';
 
 const MAX_DEPTH = 32;
 const MAX_NODES = 100_000;
 const MAX_URL_LENGTH = 2048;
-const MAX_STRIP_PASSES = 5;
 
 const WITH_CHILDREN = new Set([
   'paragraph',
@@ -21,10 +21,11 @@ const SIMPLE_MARKS = new Set(['bold', 'italic', 'underline', 'strike', 'code']);
 const SAFE_LINK = /^(https?:\/\/|mailto:|\/(?!\/)|#)/i;
 const SAFE_IMAGE = /^(https?:\/\/|\/(?!\/))/i;
 
-const UNSAFE_URL_CHARACTERS = /[\u0000-\u001f\u007f\\]/;
+// Control characters and backslashes hide a scheme, and the rest never appear unencoded in a URL
+// but would break out of an attribute in a consumer's HTML.
+const UNSAFE_URL_CHARACTERS = /[\u0000-\u001f\u007f\\<>"`]/;
 const CODE_LANGUAGE = /^[\w+-]{1,32}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const DANGEROUS_TAG = /<\/?(script|style|iframe|object|embed)\b/gi;
 
 type Attrs = Readonly<Record<string, unknown>>;
 
@@ -53,50 +54,13 @@ function stringAttrs(attrs: Attrs, names: readonly string[]): Record<string, str
   const kept: Record<string, string> = {};
   for (const name of names) {
     const value = attrs[name];
-    if (typeof value === 'string') kept[name] = cleanText(value);
+    if (typeof value === 'string') kept[name] = safeText(value);
   }
   return kept;
 }
 
 function attrsOf(node: Record<string, unknown>): Attrs {
   return isRecord(node['attrs']) ? node['attrs'] : {};
-}
-
-// One pass, linear in the text: a tag with no closing ">" or no end tag removes the rest, because
-// a browser could treat everything after it as part of the element.
-function stripPass(text: string): string {
-  const lower = text.toLowerCase();
-  let output = '';
-  let position = 0;
-  for (const match of lower.matchAll(DANGEROUS_TAG)) {
-    if (match.index < position) continue;
-    output += text.slice(position, match.index);
-    const name = String(match[1]);
-    const opening = !match[0].startsWith('</');
-    const tagEnd = lower.indexOf('>', match.index);
-    if (tagEnd === -1) return output;
-    position = tagEnd + 1;
-    if (opening && name !== 'embed') {
-      const closing = lower.indexOf(`</${name}`, position);
-      if (closing === -1) return output;
-      const closingEnd = lower.indexOf('>', closing);
-      if (closingEnd === -1) return output;
-      position = closingEnd + 1;
-    }
-  }
-  return output + text.slice(position);
-}
-
-// Text nodes are inert in JSON, but a consumer could render them as HTML, and SEC-04 says the API
-// never returns executable tags. Removal can join fragments into a new tag, so it repeats.
-function stripDangerousMarkup(text: string): string {
-  let current = text;
-  for (let pass = 0; pass < MAX_STRIP_PASSES; pass += 1) {
-    const stripped = stripPass(current);
-    if (stripped === current) return stripped;
-    current = stripped;
-  }
-  return current.replaceAll('<', '');
 }
 
 function sanitizeLink(attrs: unknown): RichTextMark | null {
@@ -128,8 +92,8 @@ function sanitizeMarks(marks: unknown): { marks?: RichTextMark[] } {
 
 function sanitizeText(node: Record<string, unknown>, inCode: boolean): RichTextNode[] {
   if (typeof node['text'] !== 'string') return [];
-  const clean = cleanText(node['text']);
-  const text = inCode ? clean : stripDangerousMarkup(clean);
+  // A code block is the one place tags are the content, and consumers must escape it (ADR-0013).
+  const text = inCode ? cleanText(node['text']) : safeText(node['text']);
   return text === '' ? [] : [{ type: 'text', text, ...sanitizeMarks(node['marks']) }];
 }
 

@@ -67,6 +67,17 @@ export class InvalidScheduleError extends AppError {
   }
 }
 
+// An Editor approved what is scheduled, so changing it would publish text nobody reviewed.
+export class ContentScheduledError extends AppError {
+  constructor() {
+    super({
+      kind: 'conflict',
+      code: 'CONTENT_SCHEDULED',
+      message: 'This content is scheduled to publish. Ask an Editor to cancel the schedule first',
+    });
+  }
+}
+
 // Someone else saved first. The editor shows this as the conflict dialog in 03-DESIGN 19.4.
 export class ConcurrentModificationError extends AppError {
   constructor() {

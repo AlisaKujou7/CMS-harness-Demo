@@ -68,7 +68,7 @@ export interface ContentRepository {
   findById(id: string): Promise<Content | null>;
   findMany(criteria: ContentCriteria, page: PageRequest): Promise<PagedResult<ContentListItem>>;
   countByStatus(authorId: string | null): Promise<ContentCounts>;
-  // Counts soft-deleted items too, since the unique index still holds their slugs.
+  // A soft-deleted item gives up its slug, because nothing can show or free it for those 30 days.
   slugExists(type: ContentType, slug: string): Promise<boolean>;
   hasChildren(id: string): Promise<boolean>;
   // Throws SlugConflictError when another item of this type holds the slug.
@@ -81,6 +81,7 @@ export interface ContentRepository {
   findVersions(contentId: string, page: PageRequest): Promise<PagedResult<ContentVersionSummary>>;
   findVersion(contentId: string, versionNo: number): Promise<ContentVersion | null>;
   findDueForPublish(now: Date, limit: number): Promise<readonly string[]>;
-  // Versions go with the item, and child pages lose their parent. Returns how many were removed.
-  purgeDeletedBefore(cutoff: Date): Promise<number>;
+  // Removes up to limit items, oldest first, and returns their ids. Versions go with each item,
+  // and child pages lose their parent.
+  purgeDeletedBefore(cutoff: Date, limit: number): Promise<readonly string[]>;
 }

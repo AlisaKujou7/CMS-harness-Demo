@@ -140,8 +140,8 @@ export class PrismaContentRepository implements ContentRepository {
   }
 
   async slugExists(type: ContentType, slug: string): Promise<boolean> {
-    const row = await this.db.client.content.findUnique({
-      where: { type_slug: { type, slug } },
+    const row = await this.db.client.content.findFirst({
+      where: { type, slug, deletedAt: null },
       select: { id: true },
     });
     return row !== null;
@@ -232,10 +232,15 @@ export class PrismaContentRepository implements ContentRepository {
     return rows.map((row) => row.id);
   }
 
-  async purgeDeletedBefore(cutoff: Date): Promise<number> {
-    const { count } = await this.db.client.content.deleteMany({
+  async purgeDeletedBefore(cutoff: Date, limit: number): Promise<readonly string[]> {
+    const rows = await this.db.client.content.findMany({
       where: { deletedAt: { lt: cutoff } },
+      select: { id: true },
+      orderBy: { deletedAt: 'asc' },
+      take: limit,
     });
-    return count;
+    const ids = rows.map((row) => row.id);
+    await this.db.client.content.deleteMany({ where: { id: { in: ids } } });
+    return ids;
   }
 }

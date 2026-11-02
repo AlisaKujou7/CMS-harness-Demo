@@ -151,6 +151,13 @@ describe('content endpoints', () => {
         .expect(201);
     });
 
+    it('keeps the small default limit on other routes', async () => {
+      await http(app)
+        .post('/api/admin/auth/login')
+        .send({ email: 'a@example.com', password: 'x'.repeat(200_000) })
+        .expect(413);
+    });
+
     it('answers a body over the limit with 413, not a server error', async () => {
       const res = await http(app)
         .post(CONTENT)

@@ -1,4 +1,6 @@
 import { Content, type ContentType } from '../../domain/entities/content.entity.js';
+import { SlugConflictError } from '../../domain/errors/content.errors.js';
+import { safeText } from '../../domain/services/text-safety.js';
 import { Slug } from '../../domain/value-objects/slug.vo.js';
 import type { ContentDeps } from '../content-deps.js';
 import type {
@@ -15,11 +17,26 @@ import {
 
 const MAX_SUFFIX = 20;
 const ID_PREFIX_LENGTH = 8;
+const MAX_ATTEMPTS = 5;
 
 export class CreateContent implements CreateContentUseCase {
   constructor(private readonly deps: ContentDeps) {}
 
-  execute(command: CreateContentCommand): Promise<ContentView> {
+  // Someone creating the same title at the same moment can take a generated slug between the check
+  // and the insert. The caller chose no slug and has nothing to correct, so this picks another. The
+  // last attempt uses the new id, which nobody else can hold.
+  async execute(command: CreateContentCommand): Promise<ContentView> {
+    for (let attempt = 1; attempt < MAX_ATTEMPTS; attempt += 1) {
+      try {
+        return await this.attempt(command, false);
+      } catch (error) {
+        if (command.slug !== undefined || !(error instanceof SlugConflictError)) throw error;
+      }
+    }
+    return this.attempt(command, true);
+  }
+
+  private attempt(command: CreateContentCommand, forceUnique: boolean): Promise<ContentView> {
     return this.deps.tx.run(async () => {
       const { actor, ip, type, slug, ...patch } = command;
       const fields = sanitizedFields(patch);
@@ -30,7 +47,7 @@ export class CreateContent implements CreateContentUseCase {
         id,
         type,
         authorId: actor.id,
-        slug: await this.chooseSlug({ id, type, title: command.title, slug }),
+        slug: await this.chooseSlug({ id, type, title: command.title, slug, forceUnique }),
         now: this.deps.clock.now(),
         fields,
       });
@@ -50,11 +67,13 @@ export class CreateContent implements CreateContentUseCase {
     type: ContentType;
     title: string;
     slug: string | undefined;
+    forceUnique: boolean;
   }): Promise<string> {
     const { contents } = this.deps;
     if (input.slug !== undefined) return input.slug;
     const idPrefix = input.id.slice(0, ID_PREFIX_LENGTH);
-    const base = Slug.fromTitle(input.title, `content-${idPrefix}`).value;
+    const base = Slug.fromTitle(safeText(input.title), `content-${idPrefix}`).value;
+    if (input.forceUnique) return `${base}-${idPrefix}`;
     if (!(await contents.slugExists(input.type, base))) return base;
     for (let suffix = 2; suffix <= MAX_SUFFIX; suffix += 1) {
       const candidate = `${base}-${String(suffix)}`;

@@ -339,12 +339,12 @@ describe('sanitizeRichText (SEC-04)', () => {
     it.each([
       ['<SCRIPT SRC=//x></SCRIPT>', ''],
       ['<script>a</script><script>b</script>c', 'c'],
-      ['<scr<script></script>ipt>alert(1)</script>', ''],
+      ['<scr<script></script>ipt>alert(1)</script>', 'ipt>alert(1)'],
       ['<iframe src=x></iframe>y', 'y'],
       ['<style>x</style>y', 'y'],
       ['<object data=x></object>y', 'y'],
       ['<embed src=x>y', 'y'],
-      ['<script>unterminated', ''],
+      ['<script>unterminated', 'unterminated'],
     ])('strips the dangerous markup %s', (input, expected) => {
       const result = sanitizeRichText(
         doc({ type: 'blockquote', content: [paragraph(text(input))] }),
@@ -354,8 +354,8 @@ describe('sanitizeRichText (SEC-04)', () => {
       expect(inline?.text ?? '').toBe(expected);
     });
 
-    it('leaves ordinary angle brackets alone', () => {
-      expect(firstInline(text('1 < 2 and <b>bold</b>'))).toEqual(text('1 < 2 and <b>bold</b>'));
+    it('removes every tag but keeps a comparison', () => {
+      expect(firstInline(text('1 < 2 and <b>bold</b>'))).toEqual(text('1 < 2 and bold'));
     });
 
     it('keeps markup inside a code block, where showing it is the point', () => {
@@ -382,10 +382,23 @@ describe('sanitizeRichText (SEC-04)', () => {
 
     it.each([
       ['a stray end tag', '</script>safe', 'safe'],
-      ['an unterminated tag', 'before<script src=x', 'before'],
+      ['an unterminated tag', 'before<script src=x', 'beforescript src=x'],
       ['an unterminated end tag', '<script>x</script', ''],
       ['another element inside the removed one', '<script>a<iframe>b</script>c', 'c'],
       ['a different end tag inside', '<script>a</style>b</script>c', 'c'],
+      ['a tag in another case', '<ScRiPt>x</sCrIpT>y', 'y'],
+      [
+        'characters that change length when lowercased',
+        '\u0130'.repeat(20) + '<script>x</script>',
+        '\u0130'.repeat(20),
+      ],
+      ['an event handler', 'a<img src=x onerror=alert(1)>b', 'ab'],
+      ['svg', '<svg onload=alert(1)>b', 'b'],
+      ['a mention of an element in prose', 'Use the <style> tag. More.', 'Use the  tag. More.'],
+      ['a second unclosed element', '<script>a<script>b', 'ab'],
+      ['a tag that only forms once another is removed', '<<b>script>x</script>y', 'script>xy'],
+      ['a fragment that a later node could complete', 'x<scr', 'xscr'],
+      ['a lone bracket at the end', 'x<', 'x'],
     ])('handles %s', (_name, input, expected) => {
       expect(textOf(input)).toBe(expected);
     });
@@ -396,6 +409,37 @@ describe('sanitizeRichText (SEC-04)', () => {
 
       expect(textOf(nested)).not.toContain('<');
     });
+  });
+
+  it('gives up on angle brackets when each removal only uncovers another tag', () => {
+    const nested = '<'.repeat(20) + 'b>'.repeat(20);
+
+    const result = sanitizeRichText(doc(paragraph(text(nested))));
+
+    expect(JSON.stringify(result)).not.toContain('<');
+  });
+
+  it('strips markup from image and link attributes', () => {
+    const result = sanitizeRichText(
+      doc(
+        { type: 'image', attrs: { src: '/a.png', alt: '<script>x</script>alt', title: '<b>t' } },
+        paragraph({
+          type: 'text',
+          text: 'x',
+          marks: [{ type: 'link', attrs: { href: '/a', title: '<i>t</i>' } }],
+        }),
+      ),
+    );
+
+    expect(result.content?.[0]?.attrs).toEqual({ src: '/a.png', alt: 'alt', title: 't' });
+    expect(result.content?.[1]?.content?.[0]?.marks?.[0]?.attrs).toEqual({
+      href: '/a',
+      title: 't',
+    });
+  });
+
+  it.each(['/a<b', '/a>b', '/a"b', '/a`b'])('refuses the URL %s', (src) => {
+    expect(sanitizeRichText(doc({ type: 'image', attrs: { src } })).content).toEqual([]);
   });
 
   it('strips text directly under the document too', () => {

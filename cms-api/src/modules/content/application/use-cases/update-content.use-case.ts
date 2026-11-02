@@ -15,11 +15,24 @@ import {
   toSnapshot,
 } from '../services/content-helpers.js';
 
+// PostgreSQL jsonb reorders object keys, so a stored body and the same body sent again only compare
+// equal once their keys are in one order.
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (typeof value !== 'object' || value === null) return value;
+  const entries = Object.entries(value).sort(([a], [b]) => a.localeCompare(b));
+  return entries.map(([key, entry]) => [key, canonical(entry)]);
+}
+
+function sameValue(a: unknown, b: unknown): boolean {
+  return JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
+}
+
 function changedFieldNames(before: Content, after: Content): string[] {
   const old = toSnapshot(before);
   const updated = toSnapshot(after);
   return (Object.keys(updated) as (keyof typeof updated)[]).filter(
-    (field) => field !== 'status' && JSON.stringify(old[field]) !== JSON.stringify(updated[field]),
+    (field) => field !== 'status' && !sameValue(old[field], updated[field]),
   );
 }
 

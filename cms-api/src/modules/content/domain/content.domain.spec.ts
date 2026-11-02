@@ -590,6 +590,68 @@ describe('content errors', () => {
     expect(plainText(doc)).toBe('one two!');
   });
 
+  it('counts a hard break as a word boundary', () => {
+    const doc = {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'First' },
+            { type: 'hardBreak' },
+            { type: 'text', text: 'Second' },
+          ],
+        },
+      ],
+    };
+
+    expect(plainText(doc)).toBe('First Second');
+  });
+
+  it('removes markup from every text field a consumer could render', () => {
+    const content = Content.create({
+      id: 'id',
+      type: 'article',
+      authorId: 'a',
+      slug: 'a-slug',
+      now: new Date(0),
+      fields: {
+        title: '<script>x</script>Title',
+        seoTitle: '<b>SEO</b>',
+        seoDescription: '<img src=x onerror=alert(1)>Desc',
+        tags: ['<i>tag</i>'],
+        category: '<u>news</u>',
+      },
+    });
+
+    expect(content).toMatchObject({
+      title: 'Title',
+      seoTitle: 'SEO',
+      seoDescription: 'Desc',
+      tags: ['tag'],
+      category: 'news',
+    });
+  });
+
+  it('removes markup from a review note', () => {
+    const rejected = aContent({ status: 'in_review' }).reject('<b>Fix</b> this', new Date(0));
+
+    expect(rejected.reviewNote).toBe('Fix this');
+  });
+
+  it('refuses a title that is nothing but markup', () => {
+    expect(() =>
+      Content.create({
+        id: 'id',
+        type: 'article',
+        authorId: 'a',
+        slug: 'a-slug',
+        now: new Date(0),
+        fields: { title: '<script>x</script>' },
+      }),
+    ).toThrow(InvalidContentError);
+  });
+
   it('removes what PostgreSQL could not store from every text field', () => {
     const content = Content.create({
       id: 'id',

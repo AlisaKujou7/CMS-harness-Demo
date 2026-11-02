@@ -5,7 +5,8 @@ import {
 } from '../errors/content.errors.js';
 import { assertTransition, type ContentStatus } from '../services/content-lifecycle.service.js';
 import { assertPublishable } from '../services/publish-requirements-checker.js';
-import { cleanText, EMPTY_DOCUMENT, plainText, type RichTextNode } from '../services/rich-text.js';
+import { EMPTY_DOCUMENT, plainText, type RichTextNode } from '../services/rich-text.js';
+import { safeText } from '../services/text-safety.js';
 import { Slug } from '../value-objects/slug.vo.js';
 
 const MAX_TITLE_LENGTH = 200;
@@ -48,7 +49,7 @@ export interface ContentProps extends EditableFields {
 }
 
 function validTitle(input: string): string {
-  const title = cleanText(input).trim();
+  const title = safeText(input).trim();
   if (title === '' || title.length > MAX_TITLE_LENGTH) {
     throw new InvalidContentError('title', 'Title must be between 1 and 200 characters');
   }
@@ -56,7 +57,7 @@ function validTitle(input: string): string {
 }
 
 function optionalText(field: string, input: string | null, max: number): string | null {
-  const value = cleanText(input ?? '').trim();
+  const value = safeText(input ?? '').trim();
   if (value.length > max) {
     throw new InvalidContentError(field, `Must be at most ${String(max)} characters`);
   }
@@ -64,7 +65,7 @@ function optionalText(field: string, input: string | null, max: number): string 
 }
 
 function validTags(input: readonly string[]): readonly string[] {
-  const tags = [...new Set(input.map((tag) => cleanText(tag).trim().toLowerCase()))];
+  const tags = [...new Set(input.map((tag) => safeText(tag).trim().toLowerCase()))];
   const invalid = tags.some((tag) => tag === '' || tag.length > MAX_TAG_LENGTH);
   if (invalid || tags.length > MAX_TAGS) {
     throw new InvalidContentError('tags', 'Use up to 50 tags of 1 to 40 characters each');

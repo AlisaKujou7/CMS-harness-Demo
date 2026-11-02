@@ -94,7 +94,11 @@ export class InMemoryContentRepository implements ContentRepository {
 
   private holdsSlug(type: ContentType, slug: string, exceptId: string | null): boolean {
     return [...this.contents.values()].some(
-      (content) => content.type === type && content.slug === slug && content.id !== exceptId,
+      (content) =>
+        content.type === type &&
+        content.slug === slug &&
+        content.id !== exceptId &&
+        content.deletedAt === null,
     );
   }
 
@@ -162,14 +166,12 @@ export class InMemoryContentRepository implements ContentRepository {
     return Promise.resolve(due.slice(0, limit).map((content) => content.id));
   }
 
-  purgeDeletedBefore(cutoff: Date): Promise<number> {
-    let purged = 0;
-    for (const content of this.contents.values()) {
-      if (content.deletedAt !== null && content.deletedAt < cutoff) {
-        this.contents.delete(content.id);
-        purged += 1;
-      }
-    }
-    return Promise.resolve(purged);
+  purgeDeletedBefore(cutoff: Date, limit: number): Promise<readonly string[]> {
+    const due = [...this.contents.values()]
+      .filter((content) => content.deletedAt !== null && content.deletedAt < cutoff)
+      .slice(0, limit)
+      .map((content) => content.id);
+    for (const id of due) this.contents.delete(id);
+    return Promise.resolve(due);
   }
 }
