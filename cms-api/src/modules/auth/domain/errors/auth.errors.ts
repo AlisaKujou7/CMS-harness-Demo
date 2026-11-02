@@ -45,6 +45,17 @@ export class InvalidResetTokenError extends AppError {
   }
 }
 
+export class InvalidInvitationError extends AppError {
+  constructor() {
+    super({
+      kind: 'validation',
+      code: 'INVALID_INVITATION',
+      message: 'This invitation is invalid or has expired',
+      details: { field: 'token' },
+    });
+  }
+}
+
 export class InvalidApiKeyNameError extends AppError {
   constructor() {
     super({

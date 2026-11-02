@@ -1,5 +1,9 @@
 import type { Actor } from '../../src/shared/kernel/actor.js';
 import { UnauthenticatedError } from '../../src/shared/kernel/app-error.js';
+import type {
+  DomainEvent,
+  DomainEventPublisher,
+} from '../../src/shared/ports/event-publisher.port.js';
 import type { AccessTokenAuthenticator } from '../../src/shared/ports/access-token-authenticator.port.js';
 import type {
   AuditEventInput,
@@ -26,6 +30,15 @@ export class FakeAccessTokenAuthenticator implements AccessTokenAuthenticator {
   authenticate(token: string): Promise<Actor> {
     const actor = this.actors.get(token);
     return actor ? Promise.resolve(actor) : Promise.reject(new UnauthenticatedError());
+  }
+}
+
+export class RecordingEventPublisher implements DomainEventPublisher {
+  readonly published: DomainEvent[] = [];
+
+  publishAll(events: readonly DomainEvent[]): Promise<void> {
+    this.published.push(...events);
+    return Promise.resolve();
   }
 }
 

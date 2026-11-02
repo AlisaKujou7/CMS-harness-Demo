@@ -1,7 +1,9 @@
 import type {
+  AcceptInvitationUseCase,
   ChangePasswordUseCase,
   CompletePasswordResetUseCase,
   CreateApiKeyUseCase,
+  GetCurrentUserUseCase,
   ListApiKeysUseCase,
   LoginUseCase,
   LogoutUseCase,
@@ -19,6 +21,8 @@ export interface AuthUseCases {
   readonly requestPasswordReset: RequestPasswordResetUseCase;
   readonly completePasswordReset: CompletePasswordResetUseCase;
   readonly changePassword: ChangePasswordUseCase;
+  readonly acceptInvitation: AcceptInvitationUseCase;
+  readonly currentUser: GetCurrentUserUseCase;
   readonly createApiKey: CreateApiKeyUseCase;
   readonly listApiKeys: ListApiKeysUseCase;
   readonly revokeApiKey: RevokeApiKeyUseCase;

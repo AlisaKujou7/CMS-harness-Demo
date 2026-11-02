@@ -27,6 +27,12 @@ The stricter or more specific document wins unless noted.
 - `POST /api/admin/auth/password/change` is added for the Profile screen in 02-SRS §4.1, which §7 omits.
 - Authentication reads users through an `Account` view in the auth module. The users module owns the user lifecycle from phase 2, and both use the `users` table.
 - Inbound and outbound ports of a module share grouped files (`auth.ports.ts`, `repositories.port.ts`) rather than one file per port as the 04-ARCH §4.10 tree shows. The dependency rules are unaffected.
+- Last admin: FR-USER-04 only names deletion. Demoting or deactivating the last active Admin is refused too, because the result is the same lockout.
+- Deleting a user is a hard delete and is refused while other records reference them. Deactivation is the normal path, which keeps attribution (FR-USER-05).
+- Admin password reset (UR-A05) emails the owner a link. The Admin never sets or sees a password.
+- Invitations use their own table and a 7 day token, separate from password resets, so one link can never act as the other.
+- Audit log: a trigger rejects UPDATE and DELETE for everyone, and the `cms_app` role also lacks those permissions plus TRUNCATE, as the FR-AUDIT-03 acceptance test asks. Exporting the log is itself audited.
+- `POST /api/admin/users/{id}/reset-password`, `POST /api/admin/users/{id}/resend-invite`, `DELETE /api/admin/users/{id}`, `POST /api/admin/auth/invitations/accept` and `GET /api/admin/auth/me` are added. 02-SRS §7 omits them, while FR-USER, UR-A05 and the Profile screen need them.
 
 ## Consequences
 

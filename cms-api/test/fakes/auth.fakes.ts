@@ -1,6 +1,7 @@
 import type {
   AccountRepository,
   ApiKeyRepository,
+  InvitationTokenRepository,
   LoginLockoutRepository,
   PasswordResetTokenRepository,
   RefreshTokenRepository,
@@ -13,6 +14,7 @@ import type {
 } from '../../src/modules/auth/application/ports/out/security.port.js';
 import { Account } from '../../src/modules/auth/domain/entities/account.entity.js';
 import type { ApiKey } from '../../src/modules/auth/domain/entities/api-key.entity.js';
+import { InvitationToken } from '../../src/modules/auth/domain/entities/invitation-token.entity.js';
 import { PasswordResetToken } from '../../src/modules/auth/domain/entities/password-reset-token.entity.js';
 import type { RefreshToken } from '../../src/modules/auth/domain/entities/refresh-token.entity.js';
 import { LoginLockout } from '../../src/modules/auth/domain/services/login-lockout.js';
@@ -37,6 +39,14 @@ export class InMemoryAccountRepository implements AccountRepository {
   updatePassword(id: string, passwordHash: string): Promise<void> {
     const account = this.accounts.get(id);
     if (account) this.accounts.set(id, new Account({ ...account, passwordHash }));
+    return Promise.resolve();
+  }
+
+  activate(id: string, passwordHash: string): Promise<void> {
+    const account = this.accounts.get(id);
+    if (account) {
+      this.accounts.set(id, new Account({ ...account, passwordHash, status: 'active' }));
+    }
     return Promise.resolve();
   }
 
@@ -111,6 +121,36 @@ export class InMemoryPasswordResetTokenRepository implements PasswordResetTokenR
     for (const token of this.tokens.values()) {
       if (token.userId === userId && token.usedAt === null) {
         this.tokens.set(token.id, PasswordResetToken.restore({ ...token, usedAt: at }));
+      }
+    }
+    return Promise.resolve();
+  }
+}
+
+export class InMemoryInvitationTokenRepository implements InvitationTokenRepository {
+  readonly tokens = new Map<string, InvitationToken>();
+
+  save(token: InvitationToken): Promise<void> {
+    this.tokens.set(token.id, token);
+    return Promise.resolve();
+  }
+
+  findByHash(tokenHash: string): Promise<InvitationToken | null> {
+    const found = [...this.tokens.values()].find((token) => token.tokenHash === tokenHash);
+    return Promise.resolve(found ?? null);
+  }
+
+  consumeIfUnused(id: string, at: Date): Promise<boolean> {
+    const token = this.tokens.get(id);
+    if (!token || token.usedAt !== null) return Promise.resolve(false);
+    this.tokens.set(id, InvitationToken.restore({ ...token, usedAt: at }));
+    return Promise.resolve(true);
+  }
+
+  invalidateForUser(userId: string, at: Date): Promise<void> {
+    for (const token of this.tokens.values()) {
+      if (token.userId === userId && token.usedAt === null) {
+        this.tokens.set(token.id, InvitationToken.restore({ ...token, usedAt: at }));
       }
     }
     return Promise.resolve();

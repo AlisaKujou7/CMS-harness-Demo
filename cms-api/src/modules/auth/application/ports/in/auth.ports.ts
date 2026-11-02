@@ -56,6 +56,26 @@ export interface ChangePasswordUseCase {
   }): Promise<void>;
 }
 
+export interface SendInvitationUseCase {
+  execute(command: { readonly userId: string; readonly email: string }): Promise<void>;
+}
+
+export interface AcceptInvitationUseCase {
+  execute(command: {
+    readonly token: string;
+    readonly newPassword: string;
+    readonly ip: string | null;
+  }): Promise<void>;
+}
+
+export interface RevokeUserSessionsUseCase {
+  execute(userId: string): Promise<void>;
+}
+
+export interface GetCurrentUserUseCase {
+  execute(actor: Actor): Promise<SessionResult['user']>;
+}
+
 export interface ApiKeySummary {
   readonly id: string;
   readonly name: string;

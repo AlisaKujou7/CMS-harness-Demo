@@ -1,5 +1,37 @@
 import { type DynamicModule, Module } from '@nestjs/common';
+import { AuditController } from '../modules/audit/adapters/in/http/audit.controller.js';
+import {
+  AUDIT_USE_CASES,
+  type AuditUseCases,
+} from '../modules/audit/adapters/in/http/audit.use-cases.js';
+import type { AuditEventReader } from '../modules/audit/application/ports/out/audit-reader.port.js';
+import { ExportAuditEvents } from '../modules/audit/application/use-cases/export-audit-events.use-case.js';
+import { ListAuditEvents } from '../modules/audit/application/use-cases/list-audit-events.use-case.js';
 import { ApiKeysController } from '../modules/auth/adapters/in/http/api-keys.controller.js';
+import { AcceptInvitation } from '../modules/auth/application/use-cases/accept-invitation.use-case.js';
+import { GetCurrentUser } from '../modules/auth/application/use-cases/get-current-user.use-case.js';
+import { RevokeUserSessions } from '../modules/auth/application/use-cases/revoke-user-sessions.use-case.js';
+import { SendInvitation } from '../modules/auth/application/use-cases/send-invitation.use-case.js';
+import { UsersController } from '../modules/users/adapters/in/http/users.controller.js';
+import {
+  USERS_USE_CASES,
+  type UsersUseCases,
+} from '../modules/users/adapters/in/http/users.use-cases.js';
+import type { UserRepository } from '../modules/users/application/ports/out/user-repository.port.js';
+import { DeactivateUser } from '../modules/users/application/use-cases/deactivate-user.use-case.js';
+import { DeleteUser } from '../modules/users/application/use-cases/delete-user.use-case.js';
+import { InviteUser } from '../modules/users/application/use-cases/invite-user.use-case.js';
+import { ListUsers } from '../modules/users/application/use-cases/list-users.use-case.js';
+import { RequestUserPasswordReset } from '../modules/users/application/use-cases/request-user-password-reset.use-case.js';
+import { ResendInvitation } from '../modules/users/application/use-cases/resend-invitation.use-case.js';
+import { UpdateUser } from '../modules/users/application/use-cases/update-user.use-case.js';
+import type { UsersDeps } from '../modules/users/application/users-deps.js';
+import type {
+  UserDeactivated,
+  UserInvited,
+  UserPasswordResetRequested,
+} from '../modules/users/domain/events/user.events.js';
+import type { InProcessEventPublisher } from '../shared/adapters/out/in-process-event-publisher.js';
 import { AuthController } from '../modules/auth/adapters/in/http/auth.controller.js';
 import {
   AUTH_USE_CASES,
@@ -27,13 +59,51 @@ import {
 import type { RateLimiter, ReadinessProbe } from '../shared/ports/system.port.js';
 
 export interface Infrastructure extends AuthDeps {
+  readonly users: UserRepository;
+  readonly auditReader: AuditEventReader;
+  readonly events: InProcessEventPublisher;
   readonly rateLimiter: RateLimiter;
   readonly readiness: ReadinessProbe;
   readonly http: HttpConfig;
 }
 
+function createUsersUseCases(deps: UsersDeps): UsersUseCases {
+  return {
+    list: new ListUsers(deps),
+    invite: new InviteUser(deps),
+    update: new UpdateUser(deps),
+    deactivate: new DeactivateUser(deps),
+    remove: new DeleteUser(deps),
+    requestPasswordReset: new RequestUserPasswordReset(deps),
+    resendInvitation: new ResendInvitation(deps),
+  };
+}
+
+function createAuditUseCases(infrastructure: Infrastructure): AuditUseCases {
+  const deps = { reader: infrastructure.auditReader, audit: infrastructure.audit };
+  return { list: new ListAuditEvents(deps), export: new ExportAuditEvents(deps) };
+}
+
+// Modules talk through events and inbound ports only (04-ARCH 4.7), and this is where they meet.
+function wireEvents(infrastructure: Infrastructure): void {
+  const sendInvitation = new SendInvitation(infrastructure);
+  const revokeSessions = new RevokeUserSessions(infrastructure);
+  const requestReset = new RequestPasswordReset(infrastructure);
+  const { events } = infrastructure;
+
+  events.subscribe<UserInvited>('UserInvited', (event) => sendInvitation.execute(event));
+  events.subscribe<UserDeactivated>('UserDeactivated', (event) =>
+    revokeSessions.execute(event.userId),
+  );
+  events.subscribe<UserPasswordResetRequested>('UserPasswordResetRequested', (event) =>
+    requestReset.execute(event),
+  );
+}
+
 function createAuthUseCases(deps: AuthDeps): AuthUseCases {
   return {
+    acceptInvitation: new AcceptInvitation(deps),
+    currentUser: new GetCurrentUser(deps),
     login: new Login(deps),
     refresh: new RefreshTokenSession(deps),
     logout: new Logout(deps),
@@ -52,12 +122,21 @@ export class AppModule {}
 // The composition root (04-ARCH 4.2): the only place that knows every adapter. Tests pass fakes
 // through the same function, so they exercise the real wiring.
 export function createAppModule(infrastructure: Infrastructure): DynamicModule {
+  wireEvents(infrastructure);
   return {
     module: AppModule,
     global: true,
-    controllers: [AuthController, ApiKeysController, HealthController],
+    controllers: [
+      AuthController,
+      ApiKeysController,
+      UsersController,
+      AuditController,
+      HealthController,
+    ],
     providers: [
       { provide: AUTH_USE_CASES, useValue: createAuthUseCases(infrastructure) },
+      { provide: USERS_USE_CASES, useValue: createUsersUseCases(infrastructure) },
+      { provide: AUDIT_USE_CASES, useValue: createAuditUseCases(infrastructure) },
       {
         provide: ACCESS_TOKEN_AUTHENTICATOR,
         useValue: new AuthenticateAccessToken(infrastructure),

@@ -9,6 +9,7 @@ import type {
 import type {
   AccountRepository,
   ApiKeyRepository,
+  InvitationTokenRepository,
   LoginLockoutRepository,
   PasswordResetTokenRepository,
   RefreshTokenRepository,
@@ -30,6 +31,7 @@ export interface AuthDeps {
   readonly lockouts: LoginLockoutRepository;
   readonly refreshTokens: RefreshTokenRepository;
   readonly resetTokens: PasswordResetTokenRepository;
+  readonly invitationTokens: InvitationTokenRepository;
   readonly apiKeys: ApiKeyRepository;
   readonly hasher: PasswordHasher;
   readonly signer: AccessTokenSigner;

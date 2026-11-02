@@ -282,6 +282,65 @@ describe('auth endpoints', () => {
     });
   });
 
+  describe('invitations', () => {
+    const ACCEPT = '/api/admin/auth/invitations/accept';
+
+    beforeEach(() => {
+      infra.accounts.add(anAccount({ status: 'invited', passwordHash: null }));
+    });
+
+    it('activates the account so it can log in', async () => {
+      const { SendInvitation } =
+        await import('../../../application/use-cases/send-invitation.use-case.js');
+      await new SendInvitation(infra).execute({ userId: 'user-1', email: 'alice@example.com' });
+
+      await http(app)
+        .post(ACCEPT)
+        .send({ token: 'opaque-1', new_password: NEW_PASSWORD })
+        .expect(204);
+
+      await http(app)
+        .post(LOGIN)
+        .send({ email: 'alice@example.com', password: NEW_PASSWORD })
+        .expect(200);
+    });
+
+    it('returns 422 for an invalid token', async () => {
+      const res = await http(app)
+        .post(ACCEPT)
+        .send({ token: 'nope', new_password: NEW_PASSWORD })
+        .expect(422);
+
+      expect((res.body as { error: { code: string } }).error.code).toBe('INVALID_INVITATION');
+    });
+
+    it('limits attempts per IP', async () => {
+      const submit = () => http(app).post(ACCEPT).send({ token: 'x', new_password: NEW_PASSWORD });
+      for (let i = 0; i < 5; i += 1) await submit().expect(422);
+
+      await submit().expect(429);
+    });
+  });
+
+  describe('GET /api/admin/auth/me', () => {
+    it('returns 401 without a token', async () => {
+      await http(app).get('/api/admin/auth/me').expect(401);
+    });
+
+    it('returns the signed-in user', async () => {
+      await logIn();
+
+      const res = await http(app)
+        .get('/api/admin/auth/me')
+        .set('Authorization', 'Bearer access-1')
+        .expect(200);
+
+      expect(res.body).toEqual({
+        data: { id: 'user-1', email: 'alice@example.com', name: 'Alice', role: 'editor' },
+      });
+    });
+  });
+
   describe('POST /api/admin/auth/password/change', () => {
     const CHANGE = '/api/admin/auth/password/change';
 

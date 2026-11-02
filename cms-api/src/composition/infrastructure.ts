@@ -1,7 +1,11 @@
 import { Redis } from 'ioredis';
 import nodemailer from 'nodemailer';
 import type { AppConfig } from '../config/env.schema.js';
+import { PrismaAuditEventReader } from '../modules/audit/adapters/out/persistence/prisma-audit-event-reader.js';
 import { PrismaAuditLog } from '../modules/audit/adapters/out/persistence/prisma-audit-log.js';
+import { PrismaInvitationTokenRepository } from '../modules/auth/adapters/out/persistence/prisma-invitation-token.repository.js';
+import { PrismaUserRepository } from '../modules/users/adapters/out/persistence/prisma-user.repository.js';
+import { InProcessEventPublisher } from '../shared/adapters/out/in-process-event-publisher.js';
 import { Argon2PasswordHasher } from '../modules/auth/adapters/out/crypto/argon2-password-hasher.js';
 import { JoseAccessTokenSigner } from '../modules/auth/adapters/out/crypto/jose-access-token-signer.js';
 import { Sha256OpaqueTokenService } from '../modules/auth/adapters/out/crypto/sha256-opaque-token-service.js';
@@ -10,6 +14,7 @@ import { PrismaApiKeyRepository } from '../modules/auth/adapters/out/persistence
 import { PrismaLoginLockoutRepository } from '../modules/auth/adapters/out/persistence/prisma-login-lockout.repository.js';
 import { PrismaPasswordResetTokenRepository } from '../modules/auth/adapters/out/persistence/prisma-password-reset-token.repository.js';
 import { PrismaRefreshTokenRepository } from '../modules/auth/adapters/out/persistence/prisma-refresh-token.repository.js';
+import type { HttpConfig } from '../shared/adapters/http/tokens.js';
 import { ConsoleEmailSender, SmtpEmailSender } from '../shared/adapters/out/email-senders.js';
 import { createPinoLogger } from '../shared/adapters/out/pino-logger.js';
 import { PrismaContext } from '../shared/adapters/out/prisma-context.js';
@@ -29,6 +34,17 @@ function createEmailSender(config: AppConfig, logger: Logger): EmailSender {
     auth: { user: smtp.user, pass: smtp.password },
   });
   return new SmtpEmailSender(transport, from);
+}
+
+function toHttpConfig(config: AppConfig): HttpConfig {
+  return {
+    secureCookies: config.secureCookies,
+    corsOrigins: config.corsOrigins,
+    rateLimits: {
+      login: { limit: config.rateLimitLoginPerMinute, windowSeconds: 60 },
+      passwordReset: { limit: config.rateLimitPasswordResetPerHour, windowSeconds: 3600 },
+    },
+  };
 }
 
 export interface RunningInfrastructure {
@@ -52,7 +68,11 @@ export function createInfrastructure(config: AppConfig): RunningInfrastructure {
     lockouts: new PrismaLoginLockoutRepository(db),
     refreshTokens: new PrismaRefreshTokenRepository(db),
     resetTokens: new PrismaPasswordResetTokenRepository(db),
+    invitationTokens: new PrismaInvitationTokenRepository(db),
     apiKeys: new PrismaApiKeyRepository(db),
+    users: new PrismaUserRepository(db),
+    auditReader: new PrismaAuditEventReader(db),
+    events: new InProcessEventPublisher(logger),
     hasher: new Argon2PasswordHasher(config.argon2),
     signer: new JoseAccessTokenSigner(config.jwtSecrets, clock),
     opaqueTokens: new Sha256OpaqueTokenService(),
@@ -69,14 +89,7 @@ export function createInfrastructure(config: AppConfig): RunningInfrastructure {
     },
     rateLimiter: new RedisRateLimiter(redis, logger),
     readiness: new CompositeReadinessProbe([() => db.ping(), () => redis.ping()]),
-    http: {
-      secureCookies: config.secureCookies,
-      corsOrigins: config.corsOrigins,
-      rateLimits: {
-        login: { limit: config.rateLimitLoginPerMinute, windowSeconds: 60 },
-        passwordReset: { limit: config.rateLimitPasswordResetPerHour, windowSeconds: 3600 },
-      },
-    },
+    http: toHttpConfig(config),
   };
 
   return {

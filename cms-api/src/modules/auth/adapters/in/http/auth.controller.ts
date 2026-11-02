@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, Inject, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Post, Req, Res, UseGuards } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import {
@@ -89,6 +89,25 @@ export class AuthController {
       newPassword: input.new_password,
       ip,
     });
+  }
+
+  @Post('invitations/accept')
+  @HttpCode(204)
+  @RateLimit('passwordReset')
+  @UseGuards(RateLimitGuard)
+  async acceptInvitation(@Body() body: unknown, @ClientIp() ip: string | null): Promise<void> {
+    const input = parseInput(resetRequest, body);
+    await this.useCases.acceptInvitation.execute({
+      token: input.token,
+      newPassword: input.new_password,
+      ip,
+    });
+  }
+
+  @Get('me')
+  @UseGuards(AccessTokenGuard)
+  async me(@CurrentActor() actor: Actor) {
+    return { data: await this.useCases.currentUser.execute(actor) };
   }
 
   @Post('password/change')

@@ -3,7 +3,10 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { createAppModule, type Infrastructure } from '../../src/composition/app.module.js';
 import { configureApp } from '../../src/shared/adapters/http/configure-app.js';
+import { InProcessEventPublisher } from '../../src/shared/adapters/out/in-process-event-publisher.js';
+import { InMemoryAuditEventReader } from '../fakes/audit.fakes.js';
 import { FakeReadinessProbe, InMemoryRateLimiter } from '../fakes/system.fakes.js';
+import { InMemoryUserRepository } from '../fakes/users.fakes.js';
 import { createAuthContext } from './auth-context.js';
 
 export const CSRF_HEADER = { 'X-Requested-With': 'cms-admin' } as const;
@@ -14,6 +17,9 @@ export function createFakeInfrastructure() {
     ...ctx,
     rateLimiter: new InMemoryRateLimiter(),
     readiness: new FakeReadinessProbe(),
+    users: new InMemoryUserRepository(),
+    auditReader: new InMemoryAuditEventReader(),
+    events: new InProcessEventPublisher(ctx.logger),
     http: {
       secureCookies: true,
       corsOrigins: ['https://cms.example.com'],

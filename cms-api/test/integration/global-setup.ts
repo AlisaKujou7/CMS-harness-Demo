@@ -1,5 +1,6 @@
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { RedisContainer } from '@testcontainers/redis';
+import pg from 'pg';
 import type { TestProject } from 'vitest/node';
 
 declare module 'vitest' {
@@ -15,6 +16,12 @@ export default async function globalSetup(project: TestProject): Promise<() => P
     new PostgreSqlContainer('postgres:15-alpine').start(),
     new RedisContainer('redis:7-alpine').start(),
   ]);
+  // Roles are cluster-wide. Creating it once here keeps parallel migrations from racing on it.
+  const client = new pg.Client({ connectionString: postgres.getConnectionUri() });
+  await client.connect();
+  await client.query('CREATE ROLE cms_app NOLOGIN');
+  await client.end();
+
   project.provide('postgresAdminUrl', postgres.getConnectionUri());
   project.provide('redisUrl', redis.getConnectionUrl());
   return async () => {

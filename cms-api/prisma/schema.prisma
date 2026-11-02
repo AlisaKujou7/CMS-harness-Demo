@@ -38,6 +38,7 @@ model User {
   lockout     LoginLockout?
   refreshTokens RefreshToken[]
   resetTokens PasswordResetToken[]
+  invitationTokens InvitationToken[]
   apiKeys     ApiKey[]
 
   @@map("users")
@@ -80,6 +81,19 @@ model PasswordResetToken {
 
   @@index([userId, usedAt])
   @@map("password_reset_tokens")
+}
+
+model InvitationToken {
+  id        String    @id @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, usedAt])
+  @@map("invitation_tokens")
 }
 
 model ApiKey {
