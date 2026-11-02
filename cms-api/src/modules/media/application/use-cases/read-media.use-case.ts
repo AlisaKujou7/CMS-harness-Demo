@@ -1,0 +1,51 @@
+import { defined } from '../../../../shared/kernel/defined.js';
+import { type PagedResult, toPageRequest } from '../../../../shared/kernel/paged-result.js';
+import { MediaNotFoundError } from '../../domain/errors/media.errors.js';
+import type { MediaDeps } from '../media-deps.js';
+import type {
+  FindMissingMediaUseCase,
+  GetMediaUseCase,
+  ListMediaUseCase,
+  MediaDetailView,
+  MediaView,
+} from '../ports/in/media.ports.js';
+import type { MediaCriteria } from '../ports/out/media-repository.port.js';
+import { toMediaView } from '../services/media-helpers.js';
+
+export class GetMedia implements GetMediaUseCase {
+  constructor(private readonly deps: MediaDeps) {}
+
+  async execute(command: { readonly id: string }): Promise<MediaDetailView> {
+    const found = await this.deps.media.findWithUploader(command.id);
+    if (!found) throw new MediaNotFoundError();
+    const usageCount = await this.deps.usage.countUsage(command.id);
+    return { ...(await toMediaView(this.deps, found.item, found.uploaderName)), usageCount };
+  }
+}
+
+export class ListMedia implements ListMediaUseCase {
+  constructor(private readonly deps: MediaDeps) {}
+
+  async execute(
+    command: MediaCriteria & { readonly page?: number; readonly pageSize?: number },
+  ): Promise<PagedResult<MediaView>> {
+    const { page, pageSize, ...criteria } = command;
+    const result = await this.deps.media.findMany(
+      criteria,
+      toPageRequest(defined({ page, pageSize })),
+    );
+    const items = await Promise.all(
+      result.items.map(({ item, uploaderName }) => toMediaView(this.deps, item, uploaderName)),
+    );
+    return { ...result, items };
+  }
+}
+
+// What the content module asks through the composition root before it stores a reference.
+export class FindMissingMedia implements FindMissingMediaUseCase {
+  constructor(private readonly deps: Pick<MediaDeps, 'media'>) {}
+
+  execute(ids: readonly string[]): Promise<readonly string[]> {
+    return ids.length === 0 ? Promise.resolve([]) : this.deps.media.findMissing(ids);
+  }
+}

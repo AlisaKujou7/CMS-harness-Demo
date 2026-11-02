@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { defined } from '../shared/kernel/defined.js';
 
 const UNIT_MS = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 } as const;
 const MAX_ACCESS_TTL_MS = 60 * 60_000;
@@ -50,6 +51,16 @@ const schema = z
     RATE_LIMIT_LOGIN_PER_MIN: count(10),
     RATE_LIMIT_PASSWORD_RESET_PER_HOUR: count(5),
     RATE_LIMIT_INVITATION_PER_HOUR: count(30),
+    OBJECT_STORAGE_PROVIDER: z.enum(['minio', 's3']).default('s3'),
+    OBJECT_STORAGE_ENDPOINT: optionalString,
+    OBJECT_STORAGE_REGION: z.string().default('us-east-1'),
+    OBJECT_STORAGE_BUCKET: z.string().default('cms-media'),
+    OBJECT_STORAGE_ACCESS_KEY: optionalString,
+    OBJECT_STORAGE_SECRET_KEY: optionalString,
+    OBJECT_STORAGE_PUBLIC_URL: optionalString,
+    MEDIA_MAX_UPLOAD_MB: count(20),
+    MEDIA_UPLOAD_URL_TTL_SEC: count(900),
+    MEDIA_READ_URL_TTL_SEC: count(3600),
     CONTENT_CATEGORIES: z.string().default('news,guides,announcements'),
     WORKER_SCHEDULED_PUBLISH_INTERVAL_SEC: count(30),
     EMAIL_PROVIDER: z.enum(['console', 'smtp', 'ses']),
@@ -63,6 +74,18 @@ const schema = z
     LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
   })
   .superRefine((env, context) => {
+    // MinIO has no ambient identity to fall back on, as an AWS role does for S3.
+    if (env.OBJECT_STORAGE_PROVIDER === 'minio') {
+      for (const name of [
+        'OBJECT_STORAGE_ENDPOINT',
+        'OBJECT_STORAGE_ACCESS_KEY',
+        'OBJECT_STORAGE_SECRET_KEY',
+      ] as const) {
+        if (env[name] === undefined) {
+          context.addIssue({ code: 'custom', path: [name], message: 'is required for minio' });
+        }
+      }
+    }
     if (env.EMAIL_PROVIDER === 'console') {
       if (env.NODE_ENV === 'production') {
         context.addIssue({
@@ -93,6 +116,28 @@ function toCategories(list: string): string[] {
     .filter((category) => category !== '');
 }
 
+function toObjectStorage(env: z.output<typeof schema>) {
+  return {
+    bucket: env.OBJECT_STORAGE_BUCKET,
+    region: env.OBJECT_STORAGE_REGION,
+    forcePathStyle: env.OBJECT_STORAGE_PROVIDER === 'minio',
+    ...defined({
+      endpoint: env.OBJECT_STORAGE_ENDPOINT,
+      publicUrl: env.OBJECT_STORAGE_PUBLIC_URL,
+      accessKey: env.OBJECT_STORAGE_ACCESS_KEY,
+      secretKey: env.OBJECT_STORAGE_SECRET_KEY,
+    }),
+  };
+}
+
+function toMedia(env: z.output<typeof schema>) {
+  return {
+    maxUploadBytes: env.MEDIA_MAX_UPLOAD_MB * 1024 * 1024,
+    uploadUrlTtlSeconds: env.MEDIA_UPLOAD_URL_TTL_SEC,
+    readUrlTtlSeconds: env.MEDIA_READ_URL_TTL_SEC,
+  };
+}
+
 function toConfig(env: z.output<typeof schema>) {
   return {
     nodeEnv: env.NODE_ENV,
@@ -113,6 +158,8 @@ function toConfig(env: z.output<typeof schema>) {
     rateLimitLoginPerMinute: env.RATE_LIMIT_LOGIN_PER_MIN,
     rateLimitPasswordResetPerHour: env.RATE_LIMIT_PASSWORD_RESET_PER_HOUR,
     rateLimitInvitationPerHour: env.RATE_LIMIT_INVITATION_PER_HOUR,
+    objectStorage: toObjectStorage(env),
+    media: toMedia(env),
     contentCategories: toCategories(env.CONTENT_CATEGORIES),
     scheduledPublishIntervalMs: env.WORKER_SCHEDULED_PUBLISH_INTERVAL_SEC * 1000,
     email: {

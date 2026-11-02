@@ -3,7 +3,10 @@ import {
   type Content as ContentRow,
   type ContentVersion as ContentVersionRow,
 } from '../../../../../generated/prisma/client.js';
-import type { PrismaContext } from '../../../../../shared/adapters/out/prisma-context.js';
+import {
+  escapeLike,
+  type PrismaContext,
+} from '../../../../../shared/adapters/out/prisma-context.js';
 import { defined } from '../../../../../shared/kernel/defined.js';
 import {
   pagedResult,
@@ -25,6 +28,7 @@ import {
   ConcurrentModificationError,
   SlugConflictError,
 } from '../../../domain/errors/content.errors.js';
+import { referencedMediaIds } from '../../../domain/services/media-references.js';
 import type { RichTextNode } from '../../../domain/services/rich-text.js';
 
 const UNIQUE_VIOLATION = 'P2002';
@@ -42,8 +46,7 @@ function translateConflict(error: unknown): unknown {
 }
 
 function toDomain(row: ContentRow): Content {
-  const { body, ...fields } = row;
-  return Content.restore({ ...fields, body: body as unknown as RichTextNode });
+  return Content.restore({ ...row, body: row.body as unknown as RichTextNode });
 }
 
 function toVersion(row: ContentVersionRow): ContentVersion {
@@ -65,6 +68,7 @@ function toEditableColumns(content: Content) {
     status: content.status,
     featuredImageId: content.featuredImageId,
     socialImageId: content.socialImageId,
+    referencedMediaIds: [...referencedMediaIds(content)],
     seoTitle: content.seoTitle,
     seoDescription: content.seoDescription,
     tags: [...content.tags],
@@ -77,11 +81,6 @@ function toEditableColumns(content: Content) {
     version: content.version,
     updatedAt: content.updatedAt,
   };
-}
-
-// LIKE treats these as wildcards, so a search for "100%" would otherwise match "100 things".
-function escapeLike(input: string): string {
-  return input.replace(/[\\%_]/g, '\\$&');
 }
 
 function toWhere(criteria: ContentCriteria): Prisma.ContentWhereInput {
@@ -116,7 +115,7 @@ export class PrismaContentRepository implements ContentRepository {
     const [rows, total] = await Promise.all([
       this.db.client.content.findMany({
         where,
-        omit: { body: true },
+        omit: { body: true, referencedMediaIds: true },
         include: { author: { select: { name: true } } },
         orderBy: [{ [SORT_COLUMNS[criteria.sortBy]]: direction }, { id: 'desc' }],
         skip: (page.page - 1) * page.pageSize,
@@ -145,6 +144,12 @@ export class PrismaContentRepository implements ContentRepository {
       select: { id: true },
     });
     return row !== null;
+  }
+
+  countMediaUsage(mediaId: string): Promise<number> {
+    return this.db.client.content.count({
+      where: { deletedAt: null, referencedMediaIds: { has: mediaId } },
+    });
   }
 
   async hasChildren(id: string): Promise<boolean> {

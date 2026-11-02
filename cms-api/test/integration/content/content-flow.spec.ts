@@ -8,6 +8,7 @@ import {
   type RunningInfrastructure,
 } from '../../../src/composition/infrastructure.js';
 import { createMaintenanceJobs } from '../../../src/composition/maintenance-jobs.js';
+import { contentDeps } from '../../../src/composition/module-deps.js';
 import { loadEnv } from '../../../src/config/env.schema.js';
 import { PublishContent } from '../../../src/modules/content/application/use-cases/lifecycle.use-case.js';
 import { configureApp } from '../../../src/shared/adapters/http/configure-app.js';
@@ -225,7 +226,7 @@ describe('content lifecycle against real infrastructure', () => {
     const editor = await tokenOf('editor@example.com');
     const { id } = await create(editor);
     const publish = new PublishContent({
-      ...running.infrastructure,
+      ...contentDeps(running.infrastructure),
       audit: { record: () => Promise.reject(new Error('audit is down')) },
     });
 

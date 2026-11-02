@@ -7,6 +7,7 @@ import type {
   ContentCounts,
   ContentListItem,
   ContentStatsUseCase,
+  CountMediaUsageUseCase,
   ContentView,
   GetContentUseCase,
   ListContentCommand,
@@ -50,6 +51,15 @@ export class ContentCategories implements ContentCategoriesUseCase {
 
   execute(): readonly string[] {
     return this.deps.contentCategories;
+  }
+}
+
+// What the media module asks through the composition root before it deletes a file.
+export class CountMediaUsage implements CountMediaUsageUseCase {
+  constructor(private readonly deps: Pick<ContentDeps, 'contents'>) {}
+
+  execute(mediaId: string): Promise<number> {
+    return this.deps.contents.countMediaUsage(mediaId);
   }
 }
 

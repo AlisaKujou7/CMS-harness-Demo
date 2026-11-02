@@ -71,6 +71,8 @@ export interface ContentRepository {
   // A soft-deleted item gives up its slug, because nothing can show or free it for those 30 days.
   slugExists(type: ContentType, slug: string): Promise<boolean>;
   hasChildren(id: string): Promise<boolean>;
+  // How many live items reference this media, as a featured or social image or inside the body.
+  countMediaUsage(mediaId: string): Promise<number>;
   // Throws SlugConflictError when another item of this type holds the slug.
   create(content: Content): Promise<void>;
   // Writes only over the version this change was made from. Throws ConcurrentModificationError

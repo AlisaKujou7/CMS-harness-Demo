@@ -7,9 +7,11 @@ import type {
   TransactionRunner,
 } from '../../../shared/ports/system.port.js';
 import type { ContentRepository } from './ports/out/content-repository.port.js';
+import type { MediaCatalog } from './ports/out/media-catalog.port.js';
 
 export interface ContentDeps {
   readonly contents: ContentRepository;
+  readonly mediaCatalog: MediaCatalog;
   readonly clock: Clock;
   readonly ids: IdGenerator;
   readonly tx: TransactionRunner;

@@ -3,6 +3,11 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { type Prisma, PrismaClient } from '../../../generated/prisma/client.js';
 import type { TransactionRunner } from '../../ports/system.port.js';
 
+// LIKE treats these as wildcards, so a search for "100%" would otherwise match "100 things".
+export function escapeLike(input: string): string {
+  return input.replace(/[\\%_]/g, '\\$&');
+}
+
 // Repositories read `client` on every call, so they join whatever transaction is active without
 // use cases passing a handle around.
 export class PrismaContext implements TransactionRunner {

@@ -1,4 +1,5 @@
 import { Queue, Worker } from 'bullmq';
+import { withTimeout } from './with-timeout.js';
 import type { EmailMessage, EmailSender, Logger } from '../../ports/system.port.js';
 
 const DEFAULT_QUEUE_NAME = 'emails';
@@ -29,25 +30,17 @@ export class BullMqEmailQueue implements EmailSender {
     this.queue.on('error', handler);
   }
 
-  // BullMQ waits indefinitely for a connection, which would hang the request during a Redis outage.
   async send(message: EmailMessage): Promise<void> {
-    let timer: NodeJS.Timeout | undefined;
-    const timeout = new Promise<never>((_resolve, reject) => {
-      timer = setTimeout(() => {
-        reject(new Error('Timed out enqueueing an email'));
-      }, ENQUEUE_TIMEOUT_MS);
-    });
-    const enqueue = this.queue.add(JOB_NAME, message, {
-      attempts: this.options.attempts,
-      backoff: { type: 'fixed', delay: this.options.backoffMs },
-      removeOnComplete: true,
-      removeOnFail: true,
-    });
-    try {
-      await Promise.race([enqueue, timeout]);
-    } finally {
-      clearTimeout(timer);
-    }
+    await withTimeout(
+      this.queue.add(JOB_NAME, message, {
+        attempts: this.options.attempts,
+        backoff: { type: 'fixed', delay: this.options.backoffMs },
+        removeOnComplete: true,
+        removeOnFail: true,
+      }),
+      ENQUEUE_TIMEOUT_MS,
+      'Timed out enqueueing an email',
+    );
   }
 
   close(): Promise<void> {

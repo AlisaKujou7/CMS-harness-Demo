@@ -18,6 +18,7 @@ import {
   ContentScheduledError,
   InvalidContentError,
   InvalidTransitionError,
+  MissingMediaError,
   MissingRequiredFieldsError,
   SlugConflictError,
 } from '../../domain/errors/content.errors.js';
@@ -37,6 +38,7 @@ import { PurgeDeletedContent } from './purge-deleted-content.use-case.js';
 import {
   ContentCategories,
   ContentStats,
+  CountMediaUsage,
   GetContent,
   ListContent,
 } from './read-content.use-case.js';
@@ -59,6 +61,8 @@ describe('content use cases', () => {
   let clock: FakeClock;
   let logger: InMemoryLogger;
   let deps: ContentDeps;
+  const MEDIA = '77777777-7777-4777-8777-777777777777';
+  const knownMedia = new Set([MEDIA]);
 
   const stored = (overrides: Parameters<typeof aContent>[0] = {}) => {
     const content = aContent({ id: ID, authorId: author.id, ...overrides });
@@ -84,6 +88,9 @@ describe('content use cases', () => {
       logger,
       ids: new SequentialIdGenerator(),
       contentCategories: ['news', 'guides'],
+      mediaCatalog: {
+        findMissing: (ids) => Promise.resolve(ids.filter((id) => !knownMedia.has(id))),
+      },
     };
   });
 
@@ -237,6 +244,31 @@ describe('content use cases', () => {
       await expect(create({ slug: 'custom-slug' })).rejects.toThrow(SlugConflictError);
     });
 
+    describe('media references', () => {
+      const GONE = '88888888-8888-4888-8888-888888888888';
+      const bodyWith = (mediaId: string) => ({
+        type: 'doc',
+        content: [{ type: 'image', attrs: { src: '/a.png', mediaId } }],
+      });
+
+      it('accepts media that exists', async () => {
+        await expect(
+          create({ featuredImageId: MEDIA, socialImageId: MEDIA, body: bodyWith(MEDIA) }),
+        ).resolves.toMatchObject({ featuredImageId: MEDIA, socialImageId: MEDIA });
+      });
+
+      it.each([
+        ['a featured image', { featuredImageId: GONE }],
+        ['a social image', { socialImageId: GONE }],
+        ['an image in the body', { body: bodyWith(GONE) }],
+      ])('refuses %s that does not exist', async (_name, fields) => {
+        await expect(create(fields)).rejects.toMatchObject({
+          code: 'MEDIA_NOT_FOUND',
+          details: { ids: [GONE] },
+        });
+      });
+    });
+
     it('accepts a predefined category and refuses any other', async () => {
       await expect(create({ category: 'news' })).resolves.toMatchObject({ category: 'news' });
       await expect(create({ category: 'gossip' })).rejects.toMatchObject({
@@ -371,6 +403,32 @@ describe('content use cases', () => {
       stored({ version: 3 });
 
       await expect(update(editor, { slug: 'taken' })).rejects.toThrow(SlugConflictError);
+    });
+
+    it('does not recheck media it already refers to, which may since have been force-deleted', async () => {
+      const GONE = '88888888-8888-4888-8888-888888888888';
+      stored({ version: 3, featuredImageId: GONE });
+
+      await expect(update(author, { title: 'Fine', featuredImageId: GONE })).resolves.toMatchObject(
+        {
+          title: 'Fine',
+        },
+      );
+    });
+
+    it('checks media it did not refer to before', async () => {
+      const GONE = '88888888-8888-4888-8888-888888888888';
+      stored({ version: 3 });
+
+      await expect(update(author, { socialImageId: GONE })).rejects.toThrow(MissingMediaError);
+    });
+
+    it('allows clearing a media reference', async () => {
+      stored({ version: 3, featuredImageId: MEDIA });
+
+      await expect(update(author, { featuredImageId: null })).resolves.toMatchObject({
+        featuredImageId: null,
+      });
     });
 
     it('refuses an unknown category but keeps an existing one unchecked when untouched', async () => {
@@ -770,6 +828,20 @@ describe('content use cases', () => {
         in_review: 1,
       });
     });
+  });
+
+  it('CountMediaUsage counts live content that refers to the media anywhere', async () => {
+    const body = {
+      type: 'doc',
+      content: [{ type: 'image', attrs: { src: '/a', mediaId: MEDIA } }],
+    };
+    contents.add(aContent({ id: 'a', slug: 'a', featuredImageId: MEDIA }));
+    contents.add(aContent({ id: 'b', slug: 'b', socialImageId: MEDIA }));
+    contents.add(aContent({ id: 'c', slug: 'c', body }));
+    contents.add(aContent({ id: 'd', slug: 'd' }));
+    contents.add(aContent({ id: 'e', slug: 'e', featuredImageId: MEDIA, deletedAt: new Date() }));
+
+    await expect(new CountMediaUsage(deps).execute(MEDIA)).resolves.toBe(3);
   });
 
   it('ContentCategories returns the predefined list', () => {

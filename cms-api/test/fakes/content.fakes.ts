@@ -1,3 +1,4 @@
+import type { MediaCatalog } from '../../src/modules/content/application/ports/out/media-catalog.port.js';
 import type {
   ContentCounts,
   ContentCriteria,
@@ -12,6 +13,7 @@ import {
   ConcurrentModificationError,
   SlugConflictError,
 } from '../../src/modules/content/domain/errors/content.errors.js';
+import { referencedMediaIds } from '../../src/modules/content/domain/services/media-references.js';
 import {
   pagedResult,
   type PagedResult,
@@ -102,6 +104,13 @@ export class InMemoryContentRepository implements ContentRepository {
     );
   }
 
+  countMediaUsage(mediaId: string): Promise<number> {
+    const using = [...this.contents.values()].filter(
+      (content) => content.deletedAt === null && referencedMediaIds(content).includes(mediaId),
+    );
+    return Promise.resolve(using.length);
+  }
+
   hasChildren(id: string): Promise<boolean> {
     return Promise.resolve(
       [...this.contents.values()].some(
@@ -173,5 +182,13 @@ export class InMemoryContentRepository implements ContentRepository {
       .map((content) => content.id);
     for (const id of due) this.contents.delete(id);
     return Promise.resolve(due);
+  }
+}
+
+export class InMemoryMediaCatalog implements MediaCatalog {
+  readonly missing = new Set<string>();
+
+  findMissing(ids: readonly string[]): Promise<readonly string[]> {
+    return Promise.resolve(ids.filter((id) => this.missing.has(id)));
   }
 }

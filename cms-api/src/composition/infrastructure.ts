@@ -4,6 +4,11 @@ import type { AppConfig } from '../config/env.schema.js';
 import { PrismaAuditEventReader } from '../modules/audit/adapters/out/persistence/prisma-audit-event-reader.js';
 import { PrismaAuditLog } from '../modules/audit/adapters/out/persistence/prisma-audit-log.js';
 import { PrismaInvitationTokenRepository } from '../modules/auth/adapters/out/persistence/prisma-invitation-token.repository.js';
+import { XmlSvgSanitizer } from '../modules/media/adapters/out/image/xml-svg-sanitizer.js';
+import { SharpImageProcessor } from '../modules/media/adapters/out/image/sharp-image-processor.js';
+import { PrismaMediaRepository } from '../modules/media/adapters/out/persistence/prisma-media.repository.js';
+import { BullMqVariantQueue } from '../modules/media/adapters/out/queue/bullmq-variant-queue.js';
+import { S3ObjectStorage } from '../modules/media/adapters/out/storage/s3-object-storage.js';
 import { PrismaContentRepository } from '../modules/content/adapters/out/persistence/prisma-content.repository.js';
 import { PrismaUserRepository } from '../modules/users/adapters/out/persistence/prisma-user.repository.js';
 import { InProcessEventPublisher } from '../shared/adapters/out/in-process-event-publisher.js';
@@ -30,6 +35,7 @@ import { SystemClock, Uuidv4Generator } from '../shared/adapters/out/system.js';
 import type { EmailSender, Logger } from '../shared/ports/system.port.js';
 import type { Infrastructure } from './app.module.js';
 
+export const VARIANT_QUEUE = 'media-variants';
 const EMAIL_DELIVERY = { attempts: 5, backoffMs: 30_000 };
 
 export function createEmailSender(config: AppConfig, logger: Logger): EmailSender {
@@ -59,6 +65,22 @@ function createEmailQueue(config: AppConfig, logger: Logger): BullMqEmailQueue {
   return queue;
 }
 
+function createVariantQueue(config: AppConfig, logger: Logger): BullMqVariantQueue {
+  const queue = new BullMqVariantQueue(config.redisUrl, VARIANT_QUEUE);
+  queue.onConnectionError((error) => {
+    logger.error('Media variant queue connection error', { error: error.message });
+  });
+  return queue;
+}
+
+function createSecurity(config: AppConfig, clock: SystemClock) {
+  return {
+    hasher: new Argon2PasswordHasher(config.argon2),
+    signer: new JoseAccessTokenSigner(config.jwtSecrets, clock),
+    opaqueTokens: new Sha256OpaqueTokenService(),
+  };
+}
+
 function createRepositories(db: PrismaContext) {
   return {
     accounts: new PrismaAccountRepository(db),
@@ -69,6 +91,7 @@ function createRepositories(db: PrismaContext) {
     apiKeys: new PrismaApiKeyRepository(db),
     users: new PrismaUserRepository(db),
     contents: new PrismaContentRepository(db),
+    media: new PrismaMediaRepository(db),
     auditReader: new PrismaAuditEventReader(db),
   };
 }
@@ -90,16 +113,20 @@ export function createInfrastructure(
     logger.error('Redis connection error', { error: error.message });
   });
   const emailQueue = createEmailQueue(config, logger);
+  const variantQueue = createVariantQueue(config, logger);
   const clock = new SystemClock();
   const ids = new Uuidv4Generator();
 
   const infrastructure: Infrastructure = {
     ...createRepositories(db),
     contentCategories: config.contentCategories,
+    storage: new S3ObjectStorage(config.objectStorage),
+    svg: new XmlSvgSanitizer(),
+    images: new SharpImageProcessor(),
+    variantQueue,
+    mediaConfig: config.media,
     events: new InProcessEventPublisher(logger),
-    hasher: new Argon2PasswordHasher(config.argon2),
-    signer: new JoseAccessTokenSigner(config.jwtSecrets, clock),
-    opaqueTokens: new Sha256OpaqueTokenService(),
+    ...createSecurity(config, clock),
     clock,
     ids,
     tx: db,
@@ -122,6 +149,7 @@ export function createInfrastructure(
     dispose: async () => {
       redis.disconnect();
       await emailQueue.close();
+      await variantQueue.close();
       await db.disconnect();
     },
   };

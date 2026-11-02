@@ -6,7 +6,7 @@ import {
 import { assertTransition, type ContentStatus } from '../services/content-lifecycle.service.js';
 import { assertPublishable } from '../services/publish-requirements-checker.js';
 import { EMPTY_DOCUMENT, plainText, type RichTextNode } from '../services/rich-text.js';
-import { safeText } from '../services/text-safety.js';
+import { safeText } from '../../../../shared/kernel/text-safety.js';
 import { Slug } from '../value-objects/slug.vo.js';
 
 const MAX_TITLE_LENGTH = 200;

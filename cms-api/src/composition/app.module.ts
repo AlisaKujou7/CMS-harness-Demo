@@ -1,4 +1,26 @@
 import { type DynamicModule, Module } from '@nestjs/common';
+import { MediaController } from '../modules/media/adapters/in/http/media.controller.js';
+import {
+  MEDIA_USE_CASES,
+  type MediaUseCases,
+} from '../modules/media/adapters/in/http/media.use-cases.js';
+import type { MediaDeps, MediaConfig } from '../modules/media/application/media-deps.js';
+import type { MediaRepository } from '../modules/media/application/ports/out/media-repository.port.js';
+import type {
+  ImageProcessor,
+  MediaVariantQueue,
+  ObjectStorage,
+  SvgSanitizer,
+} from '../modules/media/application/ports/out/media-services.port.js';
+import { FinalizeMedia } from '../modules/media/application/use-cases/finalize-media.use-case.js';
+import {
+  DeleteMedia,
+  UpdateMedia,
+} from '../modules/media/application/use-cases/manage-media.use-case.js';
+import { PresignUpload } from '../modules/media/application/use-cases/presign-upload.use-case.js';
+import { GetMedia, ListMedia } from '../modules/media/application/use-cases/read-media.use-case.js';
+import type { MediaUploaded } from '../modules/media/domain/events/media.events.js';
+import { contentDeps, mediaDeps } from './module-deps.js';
 import { ContentController } from '../modules/content/adapters/in/http/content.controller.js';
 import {
   CONTENT_USE_CASES,
@@ -91,6 +113,12 @@ export interface Infrastructure extends AuthDeps {
   readonly users: UserRepository;
   readonly contents: ContentRepository;
   readonly contentCategories: readonly string[];
+  readonly media: MediaRepository;
+  readonly storage: ObjectStorage;
+  readonly svg: SvgSanitizer;
+  readonly images: ImageProcessor;
+  readonly variantQueue: MediaVariantQueue;
+  readonly mediaConfig: MediaConfig;
   readonly auditReader: AuditEventReader;
   readonly events: InProcessEventPublisher;
   readonly rateLimiter: RateLimiter;
@@ -131,6 +159,17 @@ function createContentUseCases(deps: ContentDeps): ContentUseCases {
   };
 }
 
+function createMediaUseCases(deps: MediaDeps): MediaUseCases {
+  return {
+    presign: new PresignUpload(deps),
+    finalize: new FinalizeMedia(deps),
+    update: new UpdateMedia(deps),
+    remove: new DeleteMedia(deps),
+    get: new GetMedia(deps),
+    list: new ListMedia(deps),
+  };
+}
+
 function createAuditUseCases(infrastructure: Infrastructure): AuditUseCases {
   const deps = { reader: infrastructure.auditReader, audit: infrastructure.audit };
   return { list: new ListAuditEvents(deps), export: new ExportAuditEvents(deps) };
@@ -147,6 +186,9 @@ function wireEvents(infrastructure: Infrastructure): void {
   events.subscribe<UserDeactivated>('UserDeactivated', (event) =>
     revokeSessions.execute(event.userId),
   );
+  events.subscribe<MediaUploaded>('MediaUploaded', async (event) => {
+    if (event.needsVariants) await infrastructure.variantQueue.enqueue(event.mediaId);
+  });
   events.subscribe<UserPasswordResetRequested>('UserPasswordResetRequested', (event) =>
     requestReset.execute(event),
   );
@@ -183,13 +225,15 @@ export function createAppModule(infrastructure: Infrastructure): DynamicModule {
       ApiKeysController,
       UsersController,
       ContentController,
+      MediaController,
       AuditController,
       HealthController,
     ],
     providers: [
       { provide: AUTH_USE_CASES, useValue: createAuthUseCases(infrastructure) },
       { provide: USERS_USE_CASES, useValue: createUsersUseCases(infrastructure) },
-      { provide: CONTENT_USE_CASES, useValue: createContentUseCases(infrastructure) },
+      { provide: CONTENT_USE_CASES, useValue: createContentUseCases(contentDeps(infrastructure)) },
+      { provide: MEDIA_USE_CASES, useValue: createMediaUseCases(mediaDeps(infrastructure)) },
       { provide: AUDIT_USE_CASES, useValue: createAuditUseCases(infrastructure) },
       {
         provide: ACCESS_TOKEN_AUTHENTICATOR,

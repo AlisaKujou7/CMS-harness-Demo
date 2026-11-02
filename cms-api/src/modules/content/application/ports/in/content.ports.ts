@@ -119,6 +119,10 @@ export interface ContentCategoriesUseCase {
   execute(): readonly string[];
 }
 
+export interface CountMediaUsageUseCase {
+  execute(mediaId: string): Promise<number>;
+}
+
 export interface ContentStatsUseCase {
   execute(command: { readonly actor: Actor }): Promise<ContentCounts>;
 }

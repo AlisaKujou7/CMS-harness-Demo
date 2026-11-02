@@ -61,6 +61,18 @@ The stricter or more specific document wins unless noted.
 - Reference columns for media stay plain UUIDs until phase 4 adds the table and its foreign keys.
 - A scheduled publish that can no longer succeed clears the schedule and writes `content.schedule_failed` to the audit log, since retrying would never succeed. Nothing notifies the Editor yet, because no notification feature is in scope.
 - Purging runs in batches of 100, each in its own transaction, and each audit event names the ids removed.
+- Uploads land under `uploads/<owner>/<id>.<ext>`, the only place a presigned URL can write. Finalizing checks the stored type, extension and bytes, then copies the file to `media/<id>/` on the condition that it has not changed. Without this, a second PUT to the same URL could replace a checked file. A refused file is deleted, and the attempt is audited as `media.upload_rejected`. The media id is the upload id, so one upload cannot become two records.
+- Only the uploader can finalize an upload, an Admin included.
+- `POST /media` takes `storage_key`, `filename` and `mime_type`, plus optional `alt_text` and `caption`. `GET /media/{id}` is added, with `usage_count` for the details drawer. `DELETE /media/{id}?force=true` is how FR-MEDIA-07's Admin force-delete is asked for. 02-SRS §7 leaves all of this open.
+- All signed-in roles can browse the whole library, since UR-E04 says it gives Authors access to approved assets. Authors change and delete only what they uploaded, Editors and Admins anything. 5.3.1 lists delete only, and updating follows the same rule.
+- SVG is limited to 5 MB, below the 20 MB general limit, because sanitizing parses the whole document. It is rebuilt from an allow-list of elements and attributes, and refused if it declares entities. Scripts, styles, links, external references, `image` and `foreignObject` do not survive.
+- Variants are WebP within 320 and 1024 pixels, including for GIF (first frame) and SVG, and strip metadata. The original keeps its EXIF, including any location, because it is what the author uploaded. PDFs get no variants. `variant_status` is added to MediaItem so the SPA can tell waiting from failed, and a sweep requeues any left waiting, since the queue is not transactional with the database.
+- PDFs are served as downloads and images inline, using signed URLs that last an hour by default (SEC-06). `OBJECT_STORAGE_PUBLIC_URL` is what those URLs are signed for. A CDN in front must pass the query string through, or phase 8 must add CDN signing.
+- Inline image nodes keep `src` and `mediaId`, but a signed `src` expires. Phase 5 must resolve `mediaId` to a current URL in the public API, and phase 6 must do the same in the editor.
+- A force-delete clears featured and social image references, and leaves an inline image node in place with a dead reference. Content may keep a reference it already had when it is saved again, but a newly added reference must exist (`MEDIA_NOT_FOUND`).
+- `FEATURE_MEDIA_VARIANTS_ENABLED` from 07-OPS-ARCH is not implemented. No requirement needs variants off, and it would leave items waiting forever.
+- Abandoned uploads are purged after a day by a worker job (RK-03).
+- Official `minio/minio` images, which 07-OPS-ARCH names, can no longer be pulled publicly. Tests and local development use `bitnamilegacy/minio`, the same server, which gets no more updates. Phase 8 must choose a supported S3 service or a maintained image for deployment.
 - Worker jobs use BullMQ job schedulers. `purge-expired-tokens` also runs there, deleting tokens past their expiry, since replay detection only matters until then.
 
 ## Consequences

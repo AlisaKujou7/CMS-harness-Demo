@@ -1,6 +1,14 @@
 import type { Actor } from '../../../../shared/kernel/actor.js';
 import type { Content, ContentEdit } from '../../domain/entities/content.entity.js';
-import { ContentNotFoundError, InvalidContentError } from '../../domain/errors/content.errors.js';
+import {
+  ContentNotFoundError,
+  InvalidContentError,
+  MissingMediaError,
+} from '../../domain/errors/content.errors.js';
+import {
+  type MediaReferencing,
+  referencedMediaIds,
+} from '../../domain/services/media-references.js';
 import type { ContentEvent, ContentEventType } from '../../domain/events/content.events.js';
 import type { ContentDeps } from '../content-deps.js';
 import type { ContentFieldsPatch, ContentView } from '../ports/in/content.ports.js';
@@ -65,7 +73,7 @@ export function sanitizedFields<T extends ContentFieldsPatch>(
   return { ...rest, ...(body === undefined ? {} : { body: sanitizeRichText(body) }) };
 }
 
-interface ReferenceContext {
+interface ReferenceContext extends MediaReferencing {
   readonly id: string | null;
   readonly category: string | null;
   readonly parentId: string | null;
@@ -89,12 +97,28 @@ async function assertValidParent(
   }
 }
 
+async function assertMediaExists(
+  deps: ContentDeps,
+  current: ReferenceContext,
+  changes: MediaReferencing,
+): Promise<void> {
+  const known = new Set(referencedMediaIds(current));
+  const added = referencedMediaIds(changes).filter((id) => !known.has(id));
+  if (added.length === 0) return;
+  const missing = await deps.mediaCatalog.findMissing(added);
+  if (missing.length > 0) throw new MissingMediaError(missing);
+}
+
 // Checked only when a value changes, so retiring a category does not block unrelated saves.
 export async function assertValidReferences(
   deps: ContentDeps,
   current: ReferenceContext,
-  changes: Pick<ContentEdit, 'category' | 'parentId'>,
+  changes: Pick<
+    ContentEdit,
+    'category' | 'parentId' | 'featuredImageId' | 'socialImageId' | 'body'
+  >,
 ): Promise<void> {
+  await assertMediaExists(deps, current, changes);
   const { category, parentId } = changes;
   const newCategory = category != null && category !== current.category;
   if (newCategory && !deps.contentCategories.includes(category)) {

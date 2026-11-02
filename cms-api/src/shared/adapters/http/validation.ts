@@ -15,6 +15,13 @@ export function parseInput<T>(schema: z.ZodType<T>, input: unknown): T {
   });
 }
 
+export const instant = z.iso.datetime({ offset: true }).transform((value) => new Date(value));
+// PostgreSQL refuses NUL in a query parameter, which would otherwise surface as a 500.
+export const filterText = z
+  .string()
+  .max(200)
+  .regex(/^[^\0]*$/);
+
 const idSchema = z.object({ id: z.uuid() });
 
 export function parseId(id: string): string {

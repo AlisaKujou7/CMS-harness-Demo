@@ -67,6 +67,17 @@ export class InvalidScheduleError extends AppError {
   }
 }
 
+export class MissingMediaError extends AppError {
+  constructor(ids: readonly string[]) {
+    super({
+      kind: 'validation',
+      code: 'MEDIA_NOT_FOUND',
+      message: 'This content refers to media that does not exist',
+      details: { ids },
+    });
+  }
+}
+
 // An Editor approved what is scheduled, so changing it would publish text nobody reviewed.
 export class ContentScheduledError extends AppError {
   constructor() {

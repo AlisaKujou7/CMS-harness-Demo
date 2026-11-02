@@ -41,6 +41,15 @@ enum ContentStatus {
   @@map("content_status")
 }
 
+enum VariantStatus {
+  pending
+  ready
+  failed
+  none
+
+  @@map("variant_status")
+}
+
 model User {
   id           String     @id @db.Uuid
   email        String     @unique
@@ -59,6 +68,7 @@ model User {
   apiKeys     ApiKey[]
   authoredContent Content[]
   contentVersions ContentVersion[]
+  uploadedMedia MediaItem[]
 
   @@map("users")
 }
@@ -147,7 +157,6 @@ model AuditEvent {
   @@map("audit_events")
 }
 
-// Media ids stay plain UUIDs until the media table exists (phase 4).
 model Content {
   id              String        @id @db.Uuid
   type            ContentType
@@ -171,7 +180,12 @@ model Content {
   createdAt       DateTime      @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime      @map("updated_at") @db.Timestamptz(3)
 
+  // Derived on every save, so finding what uses a file needs no scan of every body (FR-MEDIA-07).
+  referencedMediaIds String[]   @default([]) @map("referenced_media_ids") @db.Uuid
+
   author   User             @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  featuredImage MediaItem?  @relation("FeaturedImage", fields: [featuredImageId], references: [id], onDelete: SetNull)
+  socialImage   MediaItem?  @relation("SocialImage", fields: [socialImageId], references: [id], onDelete: SetNull)
   parent   Content?         @relation("PageHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   children Content[]        @relation("PageHierarchy")
   versions ContentVersion[]
@@ -185,6 +199,9 @@ model Content {
   @@index([scheduledAt])
   @@index([deletedAt])
   @@index([parentId])
+  @@index([referencedMediaIds], type: Gin)
+  @@index([featuredImageId])
+  @@index([socialImageId])
   @@map("content")
 }
 
@@ -202,4 +219,29 @@ model ContentVersion {
   @@unique([contentId, versionNo])
   @@index([editorId])
   @@map("content_versions")
+}
+
+model MediaItem {
+  id            String        @id @db.Uuid
+  storageKey    String        @unique @map("storage_key")
+  filename      String
+  mimeType      String        @map("mime_type")
+  sizeBytes     BigInt        @map("size_bytes")
+  width         Int?
+  height        Int?
+  altText       String?       @map("alt_text")
+  caption       String?
+  variants      Json
+  variantStatus VariantStatus @map("variant_status")
+  uploadedBy    String        @map("uploaded_by") @db.Uuid
+  createdAt     DateTime      @map("created_at") @db.Timestamptz(3)
+
+  uploader         User      @relation(fields: [uploadedBy], references: [id], onDelete: Restrict)
+  featuredInContent Content[] @relation("FeaturedImage")
+  socialInContent   Content[] @relation("SocialImage")
+
+  @@index([createdAt(sort: Desc)])
+  @@index([uploadedBy])
+  @@index([variantStatus, createdAt])
+  @@map("media_items")
 }

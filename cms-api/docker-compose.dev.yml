@@ -28,5 +28,24 @@ services:
       timeout: 3s
       retries: 10
 
+  # Official MinIO images are no longer public. This is the same server, for local use only.
+  # The bucket is private: SEC-06 means nothing here may be listed or read anonymously.
+  minio:
+    image: bitnamilegacy/minio:2025.7.23
+    environment:
+      MINIO_ROOT_USER: cms-local-only
+      MINIO_ROOT_PASSWORD: cms-local-only-secret
+      MINIO_DEFAULT_BUCKETS: cms-media
+    ports:
+      - '127.0.0.1:9000:9000'
+    volumes:
+      - minio-data:/bitnami/minio/data
+    healthcheck:
+      test: ['CMD', 'curl', '-fsS', 'http://localhost:9000/minio/health/live']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
 volumes:
+  minio-data:
   postgres-data:

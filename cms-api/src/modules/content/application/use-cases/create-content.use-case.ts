@@ -1,6 +1,6 @@
 import { Content, type ContentType } from '../../domain/entities/content.entity.js';
 import { SlugConflictError } from '../../domain/errors/content.errors.js';
-import { safeText } from '../../domain/services/text-safety.js';
+import { safeText } from '../../../../shared/kernel/text-safety.js';
 import { Slug } from '../../domain/value-objects/slug.vo.js';
 import type { ContentDeps } from '../content-deps.js';
 import type {

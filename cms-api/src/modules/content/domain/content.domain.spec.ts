@@ -1,3 +1,4 @@
+import { referencedMediaIds } from './services/media-references.js';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { aContent, aTextBody, T0, after } from '../../../../test/builders/a-content.js';
@@ -588,6 +589,40 @@ describe('content errors', () => {
     };
 
     expect(plainText(doc)).toBe('one two!');
+  });
+
+  describe('referencedMediaIds (FR-MEDIA-07)', () => {
+    it('collects every reference once, however deep', () => {
+      const body = {
+        type: 'doc',
+        content: [
+          { type: 'image', attrs: { mediaId: 'inline' } },
+          {
+            type: 'blockquote',
+            content: [{ type: 'image', attrs: { mediaId: 'featured' } }],
+          },
+        ],
+      };
+
+      expect(
+        referencedMediaIds({ featuredImageId: 'featured', socialImageId: 'social', body }),
+      ).toEqual(['featured', 'social', 'inline']);
+    });
+
+    it('ignores anything that is not an image reference', () => {
+      const body = {
+        type: 'doc',
+        content: [
+          { type: 'image', attrs: { src: '/a.png' } },
+          { type: 'image', attrs: { mediaId: 5 } },
+          { type: 'paragraph', attrs: { mediaId: 'not-an-image' } },
+          { type: 'image' },
+        ],
+      };
+
+      expect(referencedMediaIds({ featuredImageId: null, socialImageId: null, body })).toEqual([]);
+      expect(referencedMediaIds({})).toEqual([]);
+    });
   });
 
   it('counts a hard break as a word boundary', () => {

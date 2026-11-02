@@ -1,6 +1,6 @@
 import { InvalidContentError } from '../domain/errors/content.errors.js';
 import type { RichTextMark, RichTextNode } from '../domain/services/rich-text.js';
-import { cleanText, safeText } from '../domain/services/text-safety.js';
+import { cleanText, safeText } from '../../../shared/kernel/text-safety.js';
 
 const MAX_DEPTH = 32;
 const MAX_NODES = 100_000;

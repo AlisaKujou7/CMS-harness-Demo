@@ -24,7 +24,12 @@ import {
   pageQuery,
   toListResponse,
 } from '../../../../../shared/adapters/http/pagination.js';
-import { parseId, parseInput } from '../../../../../shared/adapters/http/validation.js';
+import {
+  filterText,
+  instant,
+  parseId,
+  parseInput,
+} from '../../../../../shared/adapters/http/validation.js';
 import type { Actor } from '../../../../../shared/kernel/actor.js';
 import { defined } from '../../../../../shared/kernel/defined.js';
 import type {
@@ -42,12 +47,6 @@ import { CONTENT_USE_CASES, type ContentUseCases } from './content.use-cases.js'
 const text = z.string().max(4096);
 const optionalText = text.nullable().optional();
 const optionalId = z.uuid().nullable().optional();
-const instant = z.iso.datetime({ offset: true }).transform((value) => new Date(value));
-// PostgreSQL refuses NUL in a query parameter, which would otherwise surface as a 500.
-const filterText = z
-  .string()
-  .max(200)
-  .regex(/^[^\0]*$/);
 
 const editableFields = {
   slug: text.optional(),

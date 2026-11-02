@@ -6,9 +6,11 @@ import {
   ConcurrentModificationError,
   SlugConflictError,
 } from '../../../src/modules/content/domain/errors/content.errors.js';
+import { PrismaMediaRepository } from '../../../src/modules/media/adapters/out/persistence/prisma-media.repository.js';
 import { PrismaUserRepository } from '../../../src/modules/users/adapters/out/persistence/prisma-user.repository.js';
 import { UserInUseError } from '../../../src/modules/users/domain/errors/user.errors.js';
 import { aContent, aTextBody, after, T0 } from '../../builders/a-content.js';
+import { aMediaItem } from '../../builders/a-media-item.js';
 import { createTestDatabase, type TestDatabase } from '../support/test-database.js';
 
 const AUTHOR = '10000000-0000-4000-8000-000000000001';
@@ -63,7 +65,12 @@ describe('PrismaContentRepository', () => {
   });
 
   it('stores and restores every field', async () => {
-    await db.seedUser('10000000-0000-4000-8000-000000000003');
+    const media = new PrismaMediaRepository(db.context);
+    for (const n of [90, 91]) {
+      await media.create(
+        aMediaItem({ id: id(n), storageKey: `k${String(n)}`, uploadedBy: AUTHOR }),
+      );
+    }
     const content = item(1, {
       type: 'article',
       title: 'Title',

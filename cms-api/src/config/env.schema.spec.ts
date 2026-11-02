@@ -34,6 +34,68 @@ describe('parseDurationMs', () => {
   });
 });
 
+describe('media settings', () => {
+  const minimal = {
+    NODE_ENV: 'development',
+    PUBLIC_URL: 'http://localhost:3000',
+    CORS_ALLOWED_ORIGINS: 'http://localhost:5173',
+    DATABASE_URL: 'postgres://x',
+    REDIS_URL: 'redis://x',
+    JWT_SECRET: 'a'.repeat(64),
+    EMAIL_PROVIDER: 'console',
+  };
+
+  it('defaults to S3 with an ambient identity, and a 20 MB limit (FR-MEDIA-02)', () => {
+    expect(loadEnv(minimal)).toMatchObject({
+      objectStorage: { bucket: 'cms-media', region: 'us-east-1', forcePathStyle: false },
+      media: {
+        maxUploadBytes: 20 * 1024 * 1024,
+        uploadUrlTtlSeconds: 900,
+        readUrlTtlSeconds: 3600,
+      },
+    });
+  });
+
+  it('reads a MinIO setup, and a changed limit', () => {
+    const config = loadEnv({
+      ...minimal,
+      OBJECT_STORAGE_PROVIDER: 'minio',
+      OBJECT_STORAGE_ENDPOINT: 'http://minio:9000',
+      OBJECT_STORAGE_ACCESS_KEY: 'a',
+      OBJECT_STORAGE_SECRET_KEY: 'b',
+      OBJECT_STORAGE_PUBLIC_URL: 'https://media.example.com',
+      MEDIA_MAX_UPLOAD_MB: '5',
+    });
+
+    expect(config.objectStorage).toEqual({
+      bucket: 'cms-media',
+      region: 'us-east-1',
+      forcePathStyle: true,
+      endpoint: 'http://minio:9000',
+      publicUrl: 'https://media.example.com',
+      accessKey: 'a',
+      secretKey: 'b',
+    });
+    expect(config.media.maxUploadBytes).toBe(5 * 1024 * 1024);
+  });
+
+  it.each(['OBJECT_STORAGE_ENDPOINT', 'OBJECT_STORAGE_ACCESS_KEY', 'OBJECT_STORAGE_SECRET_KEY'])(
+    'requires %s for MinIO',
+    (missing) => {
+      const env = {
+        ...minimal,
+        OBJECT_STORAGE_PROVIDER: 'minio',
+        OBJECT_STORAGE_ENDPOINT: 'http://minio:9000',
+        OBJECT_STORAGE_ACCESS_KEY: 'a',
+        OBJECT_STORAGE_SECRET_KEY: 'b',
+        [missing]: '',
+      };
+
+      expect(() => loadEnv(env)).toThrow(missing);
+    },
+  );
+});
+
 describe('content settings', () => {
   const minimal = {
     NODE_ENV: 'development',

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { aContent, aTextBody } from '../../test/builders/a-content.js';
+import { aMediaItem } from '../../test/builders/a-media-item.js';
 import { createFakeInfrastructure } from '../../test/builders/http-app.js';
 import { createMaintenanceJobs } from './maintenance-jobs.js';
 
@@ -18,6 +19,8 @@ describe('createMaintenanceJobs', () => {
       'publish-due-content': 30_000,
       'purge-deleted-content': 86_400_000,
       'purge-expired-tokens': 86_400_000,
+      'requeue-media-variants': 300_000,
+      'purge-abandoned-uploads': 86_400_000,
     });
   });
 
@@ -33,6 +36,17 @@ describe('createMaintenanceJobs', () => {
     infra.contents.add(aContent({ deletedAt: new Date(0) }));
 
     await expect(job('purge-deleted-content', infra).run()).resolves.toBe(1);
+  });
+
+  it('asks again for variants that have waited too long', async () => {
+    const infra = createFakeInfrastructure();
+    infra.media.add(aMediaItem({ createdAt: new Date(0) }));
+
+    await expect(job('requeue-media-variants', infra).run()).resolves.toBe(1);
+  });
+
+  it('purges abandoned uploads', async () => {
+    await expect(job('purge-abandoned-uploads').run()).resolves.toBe(0);
   });
 
   it('purges expired tokens', async () => {
