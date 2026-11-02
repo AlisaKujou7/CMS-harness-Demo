@@ -7,3 +7,4 @@ reports/
 pnpm-lock.yaml
 cms-api/src/generated/
 cms-api/prisma/migrations/
+cms-api/openapi.json

@@ -2,13 +2,13 @@ import type { INestApplication } from '@nestjs/common';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { aContent, aTextBody, after, T0 } from '../../../../../../test/builders/a-content.js';
 import { aMediaItem, MEDIA_ID } from '../../../../../../test/builders/a-media-item.js';
+import { anApiKey } from '../../../../../../test/builders/auth-context.js';
 import {
   createFakeInfrastructure,
   createTestApp,
   http,
   type FakeInfrastructure,
 } from '../../../../../../test/builders/http-app.js';
-import type { ContentStatus } from '../../../../content/domain/services/content-lifecycle.service.js';
 
 const KEY_ID = 'key-1';
 const API_KEY = 'cmsk_test_key';
@@ -37,18 +37,7 @@ describe('public API endpoints', () => {
 
   beforeEach(async () => {
     infra = createFakeInfrastructure();
-    await infra.apiKeys.save(
-      (await import('../../../../auth/domain/entities/api-key.entity.js')).ApiKey.restore({
-        id: KEY_ID,
-        name: 'Test',
-        prefix: 'cmsk',
-        keyHash: infra.opaqueTokens.hash(API_KEY),
-        createdBy: 'admin',
-        createdAt: T0,
-        lastUsedAt: null,
-        revokedAt: null,
-      }),
-    );
+    await infra.apiKeys.save(anApiKey({ id: KEY_ID, keyHash: infra.opaqueTokens.hash(API_KEY) }));
     app = await createTestApp(infra);
   });
 
@@ -91,16 +80,7 @@ describe('public API endpoints', () => {
     it('limits each key, with 429 and Retry-After', async () => {
       const limited = createFakeInfrastructure();
       await limited.apiKeys.save(
-        (await import('../../../../auth/domain/entities/api-key.entity.js')).ApiKey.restore({
-          id: KEY_ID,
-          name: 'Test',
-          prefix: 'cmsk',
-          keyHash: limited.opaqueTokens.hash(API_KEY),
-          createdBy: 'admin',
-          createdAt: T0,
-          lastUsedAt: null,
-          revokedAt: null,
-        }),
+        anApiKey({ id: KEY_ID, keyHash: limited.opaqueTokens.hash(API_KEY) }),
       );
       const small = await createTestApp({
         ...limited,
@@ -125,7 +105,7 @@ describe('public API endpoints', () => {
 
   describe('visibility (FR-AUTHZ-06, FR-PUBAPI-03)', () => {
     const hidden: [string, Parameters<typeof aContent>[0]][] = [
-      ...(['draft', 'in_review', 'unpublished', 'archived'] as ContentStatus[]).map(
+      ...(['draft', 'in_review', 'unpublished', 'archived'] as const).map(
         (status): [string, Parameters<typeof aContent>[0]] => [status, { status }],
       ),
       ['soft-deleted', { deletedAt: T0 }],

@@ -31,8 +31,12 @@ import { USERS_USE_CASES, type UsersUseCases } from './users.use-cases.js';
 
 const role = z.enum(['admin', 'editor', 'author']);
 const name = z.string().max(1024);
-const inviteRequest = z.object({ email: z.string().max(1024), role, name: name.optional() });
-const updateRequest = z.object({ name: name.optional(), role: role.optional() });
+export const inviteUserRequest = z.object({
+  email: z.string().max(1024),
+  role,
+  name: name.optional(),
+});
+export const updateUserRequest = z.object({ name: name.optional(), role: role.optional() });
 
 function toResponse(user: UserSummary) {
   return {
@@ -61,7 +65,7 @@ export class UsersController {
 
   @Post()
   async invite(@Body() body: unknown, @CurrentActor() actor: Actor, @ClientIp() ip: string | null) {
-    const input = parseInput(inviteRequest, body);
+    const input = parseInput(inviteUserRequest, body);
     const user = await this.useCases.invite.execute({
       actor,
       ip,
@@ -79,7 +83,7 @@ export class UsersController {
     @CurrentActor() actor: Actor,
     @ClientIp() ip: string | null,
   ) {
-    const input = parseInput(updateRequest, body);
+    const input = parseInput(updateUserRequest, body);
     const user = await this.useCases.update.execute({
       actor,
       ip,

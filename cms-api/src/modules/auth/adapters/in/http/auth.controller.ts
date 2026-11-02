@@ -18,10 +18,13 @@ import { clearSessionCookie, readSessionCookie, setSessionCookie } from './sessi
 const MAX_INPUT_LENGTH = 1024;
 const shortString = z.string().max(MAX_INPUT_LENGTH);
 
-const loginRequest = z.object({ email: shortString, password: shortString });
-const forgotRequest = z.object({ email: shortString });
-const resetRequest = z.object({ token: shortString, new_password: shortString });
-const changeRequest = z.object({ current_password: shortString, new_password: shortString });
+export const loginRequest = z.object({ email: shortString, password: shortString });
+export const forgotPasswordRequest = z.object({ email: shortString });
+export const resetPasswordRequest = z.object({ token: shortString, new_password: shortString });
+export const changePasswordRequest = z.object({
+  current_password: shortString,
+  new_password: shortString,
+});
 
 @Controller('api/admin/auth')
 export class AuthController {
@@ -74,7 +77,7 @@ export class AuthController {
   @RateLimit('passwordReset')
   @UseGuards(RateLimitGuard)
   async forgot(@Body() body: unknown, @ClientIp() ip: string | null): Promise<void> {
-    const { email } = parseInput(forgotRequest, body);
+    const { email } = parseInput(forgotPasswordRequest, body);
     await this.useCases.requestPasswordReset.execute({ email, ip });
   }
 
@@ -83,7 +86,7 @@ export class AuthController {
   @RateLimit('passwordReset')
   @UseGuards(RateLimitGuard)
   async reset(@Body() body: unknown, @ClientIp() ip: string | null): Promise<void> {
-    const input = parseInput(resetRequest, body);
+    const input = parseInput(resetPasswordRequest, body);
     await this.useCases.completePasswordReset.execute({
       token: input.token,
       newPassword: input.new_password,
@@ -96,7 +99,7 @@ export class AuthController {
   @RateLimit('invitation')
   @UseGuards(RateLimitGuard)
   async acceptInvitation(@Body() body: unknown, @ClientIp() ip: string | null): Promise<void> {
-    const input = parseInput(resetRequest, body);
+    const input = parseInput(resetPasswordRequest, body);
     await this.useCases.acceptInvitation.execute({
       token: input.token,
       newPassword: input.new_password,
@@ -119,7 +122,7 @@ export class AuthController {
     @CurrentActor() actor: Actor,
     @ClientIp() ip: string | null,
   ): Promise<void> {
-    const input = parseInput(changeRequest, body);
+    const input = parseInput(changePasswordRequest, body);
     await this.useCases.changePassword.execute({
       actor,
       currentPassword: input.current_password,

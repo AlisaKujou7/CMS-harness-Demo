@@ -35,21 +35,21 @@ import { MEDIA_USE_CASES, type MediaUseCases } from './media.use-cases.js';
 
 const text = z.string().max(4096);
 const optionalText = text.nullable().optional();
-const presignRequest = z.object({
+export const presignMediaRequest = z.object({
   filename: text,
   mime_type: text,
   size_bytes: z.number(),
 });
-const finalizeRequest = z.object({
+export const finalizeMediaRequest = z.object({
   storage_key: text,
   filename: text,
   mime_type: text,
   alt_text: optionalText,
   caption: optionalText,
 });
-const updateRequest = z.object({ alt_text: optionalText, caption: optionalText });
-const deleteQuery = z.object({ force: z.enum(['true', 'false']).optional() });
-const listQuery = pageQuery.extend({
+export const updateMediaRequest = z.object({ alt_text: optionalText, caption: optionalText });
+export const mediaDeleteQuery = z.object({ force: z.enum(['true', 'false']).optional() });
+export const mediaListQuery = pageQuery.extend({
   search: filterText.optional(),
   uploaded_by: z.uuid().optional(),
   kind: z.enum(['image', 'document']).optional(),
@@ -88,7 +88,7 @@ export class MediaController {
   @Post('presign')
   @HttpCode(200)
   async presign(@Body() body: unknown, @CurrentActor() actor: Actor) {
-    const input = parseInput(presignRequest, body);
+    const input = parseInput(presignMediaRequest, body);
     const upload = await this.useCases.presign.execute({
       actor,
       filename: input.filename,
@@ -111,7 +111,7 @@ export class MediaController {
     @CurrentActor() actor: Actor,
     @ClientIp() ip: string | null,
   ) {
-    const input = parseInput(finalizeRequest, body);
+    const input = parseInput(finalizeMediaRequest, body);
     const media = await this.useCases.finalize.execute({
       actor,
       ip,
@@ -125,7 +125,7 @@ export class MediaController {
 
   @Get()
   async list(@Query() query: unknown) {
-    const input = parseInput(listQuery, query);
+    const input = parseInput(mediaListQuery, query);
     const result = await this.useCases.list.execute({
       ...pageOptions(input),
       ...defined({
@@ -151,7 +151,7 @@ export class MediaController {
     @CurrentActor() actor: Actor,
     @ClientIp() ip: string | null,
   ) {
-    const input = parseInput(updateRequest, body);
+    const input = parseInput(updateMediaRequest, body);
     const media = await this.useCases.update.execute({
       actor,
       ip,
@@ -169,7 +169,7 @@ export class MediaController {
     @CurrentActor() actor: Actor,
     @ClientIp() ip: string | null,
   ): Promise<void> {
-    const { force } = parseInput(deleteQuery, query);
+    const { force } = parseInput(mediaDeleteQuery, query);
     await this.useCases.remove.execute({ actor, ip, id: parseId(id), force: force === 'true' });
   }
 }

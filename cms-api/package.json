@@ -12,6 +12,8 @@
     "test:cov": "vitest run --coverage",
     "test:integration": "vitest run --project docker --passWithNoTests",
     "test:mutation": "stryker run",
+    "openapi:generate": "tsc -p tsconfig.build.json && node dist/composition/write-openapi.js",
+    "openapi:lint": "spectral lint openapi.json --fail-severity=warn",
     "postinstall": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "seed:admin": "node dist/composition/seed-admin.js",
@@ -21,6 +23,7 @@
   },
   "devDependencies": {
     "@nestjs/testing": "^12.3.2",
+    "@stoplight/spectral-cli": "^6.17.0",
     "@stryker-mutator/core": "^10.1.1",
     "@stryker-mutator/vitest-runner": "^10.1.1",
     "@testcontainers/postgresql": "^12.2.1",
@@ -30,6 +33,7 @@
     "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.23.1",
     "@types/supertest": "^7.2.1",
+    "@types/swagger-ui-dist": "^3.30.6",
     "@vitest/coverage-v8": "^5.0.5",
     "dependency-cruiser": "^18.7.0",
     "dotenv": "^18.0.9",
@@ -63,6 +67,7 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "sharp": "^0.35.5",
+    "swagger-ui-dist": "^5.34.1",
     "zod": "^4.6.7"
   }
 }

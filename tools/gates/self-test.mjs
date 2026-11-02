@@ -233,6 +233,8 @@ function runScenario({ name, files, command, expect }) {
     });
     const caught = status !== 0 && expect.test(stdout + stderr);
     console.log(`${caught ? 'CAUGHT' : 'MISSED'}  ${name}`);
+    // Why it was missed is usually in the tail, and a rerun may not show it again.
+    if (!caught) console.log(`exit ${String(status)}\n${(stdout + stderr).slice(-3000)}`);
     if (!caught) console.log(`  exit ${String(status)}\n${(stdout + stderr).slice(-1500)}`);
     return caught;
   } finally {

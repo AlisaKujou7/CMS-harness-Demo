@@ -64,20 +64,20 @@ const editableFields = {
   category: optionalText,
   parent_id: optionalId,
 };
-const createRequest = z.object({
+export const createContentRequest = z.object({
   type: z.enum(['article', 'page']),
   title: text,
   ...editableFields,
 });
-const updateRequest = z.object({
+export const updateContentRequest = z.object({
   title: text.optional(),
   version: z.number().int().positive(),
   ...editableFields,
 });
-const rejectRequest = z.object({ note: text.default('') });
-const scheduleRequest = z.object({ scheduled_at: instant.nullable() });
+export const rejectContentRequest = z.object({ note: text.default('') });
+export const scheduleContentRequest = z.object({ scheduled_at: instant.nullable() });
 const versionParam = z.object({ version: z.coerce.number().int().positive().max(2_000_000_000) });
-const listQuery = pageQuery.extend({
+export const contentListQuery = pageQuery.extend({
   status: z.enum(['draft', 'in_review', 'published', 'unpublished', 'archived']).optional(),
   type: z.enum(['article', 'page']).optional(),
   author_id: z.uuid().optional(),
@@ -91,7 +91,9 @@ const listQuery = pageQuery.extend({
     .optional(),
 });
 
-function toFields(input: z.output<typeof updateRequest> | z.output<typeof createRequest>) {
+function toFields(
+  input: z.output<typeof updateContentRequest> | z.output<typeof createContentRequest>,
+) {
   return defined({
     slug: input.slug,
     body: input.body,
@@ -105,14 +107,14 @@ function toFields(input: z.output<typeof updateRequest> | z.output<typeof create
   }) satisfies ContentFieldsPatch;
 }
 
-function toSort(sort: z.output<typeof listQuery>['sort']) {
+function toSort(sort: z.output<typeof contentListQuery>['sort']) {
   if (sort === undefined) return {};
   const descending = sort.startsWith('-');
   const sortBy = (descending ? sort.slice(1) : sort) as NonNullable<ListContentCommand['sortBy']>;
   return { sortBy, descending };
 }
 
-function toFilters(query: z.output<typeof listQuery>) {
+function toFilters(query: z.output<typeof contentListQuery>) {
   return {
     ...defined({
       status: query.status,
@@ -201,14 +203,14 @@ export class ContentController {
 
   @Get()
   async list(@Query() query: unknown, @CurrentActor() actor: Actor) {
-    const filters = toFilters(parseInput(listQuery, query));
+    const filters = toFilters(parseInput(contentListQuery, query));
     const result = await this.useCases.list.execute({ actor, ...filters });
     return toListResponse(result, toListItem);
   }
 
   @Post()
   async create(@Body() body: unknown, @CurrentActor() actor: Actor, @ClientIp() ip: string | null) {
-    const input = parseInput(createRequest, body);
+    const input = parseInput(createContentRequest, body);
     const content = await this.useCases.create.execute({
       actor,
       ip,
@@ -242,7 +244,7 @@ export class ContentController {
     @CurrentActor() actor: Actor,
     @ClientIp() ip: string | null,
   ) {
-    const input = parseInput(updateRequest, body);
+    const input = parseInput(updateContentRequest, body);
     const content = await this.useCases.update.execute({
       actor,
       ip,
@@ -295,7 +297,7 @@ export class ContentController {
     @CurrentActor() actor: Actor,
     @ClientIp() ip: string | null,
   ) {
-    const { note } = parseInput(rejectRequest, body);
+    const { note } = parseInput(rejectContentRequest, body);
     return toData(await this.useCases.reject.execute({ actor, ip, id: parseId(id), note }));
   }
 
@@ -330,7 +332,7 @@ export class ContentController {
     @CurrentActor() actor: Actor,
     @ClientIp() ip: string | null,
   ) {
-    const input = parseInput(scheduleRequest, body);
+    const input = parseInput(scheduleContentRequest, body);
     const content = await this.useCases.schedule.execute({
       actor,
       ip,

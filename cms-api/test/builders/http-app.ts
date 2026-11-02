@@ -64,6 +64,7 @@ export type FakeInfrastructure = ReturnType<typeof createFakeInfrastructure>;
 export async function createTestApp(
   infrastructure: Infrastructure,
   extraControllers: Type[] = [],
+  beforeInit?: (app: INestApplication) => void,
 ): Promise<INestApplication> {
   const moduleRef = await Test.createTestingModule({
     imports: [createAppModule(infrastructure)],
@@ -71,6 +72,7 @@ export async function createTestApp(
   }).compile();
   const app = moduleRef.createNestApplication({ logger: false });
   configureApp(app, infrastructure);
+  beforeInit?.(app);
   await app.init();
   return app;
 }

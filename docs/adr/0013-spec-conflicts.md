@@ -78,6 +78,15 @@ The stricter or more specific document wins unless noted.
 - Pending variants are given up on after a day, and marked failed, so items that can never succeed cannot fill every sweep.
 - Abandoned uploads are purged after a day by a worker job (RK-03).
 - Official `minio/minio` images, which 07-OPS-ARCH names, can no longer be pulled publicly. Tests and local development use `bitnamilegacy/minio`, the same server, which gets no more updates. Phase 8 must choose a supported S3 service or a maintained image for deployment.
+- The public API returns only what 01-Requirements 6.2 and FR-SEO-03 name. Pages leave out author, tags and category. List items leave out the body and SEO fields, because a list of 100 could otherwise be very large. Detail responses have both.
+- `GET /api/v1/media/{id}` returns only media that published content uses. 7.2 does not limit it, but anything else may belong to a draft, which RK-04 is about.
+- A missing item and one that is not public both return the same 404, so the API never confirms that a draft exists.
+- Stored image `src` values are replaced on each read with a current signed URL, using `mediaId`. An image whose file was force-deleted is left out of the response.
+- Caching: `Cache-Control: private`, because responses depend on holding a key, so a shared cache or CDN must not reuse them. `PUBLIC_CACHE_TTL_SEC` applies twice, in Redis and in clients, and is limited to 30 so that FR-CONTENT-12's 60 seconds always holds. Publishing, unpublishing and deleting clear the Redis cache at once, while an edit to live content waits for the TTL, since it is not leaving the public set.
+- ETags name a version of the response, not its bytes, because signed URLs differ on every read. A response with media changes its ETag at half the URLs' lifetime, so a client revalidating with 304 never keeps URLs past their expiry.
+- The public rate limit counts per API key (SEC-07). Requests with bad keys are not limited, since a key cannot be guessed and each attempt costs one indexed read. Phase 8 may add a per-IP limit at nginx.
+- OpenAPI is built from code as ADR-0008 says, but not from decorators as 06-TEST-STRATEGY 9.1 words it, because controllers validate with Zod. Requests come from the same Zod schemas the controllers use. Responses come from strict Zod schemas in `composition/openapi`, which a contract test holds every route to. The same test compares the served routes with the document and the document with the committed `openapi.json`, so `pnpm openapi:generate` is needed after an API change.
+- `/docs` and `/openapi.json` need no key, since FR-PUBAPI-07 publishes them and they hold no data. They describe the Admin API too, because phase 6 generates its types from the same file. The viewer's assets are served locally with their own Content-Security-Policy.
 - Worker jobs use BullMQ job schedulers. `purge-expired-tokens` also runs there, deleting tokens past their expiry, since replay detection only matters until then.
 
 ## Consequences

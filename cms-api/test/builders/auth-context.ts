@@ -1,3 +1,4 @@
+import { ApiKey, type ApiKeyProps } from '../../src/modules/auth/domain/entities/api-key.entity.js';
 import type { AuthDeps } from '../../src/modules/auth/application/auth-deps.js';
 import {
   Account,
@@ -34,6 +35,20 @@ export function anAccount(overrides: Partial<AccountProps> = {}): Account {
     role: 'editor',
     passwordHash: `hashed:${VALID_PASSWORD}`,
     status: 'active',
+    ...overrides,
+  });
+}
+
+export function anApiKey(overrides: Partial<ApiKeyProps> = {}): ApiKey {
+  return ApiKey.restore({
+    id: 'key-1',
+    name: 'Test',
+    prefix: 'cmsk',
+    keyHash: 'hash',
+    createdBy: 'user-1',
+    createdAt: new Date('2026-05-01T00:00:00Z'),
+    lastUsedAt: null,
+    revokedAt: null,
     ...overrides,
   });
 }

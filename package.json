@@ -23,6 +23,7 @@
     "test:cov": "pnpm -r test:cov",
     "test:integration": "pnpm -r test:integration",
     "test:mutation": "pnpm -r test:mutation",
+    "openapi:lint": "pnpm --filter cms-api openapi:lint",
     "test:tools": "node --test \"tools/gates/*.test.mjs\"",
     "dup": "jscpd"
   },

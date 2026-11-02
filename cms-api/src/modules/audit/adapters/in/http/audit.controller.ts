@@ -23,7 +23,7 @@ import { streamCsv } from './audit-csv.js';
 import { AUDIT_USE_CASES, type AuditUseCases } from './audit.use-cases.js';
 
 const timestamp = z.iso.datetime({ offset: true });
-const criteriaQuery = z.object({
+export const auditCriteriaQuery = z.object({
   actor_id: z.uuid().optional(),
   action: z.string().max(200).optional(),
   target_type: z.string().max(200).optional(),
@@ -33,7 +33,7 @@ const criteriaQuery = z.object({
 });
 
 function parseCriteria(query: unknown): AuditCriteria {
-  const input = parseInput(criteriaQuery, query);
+  const input = parseInput(auditCriteriaQuery, query);
   return {
     ...(input.actor_id === undefined ? {} : { actorId: input.actor_id }),
     ...(input.action === undefined ? {} : { action: input.action }),

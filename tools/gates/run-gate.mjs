@@ -20,6 +20,7 @@ const STEPS = [
   },
   { id: 'todos', label: 'Unlinked TODO/FIXME', command: 'node tools/gates/check.mjs todos' },
   { id: 'tools', label: 'Gate tool tests', command: 'pnpm test:tools' },
+  { id: 'openapi', label: 'OpenAPI lint', command: 'pnpm openapi:lint' },
   { id: 'coverage', label: 'All tests and coverage', command: 'pnpm test:cov' },
   { id: 'duplication', label: 'Duplication', command: 'pnpm dup' },
   { id: 'ratio', label: 'Test-to-code ratio', command: 'node tools/gates/check.mjs ratio' },

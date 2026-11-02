@@ -40,7 +40,7 @@ export function configureApp(
   app.use(requestId);
   app.use(
     helmet({
-      contentSecurityPolicy: { directives: { defaultSrc: ["'none'"] } },
+      contentSecurityPolicy: { useDefaults: false, directives: { defaultSrc: ["'none'"] } },
       frameguard: { action: 'deny' },
       referrerPolicy: { policy: 'no-referrer' },
     }),

@@ -22,7 +22,7 @@ import type { Actor } from '../../../../../shared/kernel/actor.js';
 import type { ApiKeySummary } from '../../../application/ports/in/auth.ports.js';
 import { AUTH_USE_CASES, type AuthUseCases } from './auth.use-cases.js';
 
-const createRequest = z.object({ name: z.string().max(1024) });
+export const createApiKeyRequest = z.object({ name: z.string().max(1024) });
 
 function toResponse(key: ApiKeySummary) {
   return {
@@ -49,7 +49,7 @@ export class ApiKeysController {
 
   @Post()
   async create(@Body() body: unknown, @CurrentActor() actor: Actor, @ClientIp() ip: string | null) {
-    const { name } = parseInput(createRequest, body);
+    const { name } = parseInput(createApiKeyRequest, body);
     const created = await this.useCases.createApiKey.execute({ actor, name, ip });
     return { data: { ...toResponse(created), key: created.key } };
   }
