@@ -92,8 +92,17 @@ export interface ListMediaUseCase {
   ): Promise<PagedResult<MediaView>>;
 }
 
-export interface FindMissingMediaUseCase {
-  execute(ids: readonly string[]): Promise<readonly string[]>;
+export interface ImageReferenceReport {
+  readonly missing: readonly string[];
+  readonly notImages: readonly string[];
+}
+
+export interface InspectImageReferencesUseCase {
+  execute(ids: readonly string[]): Promise<ImageReferenceReport>;
+}
+
+export interface PurgeDeletedMediaFilesUseCase {
+  execute(): Promise<number>;
 }
 
 export interface GenerateMediaVariantsUseCase {

@@ -46,7 +46,12 @@ import { CONTENT_USE_CASES, type ContentUseCases } from './content.use-cases.js'
 // Lengths are the domain's to judge. These bounds only stop absurd input reaching it.
 const text = z.string().max(4096);
 const optionalText = text.nullable().optional();
-const optionalId = z.uuid().nullable().optional();
+// Lowercase, as PostgreSQL returns it, so comparing an id with a stored one works.
+const optionalId = z
+  .uuid()
+  .transform((value) => value.toLowerCase())
+  .nullable()
+  .optional();
 
 const editableFields = {
   slug: text.optional(),

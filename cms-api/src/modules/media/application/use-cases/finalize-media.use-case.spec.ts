@@ -49,6 +49,7 @@ describe('uploading media', () => {
   let audit: InMemoryAuditLog;
   let events: RecordingEventPublisher;
   let tx: FakeTransactionRunner;
+  let logger: InMemoryLogger;
   let deps: MediaDeps;
 
   beforeEach(() => {
@@ -57,6 +58,7 @@ describe('uploading media', () => {
     audit = new InMemoryAuditLog();
     events = new RecordingEventPublisher();
     tx = new FakeTransactionRunner();
+    logger = new InMemoryLogger();
     deps = {
       media,
       storage,
@@ -69,7 +71,7 @@ describe('uploading media', () => {
       usage: new FakeMediaUsageReader(),
       clock: new FakeClock(),
       ids: new SequentialIdGenerator(),
-      logger: new InMemoryLogger(),
+      logger,
       mediaConfig: { maxUploadBytes: MAX, uploadUrlTtlSeconds: 900, readUrlTtlSeconds: 3600 },
     };
   });
@@ -212,6 +214,57 @@ describe('uploading media', () => {
       ).resolves.toMatchObject({ mimeType: 'image/jpeg' });
     });
 
+    describe('an upload that was already finalized', () => {
+      const replacement = Buffer.concat([PNG_BYTES, Buffer.from('other')]);
+
+      it('cannot replace the recorded file through the same URL', async () => {
+        const original = Buffer.from(PNG_BYTES);
+        media.add(aMediaItem({ id: ID, storageKey: ORIGINAL }));
+        storage.upload(ORIGINAL, original, 'image/png');
+        storage.upload(PENDING, replacement, 'image/png');
+
+        await expect(finalize()).rejects.toThrow(MediaAlreadyExistsError);
+
+        expect(Buffer.from(storage.objects.get(ORIGINAL)?.bytes ?? [])).toEqual(original);
+        expect(storage.objects.has(PENDING)).toBe(false);
+        expect(audit.events[0]).toMatchObject({
+          action: 'media.upload_rejected',
+          summary: { code: 'MEDIA_EXISTS' },
+        });
+        expect(events.published).toEqual([]);
+      });
+
+      it('leaves an SVG alone the same way', async () => {
+        const key = `uploads/author-1/${ID}.svg`;
+        const target = `media/${ID}/original.svg`;
+        media.add(aMediaItem({ id: ID, storageKey: target, mimeType: 'image/svg+xml' }));
+        storage.upload(target, Buffer.from('<svg>first</svg>'), 'image/svg+xml');
+        storage.upload(key, Buffer.from('<svg>second</svg>'), 'image/svg+xml');
+
+        await expect(
+          finalize({ storageKey: key, filename: 'a.svg', mimeType: 'image/svg+xml' }),
+        ).rejects.toThrow(MediaAlreadyExistsError);
+
+        expect(Buffer.from(storage.objects.get(target)?.bytes ?? []).toString()).toBe(
+          '<svg>first</svg>',
+        );
+      });
+    });
+
+    describe('metadata that fails validation', () => {
+      it('keeps the upload, so it can be finalized again with the mistake corrected', async () => {
+        await expect(finalize({ altText: 'a'.repeat(501) })).rejects.toMatchObject({
+          details: { field: 'alt_text' },
+        });
+
+        expect(storage.objects.has(PENDING)).toBe(true);
+        expect(storage.objects.has(ORIGINAL)).toBe(false);
+        expect(audit.events).toEqual([]);
+
+        await expect(finalize({ altText: 'Short' })).resolves.toMatchObject({ altText: 'Short' });
+      });
+    });
+
     describe('who may finalize', () => {
       it("refuses another user's upload and leaves it alone", async () => {
         await expect(finalize({ actor: other })).rejects.toThrow(ForbiddenError);
@@ -346,7 +399,9 @@ describe('uploading media', () => {
         storage.replaceBeforeCopy = true;
 
         await expect(finalize()).rejects.toThrow(UploadChangedError);
-        refused();
+        // The record goes too, by the rollback that the Postgres flow test covers.
+        expect(storage.objects.has(PENDING)).toBe(false);
+        expect(audit.actions()).toEqual(['media.upload_rejected']);
         expect(storage.objects.has(ORIGINAL)).toBe(false);
       });
     });
@@ -420,21 +475,36 @@ describe('uploading media', () => {
     });
 
     describe('when recording fails', () => {
-      it('removes the stored file, so nothing is left without a record', async () => {
+      it('touches nothing when the record cannot be written, so the user can retry', async () => {
         media.create = () => Promise.reject(new Error('database went away'));
 
         await expect(finalize()).rejects.toThrow('database went away');
 
+        expect(storage.objects.has(PENDING)).toBe(true);
         expect(storage.objects.has(ORIGINAL)).toBe(false);
         expect(events.published).toEqual([]);
       });
 
-      it('leaves the file alone when another request finalized this upload first', async () => {
-        media.add(aMediaItem({ id: ID, storageKey: ORIGINAL }));
+      it('removes the moved file when the audit write fails, keeping the upload', async () => {
+        audit.record = () => Promise.reject(new Error('audit is down'));
 
-        await expect(finalize()).rejects.toThrow(MediaAlreadyExistsError);
+        await expect(finalize()).rejects.toThrow('audit is down');
 
-        expect(storage.objects.has(ORIGINAL)).toBe(true);
+        expect(storage.objects.has(ORIGINAL)).toBe(false);
+        expect(storage.objects.has(PENDING)).toBe(true);
+      });
+
+      it('does not fail a finished upload because its leftover could not be removed', async () => {
+        const remove = storage.delete.bind(storage);
+        storage.delete = () => Promise.reject(new Error('storage went away'));
+
+        await expect(finalize()).resolves.toMatchObject({ id: ID });
+
+        storage.delete = remove;
+        expect(logger.errors[0]).toMatchObject({
+          message: 'Could not remove a finished upload',
+          context: { key: PENDING, error: 'storage went away' },
+        });
       });
 
       it('does not treat a storage outage as a bad file', async () => {

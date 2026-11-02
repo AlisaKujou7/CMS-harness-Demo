@@ -3,6 +3,7 @@ import type { Content, ContentEdit } from '../../domain/entities/content.entity.
 import {
   ContentNotFoundError,
   InvalidContentError,
+  MediaNotImageError,
   MissingMediaError,
 } from '../../domain/errors/content.errors.js';
 import {
@@ -105,8 +106,9 @@ async function assertMediaExists(
   const known = new Set(referencedMediaIds(current));
   const added = referencedMediaIds(changes).filter((id) => !known.has(id));
   if (added.length === 0) return;
-  const missing = await deps.mediaCatalog.findMissing(added);
+  const { missing, notImages } = await deps.mediaCatalog.inspectImages(added);
   if (missing.length > 0) throw new MissingMediaError(missing);
+  if (notImages.length > 0) throw new MediaNotImageError(notImages);
 }
 
 // Checked only when a value changes, so retiring a category does not block unrelated saves.

@@ -107,7 +107,9 @@ function sanitizeImage(node: Record<string, unknown>): RichTextNode[] {
       attrs: {
         src: cleanText(attrs['src']),
         ...stringAttrs(attrs, ['alt', 'title']),
-        ...(typeof mediaId === 'string' && UUID.test(mediaId) ? { mediaId } : {}),
+        ...(typeof mediaId === 'string' && UUID.test(mediaId)
+          ? { mediaId: mediaId.toLowerCase() }
+          : {}),
       },
     },
   ];

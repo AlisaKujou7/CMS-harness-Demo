@@ -1,4 +1,7 @@
-import type { MediaCatalog } from '../../src/modules/content/application/ports/out/media-catalog.port.js';
+import type {
+  MediaCatalog,
+  MediaReferenceReport,
+} from '../../src/modules/content/application/ports/out/media-catalog.port.js';
 import type {
   ContentCounts,
   ContentCriteria,
@@ -187,8 +190,12 @@ export class InMemoryContentRepository implements ContentRepository {
 
 export class InMemoryMediaCatalog implements MediaCatalog {
   readonly missing = new Set<string>();
+  readonly notImages = new Set<string>();
 
-  findMissing(ids: readonly string[]): Promise<readonly string[]> {
-    return Promise.resolve(ids.filter((id) => this.missing.has(id)));
+  inspectImages(ids: readonly string[]): Promise<MediaReferenceReport> {
+    return Promise.resolve({
+      missing: ids.filter((id) => this.missing.has(id)),
+      notImages: ids.filter((id) => this.notImages.has(id)),
+    });
   }
 }

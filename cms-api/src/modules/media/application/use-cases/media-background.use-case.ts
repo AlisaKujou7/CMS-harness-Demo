@@ -4,6 +4,7 @@ import type { MediaDeps } from '../media-deps.js';
 import type {
   EnqueueMissingVariantsUseCase,
   GenerateMediaVariantsUseCase,
+  PurgeDeletedMediaFilesUseCase,
   PurgeAbandonedUploadsUseCase,
 } from '../ports/in/media.ports.js';
 import type { ProcessedImage } from '../ports/out/media-services.port.js';
@@ -11,6 +12,8 @@ import type { ProcessedImage } from '../ports/out/media-services.port.js';
 const VARIANT_CONTENT_TYPE = 'image/webp';
 const PENDING_GRACE_MS = 2 * 60_000;
 const SWEEP_LIMIT = 100;
+const GIVE_UP_AFTER_MS = 86_400_000;
+const FILE_DELETION_BATCH = 500;
 const ABANDONED_AFTER_MS = 86_400_000;
 
 // FR-MEDIA-05.
@@ -23,8 +26,9 @@ export class GenerateMediaVariants implements GenerateMediaVariantsUseCase {
     if (item?.variantStatus !== 'pending') return;
 
     const bytes = await storage.read(item.storageKey, { maxBytes: mediaConfig.maxUploadBytes });
-    if (!bytes) throw new Error(`Media ${mediaId} has no stored file`);
-    const processed = await images.process(bytes);
+    // Neither a missing file nor an unreadable one would change on retry, while an outage throws
+    // from the read above, and the queue retries that.
+    const processed = bytes && (await images.process(bytes));
     if (!processed) {
       logger.error('Could not create media variants', { mediaId });
       await media.saveVariants(mediaId, {
@@ -65,10 +69,31 @@ export class EnqueueMissingVariants implements EnqueueMissingVariantsUseCase {
   constructor(private readonly deps: MediaDeps) {}
 
   async execute(): Promise<number> {
-    const before = new Date(this.deps.clock.now().getTime() - PENDING_GRACE_MS);
+    const now = this.deps.clock.now().getTime();
+    // Without an end, items that can never succeed would fill every batch and starve the rest.
+    const abandoned = await this.deps.media.failPendingVariantsBefore(
+      new Date(now - GIVE_UP_AFTER_MS),
+    );
+    if (abandoned > 0) {
+      this.deps.logger.error('Gave up waiting for media variants', { count: abandoned });
+    }
+    const before = new Date(now - PENDING_GRACE_MS);
     const pending = await this.deps.media.findPendingVariants(before, SWEEP_LIMIT);
     await Promise.all(pending.map((id) => this.deps.variantQueue.enqueue(id)));
     return pending.length;
+  }
+}
+
+// Finishes deletions that storage could not do at the time. Deleting twice is harmless.
+export class PurgeDeletedMediaFiles implements PurgeDeletedMediaFilesUseCase {
+  constructor(private readonly deps: MediaDeps) {}
+
+  async execute(): Promise<number> {
+    const keys = await this.deps.media.findPendingFileDeletions(FILE_DELETION_BATCH);
+    if (keys.length === 0) return 0;
+    await this.deps.storage.delete(keys);
+    await this.deps.media.clearPendingFileDeletions(keys);
+    return keys.length;
   }
 }
 

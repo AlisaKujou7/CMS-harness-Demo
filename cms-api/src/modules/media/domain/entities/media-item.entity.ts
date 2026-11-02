@@ -42,7 +42,7 @@ function optionalText(field: string, input: string | null, max: number): string 
   return value === '' ? null : value;
 }
 
-function normalizeMetadata(metadata: MediaMetadata): MediaMetadata {
+export function validMediaMetadata(metadata: MediaMetadata): MediaMetadata {
   return {
     altText: optionalText('alt_text', metadata.altText, MAX_ALT_LENGTH),
     caption: optionalText('caption', metadata.caption, MAX_CAPTION_LENGTH),
@@ -93,7 +93,7 @@ export class MediaItem implements MediaItemProps {
     const { metadata, ...fields } = input;
     return new MediaItem({
       ...fields,
-      ...normalizeMetadata(metadata),
+      ...validMediaMetadata(metadata),
       width: null,
       height: null,
       variants: {},
@@ -108,7 +108,7 @@ export class MediaItem implements MediaItemProps {
   withMetadata(changes: Partial<MediaMetadata>): MediaItem {
     return new MediaItem({
       ...this,
-      ...normalizeMetadata({ altText: this.altText, caption: this.caption, ...changes }),
+      ...validMediaMetadata({ altText: this.altText, caption: this.caption, ...changes }),
     });
   }
 

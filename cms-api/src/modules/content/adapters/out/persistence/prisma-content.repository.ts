@@ -26,12 +26,14 @@ import type {
 import { Content, type ContentType } from '../../../domain/entities/content.entity.js';
 import {
   ConcurrentModificationError,
+  MissingMediaError,
   SlugConflictError,
 } from '../../../domain/errors/content.errors.js';
 import { referencedMediaIds } from '../../../domain/services/media-references.js';
 import type { RichTextNode } from '../../../domain/services/rich-text.js';
 
 const UNIQUE_VIOLATION = 'P2002';
+const FOREIGN_KEY_VIOLATION = 'P2003';
 
 const SORT_COLUMNS: Readonly<Record<ContentSortField, 'updatedAt' | 'createdAt' | 'title'>> = {
   updated_at: 'updatedAt',
@@ -39,9 +41,20 @@ const SORT_COLUMNS: Readonly<Record<ContentSortField, 'updatedAt' | 'createdAt' 
   title: 'title',
 };
 
-function translateConflict(error: unknown): unknown {
-  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === UNIQUE_VIOLATION
-    ? new SlugConflictError()
+// A foreign key failure here means the media was force-deleted after it was checked.
+function translateWriteError(error: unknown, content: Content): unknown {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return error;
+  if (error.code === UNIQUE_VIOLATION) return new SlugConflictError();
+  const isMedia =
+    error.code === FOREIGN_KEY_VIOLATION &&
+    /(featured|social)_image_id/.test(`${error.message} ${JSON.stringify(error.meta)}`);
+  return isMedia
+    ? new MissingMediaError(
+        referencedMediaIds({
+          featuredImageId: content.featuredImageId,
+          socialImageId: content.socialImageId,
+        }),
+      )
     : error;
 }
 
@@ -169,7 +182,7 @@ export class PrismaContentRepository implements ContentRepository {
         },
       });
     } catch (error) {
-      throw translateConflict(error);
+      throw translateWriteError(error, content);
     }
   }
 
@@ -182,7 +195,7 @@ export class PrismaContentRepository implements ContentRepository {
       });
       updated = result.count;
     } catch (error) {
-      throw translateConflict(error);
+      throw translateWriteError(error, content);
     }
     if (updated === 0) throw new ConcurrentModificationError();
   }

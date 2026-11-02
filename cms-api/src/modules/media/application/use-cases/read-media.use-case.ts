@@ -1,10 +1,12 @@
 import { defined } from '../../../../shared/kernel/defined.js';
 import { type PagedResult, toPageRequest } from '../../../../shared/kernel/paged-result.js';
 import { MediaNotFoundError } from '../../domain/errors/media.errors.js';
+import { isImage } from '../../domain/services/media-types.js';
 import type { MediaDeps } from '../media-deps.js';
 import type {
-  FindMissingMediaUseCase,
   GetMediaUseCase,
+  ImageReferenceReport,
+  InspectImageReferencesUseCase,
   ListMediaUseCase,
   MediaDetailView,
   MediaView,
@@ -42,10 +44,19 @@ export class ListMedia implements ListMediaUseCase {
 }
 
 // What the content module asks through the composition root before it stores a reference.
-export class FindMissingMedia implements FindMissingMediaUseCase {
+export class InspectImageReferences implements InspectImageReferencesUseCase {
   constructor(private readonly deps: Pick<MediaDeps, 'media'>) {}
 
-  execute(ids: readonly string[]): Promise<readonly string[]> {
-    return ids.length === 0 ? Promise.resolve([]) : this.deps.media.findMissing(ids);
+  async execute(ids: readonly string[]): Promise<ImageReferenceReport> {
+    if (ids.length === 0) return { missing: [], notImages: [] };
+    const types = await this.deps.media.findMimeTypes(ids);
+    const typeOf = (id: string) => types.get(id.toLowerCase());
+    return {
+      missing: ids.filter((id) => typeOf(id) === undefined),
+      notImages: ids.filter((id) => {
+        const type = typeOf(id);
+        return type !== undefined && !isImage(type);
+      }),
+    };
   }
 }

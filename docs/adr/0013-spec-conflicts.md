@@ -71,6 +71,11 @@ The stricter or more specific document wins unless noted.
 - Inline image nodes keep `src` and `mediaId`, but a signed `src` expires. Phase 5 must resolve `mediaId` to a current URL in the public API, and phase 6 must do the same in the editor.
 - A force-delete clears featured and social image references, and leaves an inline image node in place with a dead reference. Content may keep a reference it already had when it is saved again, but a newly added reference must exist (`MEDIA_NOT_FOUND`).
 - `FEATURE_MEDIA_VARIANTS_ENABLED` from 07-OPS-ARCH is not implemented. No requirement needs variants off, and it would leave items waiting forever.
+- Finalizing writes the record first, in one transaction with the move. The id is the upload's, so a repeat stops at the record and cannot reach the stored file, and a simultaneous repeat waits and then does the same. The file copy therefore holds a database connection briefly, which a server-side copy keeps short.
+- Deleting media commits first and removes files afterwards. Keys wait in `media_file_deletions` until storage confirms, and a worker job retries them, so a storage outage leaves a successful delete and no lost files.
+- Reverting to a version whose media was since force-deleted restores everything else, drops those references, and names them in the audit event as `dropped_media`.
+- Featured, social and inline image references must be images (`MEDIA_NOT_IMAGE`), since each is displayed as one. Linking a PDF remains possible with an ordinary link.
+- Pending variants are given up on after a day, and marked failed, so items that can never succeed cannot fill every sweep.
 - Abandoned uploads are purged after a day by a worker job (RK-03).
 - Official `minio/minio` images, which 07-OPS-ARCH names, can no longer be pulled publicly. Tests and local development use `bitnamilegacy/minio`, the same server, which gets no more updates. Phase 8 must choose a supported S3 service or a maintained image for deployment.
 - Worker jobs use BullMQ job schedulers. `purge-expired-tokens` also runs there, deleting tokens past their expiry, since replay detection only matters until then.

@@ -485,6 +485,14 @@ describe('sanitizeRichText (SEC-04)', () => {
     expect(hrefOf(`/${'a'.repeat(2048)}`)).toBeUndefined();
   });
 
+  it('stores a media id in lowercase, as the database does', () => {
+    const mediaId = 'ABCDEF00-0000-4000-8000-000000000000';
+
+    const result = sanitizeRichText(doc({ type: 'image', attrs: { src: '/a', mediaId } }));
+
+    expect(result.content?.[0]?.attrs?.['mediaId']).toBe(mediaId.toLowerCase());
+  });
+
   it('makes a URL safe to store as JSON', () => {
     const result = sanitizeRichText({
       type: 'doc',

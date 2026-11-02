@@ -25,8 +25,9 @@ import {
   EnqueueMissingVariants,
   GenerateMediaVariants,
   PurgeAbandonedUploads,
+  PurgeDeletedMediaFiles,
 } from './media-background.use-case.js';
-import { FindMissingMedia, GetMedia, ListMedia } from './read-media.use-case.js';
+import { GetMedia, InspectImageReferences, ListMedia } from './read-media.use-case.js';
 
 const admin: Actor = { id: 'admin-1', role: 'admin' };
 const editor: Actor = { id: 'editor-1', role: 'editor' };
@@ -185,6 +186,29 @@ describe('media use cases', () => {
       await expect(remove(editor)).resolves.toBeUndefined();
     });
 
+    it('reports success when the record is gone but storage is down, and owes the deletion', async () => {
+      withStoredFiles();
+      storage.delete = () => Promise.reject(new Error('storage went away'));
+
+      await expect(remove(editor)).resolves.toBeUndefined();
+
+      expect(media.items.size).toBe(0);
+      expect([...media.pendingFileDeletions]).toEqual(['orig', 'thumb']);
+      expect(events.published).toEqual([{ type: 'MediaDeleted', mediaId: MEDIA_ID }]);
+      expect(logger.errors[0]).toMatchObject({
+        message: 'Could not delete media files yet',
+        context: { error: 'storage went away' },
+      });
+    });
+
+    it('owes nothing once the files are gone', async () => {
+      withStoredFiles();
+
+      await remove(editor);
+
+      expect(media.pendingFileDeletions.size).toBe(0);
+    });
+
     it('keeps the files when the transaction fails', async () => {
       withStoredFiles();
       audit.record = () => Promise.reject(new Error('audit is down'));
@@ -287,19 +311,25 @@ describe('media use cases', () => {
     });
   });
 
-  describe('FindMissingMedia', () => {
-    it('names ids that do not exist', async () => {
-      media.add(aMediaItem());
+  describe('InspectImageReferences', () => {
+    const inspect = (ids: readonly string[]) => new InspectImageReferences(deps).execute(ids);
 
-      await expect(new FindMissingMedia(deps).execute([MEDIA_ID, 'gone'])).resolves.toEqual([
-        'gone',
-      ]);
+    it('sorts ids into missing and not images, whatever their case', async () => {
+      const upper = 'ABCDEF00-0000-4000-8000-000000000000';
+      media.add(aMediaItem());
+      media.add(aMediaItem({ id: upper.toLowerCase() }));
+      media.add(aMediaItem({ id: 'doc', mimeType: 'application/pdf' }));
+
+      await expect(inspect([MEDIA_ID, upper, 'doc', 'gone'])).resolves.toEqual({
+        missing: ['gone'],
+        notImages: ['doc'],
+      });
     });
 
     it('asks nothing when given nothing', async () => {
-      media.findMissing = () => Promise.reject(new Error('should not be called'));
+      media.findMimeTypes = () => Promise.reject(new Error('should not be called'));
 
-      await expect(new FindMissingMedia(deps).execute([])).resolves.toEqual([]);
+      await expect(inspect([])).resolves.toEqual({ missing: [], notImages: [] });
     });
   });
 
@@ -355,10 +385,19 @@ describe('media use cases', () => {
       });
     });
 
-    it('fails the job when the file is missing, so the queue retries', async () => {
+    it('marks media whose file is gone as failed, since a retry would not help', async () => {
       media.add(aMediaItem({ storageKey: 'nowhere' }));
 
-      await expect(generate()).rejects.toThrow(`Media ${MEDIA_ID} has no stored file`);
+      await generate();
+
+      expect(media.get(MEDIA_ID).variantStatus).toBe('failed');
+    });
+
+    it('fails the job during a storage outage, so the queue retries', async () => {
+      media.add(aMediaItem());
+      storage.read = () => Promise.reject(new Error('storage went away'));
+
+      await expect(generate()).rejects.toThrow('storage went away');
       expect(media.get(MEDIA_ID).variantStatus).toBe('pending');
     });
 
@@ -387,11 +426,67 @@ describe('media use cases', () => {
       expect(queue.enqueued).toEqual(['old']);
     });
 
+    it('gives up on what has waited a day, so it cannot starve newer items', async () => {
+      const now = clock.now().getTime();
+      media.add(aMediaItem({ id: 'stale', createdAt: new Date(now - 25 * 3_600_000) }));
+      media.add(aMediaItem({ id: 'waiting', createdAt: new Date(now - 23 * 3_600_000) }));
+
+      await expect(new EnqueueMissingVariants(deps).execute()).resolves.toBe(1);
+
+      expect(media.get('stale').variantStatus).toBe('failed');
+      expect(queue.enqueued).toEqual(['waiting']);
+      expect(logger.errors[0]).toMatchObject({
+        message: 'Gave up waiting for media variants',
+        context: { count: 1 },
+      });
+    });
+
+    it('logs nothing when nothing was given up on', async () => {
+      await new EnqueueMissingVariants(deps).execute();
+
+      expect(logger.errors).toEqual([]);
+    });
+
     it('takes a bounded number per run', async () => {
       const createdAt = new Date(clock.now().getTime() - 3 * 60_000);
       for (let n = 0; n < 101; n += 1) media.add(aMediaItem({ id: `m${String(n)}`, createdAt }));
 
       await expect(new EnqueueMissingVariants(deps).execute()).resolves.toBe(100);
+    });
+  });
+
+  describe('PurgeDeletedMediaFiles', () => {
+    const run = () => new PurgeDeletedMediaFiles(deps).execute();
+
+    it('finishes what storage could not do at the time', async () => {
+      storage.upload('a', Buffer.from('x'), 'image/png');
+      media.pendingFileDeletions.add('a');
+
+      await expect(run()).resolves.toBe(1);
+
+      expect(storage.objects.size).toBe(0);
+      expect(media.pendingFileDeletions.size).toBe(0);
+    });
+
+    it('keeps them owed while storage is still down', async () => {
+      media.pendingFileDeletions.add('a');
+      storage.delete = () => Promise.reject(new Error('storage went away'));
+
+      await expect(run()).rejects.toThrow('storage went away');
+
+      expect(media.pendingFileDeletions.has('a')).toBe(true);
+    });
+
+    it('works in bounded batches', async () => {
+      for (let n = 0; n < 501; n += 1) media.pendingFileDeletions.add(String(n));
+
+      await expect(run()).resolves.toBe(500);
+    });
+
+    it('does nothing when nothing is owed', async () => {
+      storage.delete = () => Promise.reject(new Error('should not be called'));
+
+      await expect(run()).resolves.toBe(0);
     });
   });
 

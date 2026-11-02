@@ -16,13 +16,14 @@ const MAX_INPUT_PIXELS = 100_000_000;
 export class SharpImageProcessor implements ImageProcessor {
   async process(bytes: Uint8Array): Promise<ProcessedImage | null> {
     try {
-      const input = () => sharp(bytes, { limitInputPixels: MAX_INPUT_PIXELS }).autoOrient();
-      const { info } = await input()
-        .png({ compressionLevel: 0 })
-        .toBuffer({ resolveWithObject: true });
+      const input = sharp(bytes, { limitInputPixels: MAX_INPUT_PIXELS });
+      // Read from the header, so finding the size costs no memory. It accounts for rotation.
+      const { autoOrient } = await input.metadata();
+      const pipeline = input.clone().autoOrient();
       const variants = await Promise.all(
         VARIANTS.map(async ({ name, maxSize }): Promise<ProcessedVariant> => {
-          const output = await input()
+          const output = await pipeline
+            .clone()
             .resize({
               width: maxSize,
               height: maxSize,
@@ -34,7 +35,7 @@ export class SharpImageProcessor implements ImageProcessor {
           return { name, bytes: output.data, width: output.info.width, height: output.info.height };
         }),
       );
-      return { width: info.width, height: info.height, variants };
+      return { width: autoOrient.width, height: autoOrient.height, variants };
     } catch {
       return null;
     }

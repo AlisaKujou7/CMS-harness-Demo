@@ -10,7 +10,7 @@ import type {
   UpdateMediaCommand,
   UpdateMediaUseCase,
 } from '../ports/in/media.ports.js';
-import { loadMedia, toMediaView } from '../services/media-helpers.js';
+import { loadMedia, removeFiles, toMediaView } from '../services/media-helpers.js';
 
 export class UpdateMedia implements UpdateMediaUseCase {
   constructor(private readonly deps: MediaDeps) {}
@@ -55,6 +55,7 @@ export class DeleteMedia implements DeleteMediaUseCase {
       if (usageCount > 0 && !force) throw new MediaInUseError(usageCount);
 
       await this.deps.media.delete(id);
+      await this.deps.media.addPendingFileDeletions(found.storedKeys(), this.deps.clock.now());
       await this.deps.audit.record({
         actorId: actor.id,
         actorIp: ip,
@@ -65,8 +66,7 @@ export class DeleteMedia implements DeleteMediaUseCase {
       });
       return found;
     });
-    // After the commit, so a rollback never leaves a record whose file is gone.
-    await this.deps.storage.delete(item.storedKeys());
+    await removeFiles(this.deps, item.storedKeys());
     const event: MediaDeleted = { type: 'MediaDeleted', mediaId: id };
     await this.deps.events.publishAll([event]);
   }

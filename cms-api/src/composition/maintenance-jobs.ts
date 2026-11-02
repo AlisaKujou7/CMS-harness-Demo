@@ -4,6 +4,7 @@ import { PurgeDeletedContent } from '../modules/content/application/use-cases/pu
 import {
   EnqueueMissingVariants,
   PurgeAbandonedUploads,
+  PurgeDeletedMediaFiles,
 } from '../modules/media/application/use-cases/media-background.use-case.js';
 import { contentDeps, mediaDeps } from './module-deps.js';
 import type { MaintenanceJob } from '../shared/adapters/out/bullmq-maintenance.js';
@@ -20,6 +21,7 @@ export function createMaintenanceJobs(
   const purgeDeleted = new PurgeDeletedContent(contentDeps(infrastructure));
   const requeueVariants = new EnqueueMissingVariants(mediaDeps(infrastructure));
   const purgeUploads = new PurgeAbandonedUploads(mediaDeps(infrastructure));
+  const purgeFiles = new PurgeDeletedMediaFiles(mediaDeps(infrastructure));
   const purgeTokens = new PurgeExpiredTokens(infrastructure);
   return [
     {
@@ -32,6 +34,11 @@ export function createMaintenanceJobs(
       name: 'requeue-media-variants',
       everyMs: FIVE_MINUTES_MS,
       run: () => requeueVariants.execute(),
+    },
+    {
+      name: 'purge-deleted-media-files',
+      everyMs: FIVE_MINUTES_MS,
+      run: () => purgeFiles.execute(),
     },
     { name: 'purge-abandoned-uploads', everyMs: DAY_MS, run: () => purgeUploads.execute() },
     { name: 'purge-expired-tokens', everyMs: DAY_MS, run: () => purgeTokens.execute() },

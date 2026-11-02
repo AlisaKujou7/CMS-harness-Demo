@@ -21,6 +21,7 @@ describe('createMaintenanceJobs', () => {
       'purge-expired-tokens': 86_400_000,
       'requeue-media-variants': 300_000,
       'purge-abandoned-uploads': 86_400_000,
+      'purge-deleted-media-files': 300_000,
     });
   });
 
@@ -40,9 +41,13 @@ describe('createMaintenanceJobs', () => {
 
   it('asks again for variants that have waited too long', async () => {
     const infra = createFakeInfrastructure();
-    infra.media.add(aMediaItem({ createdAt: new Date(0) }));
+    infra.media.add(aMediaItem({ createdAt: new Date(infra.clock.now().getTime() - 3 * 60_000) }));
 
     await expect(job('requeue-media-variants', infra).run()).resolves.toBe(1);
+  });
+
+  it('finishes file deletions that storage could not do at the time', async () => {
+    await expect(job('purge-deleted-media-files').run()).resolves.toBe(0);
   });
 
   it('purges abandoned uploads', async () => {

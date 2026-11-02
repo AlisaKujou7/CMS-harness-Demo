@@ -1,4 +1,4 @@
-import { referencedMediaIds } from './services/media-references.js';
+import { referencedMediaIds, withoutMedia } from './services/media-references.js';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { aContent, aTextBody, T0, after } from '../../../../test/builders/a-content.js';
@@ -607,6 +607,51 @@ describe('content errors', () => {
       expect(
         referencedMediaIds({ featuredImageId: 'featured', socialImageId: 'social', body }),
       ).toEqual(['featured', 'social', 'inline']);
+    });
+
+    it('withoutMedia removes references to the given media, at any depth', () => {
+      const body = {
+        type: 'doc',
+        content: [
+          { type: 'image', attrs: { mediaId: 'gone' } },
+          { type: 'paragraph', attrs: { mediaId: 'gone' } },
+          {
+            type: 'blockquote',
+            content: [
+              { type: 'image', attrs: { mediaId: 'gone' } },
+              { type: 'image', attrs: { mediaId: 'kept' } },
+              { type: 'image' },
+            ],
+          },
+        ],
+      };
+
+      const result = withoutMedia({ featuredImageId: 'gone', socialImageId: 'kept', body }, [
+        'gone',
+      ]);
+
+      expect(result).toEqual({
+        featuredImageId: null,
+        socialImageId: 'kept',
+        body: {
+          type: 'doc',
+          content: [
+            { type: 'paragraph', attrs: { mediaId: 'gone' } },
+            {
+              type: 'blockquote',
+              content: [{ type: 'image', attrs: { mediaId: 'kept' } }, { type: 'image' }],
+            },
+          ],
+        },
+      });
+    });
+
+    it('withoutMedia leaves absent and empty fields as they are', () => {
+      expect(withoutMedia({}, ['gone'])).toEqual({});
+      expect(withoutMedia({ featuredImageId: null, socialImageId: null }, ['gone'])).toEqual({
+        featuredImageId: null,
+        socialImageId: null,
+      });
     });
 
     it('ignores anything that is not an image reference', () => {

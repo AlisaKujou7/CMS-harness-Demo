@@ -120,11 +120,63 @@ const INTERNAL_URL = /url\s*\(\s*['"]?#[\w.:-]+['"]?\s*\)/gi;
 const ENCODED = /[&\\]/;
 const CSS_DANGER = /@import|expression\s*\(|behavior\s*:|-moz-binding/i;
 
+// A list of bad CSS can never be complete: image-set("https://evil.test") fetches with no url() in
+// sight. So style keeps only painting properties, and no function but colors and internal urls.
+const STYLE_PROPERTIES = new Set([
+  'fill',
+  'fill-opacity',
+  'fill-rule',
+  'stroke',
+  'stroke-width',
+  'stroke-opacity',
+  'stroke-linecap',
+  'stroke-linejoin',
+  'stroke-miterlimit',
+  'stroke-dasharray',
+  'stroke-dashoffset',
+  'stop-color',
+  'stop-opacity',
+  'opacity',
+  'clip-path',
+  'clip-rule',
+  'mask',
+  'marker-start',
+  'marker-mid',
+  'marker-end',
+  'font-family',
+  'font-size',
+  'font-weight',
+  'font-style',
+  'text-anchor',
+  'dominant-baseline',
+  'letter-spacing',
+  'color',
+  'display',
+  'visibility',
+]);
+const COLOR_FUNCTION = /\b(?:rgba?|hsla?)\([^()]*\)/gi;
+
 type XmlNode = Record<string, unknown>;
 
 function isSafeValue(value: string): boolean {
   if (ENCODED.test(value) || CSS_DANGER.test(value)) return false;
   return value.replace(INTERNAL_URL, '').search(ANY_URL) === -1;
+}
+
+function isSafeDeclaration(declaration: string): boolean {
+  const colon = declaration.indexOf(':');
+  const property = declaration.slice(0, Math.max(colon, 0)).trim().toLowerCase();
+  const value = declaration.slice(colon + 1);
+  const withoutAllowedFunctions = value.replace(INTERNAL_URL, '').replace(COLOR_FUNCTION, '');
+  return STYLE_PROPERTIES.has(property) && !withoutAllowedFunctions.includes('(');
+}
+
+function cleanStyle(style: string): string {
+  return style
+    .split(';')
+    .map((declaration) => declaration.trim())
+    .filter(isSafeDeclaration)
+    .join(';');
 }
 
 function cleanAttributes(attributes: unknown): Record<string, string> {
@@ -133,8 +185,11 @@ function cleanAttributes(attributes: unknown): Record<string, string> {
     const allowed = REFERENCE_ATTRIBUTES.has(name)
       ? INTERNAL_REFERENCE.test(value)
       : ATTRIBUTE_NAMES.has(name) && isSafeValue(value);
+    const cleaned = allowed && name === 'style' ? cleanStyle(value) : value;
     // The builder writes values as they are, and a value quoted with ' may hold a ".
-    if (allowed) kept[name] = value.replaceAll('"', '&quot;').replaceAll('<', '&lt;');
+    if (allowed && cleaned !== '') {
+      kept[name] = cleaned.replaceAll('"', '&quot;').replaceAll('<', '&lt;');
+    }
   }
   return kept;
 }

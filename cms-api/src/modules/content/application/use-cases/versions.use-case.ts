@@ -2,6 +2,7 @@ import type { Actor } from '../../../../shared/kernel/actor.js';
 import { type PagedResult, toPageRequest } from '../../../../shared/kernel/paged-result.js';
 import type { ContentEdit } from '../../domain/entities/content.entity.js';
 import { ContentNotFoundError } from '../../domain/errors/content.errors.js';
+import { referencedMediaIds, withoutMedia } from '../../domain/services/media-references.js';
 import type { ContentDeps } from '../content-deps.js';
 import { assertCanEdit, assertCanReadHistory } from '../policies/content.policy.js';
 import type {
@@ -80,6 +81,7 @@ export class RevertContent implements RevertContentUseCase {
 
   async execute(command: ContentCommand & { readonly versionNo: number }): Promise<ContentView> {
     const { actor, id, ip, versionNo } = command;
+    let dropped: readonly string[] = [];
     const content = await mutateContent(this.deps, {
       actor,
       id,
@@ -90,11 +92,19 @@ export class RevertContent implements RevertContentUseCase {
       },
       change: async (current) => {
         const { snapshot } = await loadVersion(this.deps, id, versionNo);
+        // Media can be force-deleted after a version was saved. The rest is still worth restoring,
+        // and the audit event says what could not come back.
         const fields = revertedFields(snapshot);
-        await assertValidReferences(this.deps, current, fields);
-        return current.edit(fields, this.deps.clock.now());
+        const report = await this.deps.mediaCatalog.inspectImages(referencedMediaIds(fields));
+        dropped = report.missing;
+        const restorable = withoutMedia(fields, dropped);
+        await assertValidReferences(this.deps, current, restorable);
+        return current.edit(restorable, this.deps.clock.now());
       },
-      summary: () => ({ to_version: versionNo }),
+      summary: () => ({
+        to_version: versionNo,
+        ...(dropped.length > 0 ? { dropped_media: dropped } : {}),
+      }),
     });
     return toContentView(content);
   }

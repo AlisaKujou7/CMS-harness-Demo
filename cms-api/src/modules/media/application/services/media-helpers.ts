@@ -11,6 +11,22 @@ export async function loadMedia(media: MediaRepository, id: string): Promise<Med
   return item;
 }
 
+// After the commit, so a rollback never leaves a record whose file is gone. The request has already
+// succeeded, so a storage failure here only leaves the deletion for the worker to retry.
+export async function removeFiles(
+  deps: Pick<MediaDeps, 'storage' | 'media' | 'logger'>,
+  keys: readonly string[],
+): Promise<void> {
+  try {
+    await deps.storage.delete(keys);
+    await deps.media.clearPendingFileDeletions(keys);
+  } catch (error) {
+    deps.logger.error('Could not delete media files yet', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 // SEC-06: storage is private, so every URL is signed and short-lived. Images open in the browser,
 // which is safe because an SVG was sanitized on the way in. Anything else downloads.
 export async function toMediaView(

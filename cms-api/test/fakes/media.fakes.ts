@@ -47,6 +47,7 @@ function matches(item: MediaItem, criteria: MediaCriteria): boolean {
 
 export class InMemoryMediaRepository implements MediaRepository {
   readonly items = new Map<string, MediaItem>();
+  readonly pendingFileDeletions = new Set<string>();
 
   add(item: MediaItem): void {
     this.items.set(item.id, item);
@@ -80,8 +81,12 @@ export class InMemoryMediaRepository implements MediaRepository {
     return Promise.resolve(pagedResult(rows, all.length, page));
   }
 
-  findMissing(ids: readonly string[]): Promise<readonly string[]> {
-    return Promise.resolve(ids.filter((id) => !this.items.has(id)));
+  findMimeTypes(ids: readonly string[]): Promise<ReadonlyMap<string, string>> {
+    const found = ids.flatMap((id): [string, string][] => {
+      const item = this.items.get(id.toLowerCase());
+      return item ? [[item.id, item.mimeType]] : [];
+    });
+    return Promise.resolve(new Map(found));
   }
 
   create(item: MediaItem): Promise<void> {
@@ -105,6 +110,31 @@ export class InMemoryMediaRepository implements MediaRepository {
 
   delete(id: string): Promise<void> {
     this.items.delete(id);
+    return Promise.resolve();
+  }
+
+  failPendingVariantsBefore(cutoff: Date): Promise<number> {
+    let failed = 0;
+    for (const item of this.items.values()) {
+      if (item.variantStatus === 'pending' && item.createdAt < cutoff) {
+        this.items.set(item.id, MediaItem.restore({ ...item, variantStatus: 'failed' }));
+        failed += 1;
+      }
+    }
+    return Promise.resolve(failed);
+  }
+
+  addPendingFileDeletions(keys: readonly string[]): Promise<void> {
+    for (const key of keys) this.pendingFileDeletions.add(key);
+    return Promise.resolve();
+  }
+
+  findPendingFileDeletions(limit: number): Promise<readonly string[]> {
+    return Promise.resolve([...this.pendingFileDeletions].slice(0, limit));
+  }
+
+  clearPendingFileDeletions(keys: readonly string[]): Promise<void> {
+    for (const key of keys) this.pendingFileDeletions.delete(key);
     return Promise.resolve();
   }
 

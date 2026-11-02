@@ -69,6 +69,29 @@ describe('XmlSvgSanitizer (SEC-05)', () => {
     expect(result).not.toMatch(/alert|evil|javascript|data:/i);
   });
 
+  it.each([
+    ['image-set', '<rect style="background-image:image-set(\'https://evil.test/a.png\' 1x)"/>'],
+    [
+      'a fetching function on an allowed property',
+      '<rect style="fill:image-set(\'https://evil.test\')"/>',
+    ],
+    ['a property off the list', '<rect style="cursor:pointer"/>'],
+    ['a declaration with no property', '<rect style="evil"/>'],
+  ])('removes %s from a style, and the empty attribute', (_name, body) => {
+    const result = inside(body);
+
+    expect(result).toContain('<rect');
+    expect(result).not.toMatch(/style|evil|cursor/);
+  });
+
+  it('keeps the safe declarations of a style', () => {
+    const result = inside(
+      '<rect style="fill:rgb(1,2,3); cursor:pointer ;stroke:hsla(1,2%,3%,.5)"/>',
+    );
+
+    expect(result).toContain('style="fill:rgb(1,2,3);stroke:hsla(1,2%,3%,.5)"');
+  });
+
   it('keeps a safe style', () => {
     expect(inside('<rect style="fill:#fff;stroke:url(#a)"/>')).toContain(
       'style="fill:#fff;stroke:url(#a)"',

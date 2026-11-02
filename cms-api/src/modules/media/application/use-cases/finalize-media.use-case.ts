@@ -1,8 +1,11 @@
-import { ForbiddenError, AppError } from '../../../../shared/kernel/app-error.js';
-import { MediaItem } from '../../domain/entities/media-item.entity.js';
+import { AppError, ForbiddenError } from '../../../../shared/kernel/app-error.js';
+import {
+  MediaItem,
+  type MediaMetadata,
+  validMediaMetadata,
+} from '../../domain/entities/media-item.entity.js';
 import {
   FileTooLargeError,
-  MediaAlreadyExistsError,
   UnsupportedMediaTypeError,
   UploadChangedError,
   UploadNotFoundError,
@@ -36,6 +39,7 @@ interface CheckedUpload {
   readonly mediaId: string;
   readonly extension: string;
   readonly filename: string;
+  readonly metadata: MediaMetadata;
 }
 
 // FR-MEDIA-03 and SEC-05. Nothing trusts what the upload claims: the stored type, the extension and
@@ -47,27 +51,40 @@ export class FinalizeMedia implements FinalizeMediaUseCase {
   async execute(command: FinalizeMediaCommand): Promise<MediaView> {
     const upload = parseUploadKey(command.storageKey);
     if (upload.ownerId !== command.actor.id) throw new ForbiddenError();
-    const filename = normalizeFilename(command.filename);
+    // First of all, because these mistakes can be corrected and the upload should survive them.
     const checked: CheckedUpload = {
       command,
       pendingKey: command.storageKey,
       mediaId: upload.uploadId,
       extension: upload.extension,
-      filename,
+      filename: normalizeFilename(command.filename),
+      metadata: validMediaMetadata({
+        altText: command.altText ?? null,
+        caption: command.caption ?? null,
+      }),
     };
 
     const stored = await this.deps.storage.head(checked.pendingKey);
     if (!stored) throw new UploadNotFoundError();
 
-    let finalSize: number;
+    let item: MediaItem;
     try {
       await this.assertMatches(checked, stored);
-      finalSize = await this.moveIntoPlace(checked, stored);
+      const clean = command.mimeType === SVG_MIME ? await this.sanitizedSvg(checked, stored) : null;
+      item = this.toItem(checked, clean?.length ?? stored.size);
+      await this.record(checked, item, stored, clean);
     } catch (error) {
       await this.refuse(checked, error);
       throw error;
     }
-    return this.record(checked, finalSize);
+    await this.removePending(checked.pendingKey);
+    const event: MediaUploaded = {
+      type: 'MediaUploaded',
+      mediaId: item.id,
+      needsVariants: item.variantStatus === 'pending',
+    };
+    await this.deps.events.publishAll([event]);
+    return toMediaView(this.deps, item);
   }
 
   private async assertMatches(checked: CheckedUpload, stored: StoredObject): Promise<void> {
@@ -92,24 +109,9 @@ export class FinalizeMedia implements FinalizeMediaUseCase {
     }
   }
 
-  private async moveIntoPlace(checked: CheckedUpload, stored: StoredObject): Promise<number> {
-    const { storage } = this.deps;
-    const target = originalKey(checked.mediaId, checked.extension);
-    let size = stored.size;
-    if (checked.command.mimeType === SVG_MIME) {
-      const clean = await this.sanitizedSvg(checked.pendingKey, stored);
-      await storage.put(target, clean, SVG_MIME);
-      size = clean.length;
-    } else if (!(await storage.copyIfUnchanged(checked.pendingKey, target, stored.etag))) {
-      throw new UploadChangedError();
-    }
-    await storage.delete([checked.pendingKey]);
-    return size;
-  }
-
-  private async sanitizedSvg(key: string, stored: StoredObject): Promise<Uint8Array> {
+  private async sanitizedSvg(checked: CheckedUpload, stored: StoredObject): Promise<Uint8Array> {
     if (stored.size > MAX_SVG_BYTES) throw new FileTooLargeError(MAX_SVG_BYTES);
-    const bytes = await this.deps.storage.read(key, {
+    const bytes = await this.deps.storage.read(checked.pendingKey, {
       etag: stored.etag,
       maxBytes: MAX_SVG_BYTES,
     });
@@ -117,6 +119,62 @@ export class FinalizeMedia implements FinalizeMediaUseCase {
     const clean = this.deps.svg.sanitize(bytes);
     if (!clean) throw new UnsupportedMediaTypeError('the file is not a well-formed SVG');
     return clean;
+  }
+
+  private toItem(checked: CheckedUpload, sizeBytes: number): MediaItem {
+    return MediaItem.create({
+      id: checked.mediaId,
+      storageKey: originalKey(checked.mediaId, checked.extension),
+      filename: checked.filename,
+      mimeType: checked.command.mimeType,
+      sizeBytes,
+      uploadedBy: checked.command.actor.id,
+      createdAt: this.deps.clock.now(),
+      metadata: checked.metadata,
+    });
+  }
+
+  // The record comes first. Its id is the upload's, so a repeat of this upload stops here, waiting
+  // for any finalize in progress, and can never reach the file that a record already stands for.
+  private async record(
+    checked: CheckedUpload,
+    item: MediaItem,
+    stored: StoredObject,
+    clean: Uint8Array | null,
+  ): Promise<void> {
+    const { command, pendingKey, filename } = checked;
+    const progress = { moved: false };
+    try {
+      await this.deps.tx.run(async () => {
+        await this.deps.media.create(item);
+        await this.moveIntoPlace(pendingKey, item, { stored, clean });
+        progress.moved = true;
+        await this.deps.audit.record({
+          actorId: command.actor.id,
+          actorIp: command.ip,
+          action: 'media.upload',
+          targetType: 'media',
+          targetId: item.id,
+          summary: { filename, mime_type: item.mimeType, size_bytes: item.sizeBytes },
+        });
+      });
+    } catch (error) {
+      if (progress.moved) await this.deps.storage.delete([item.storageKey]);
+      throw error;
+    }
+  }
+
+  private async moveIntoPlace(
+    pendingKey: string,
+    item: MediaItem,
+    source: { readonly stored: StoredObject; readonly clean: Uint8Array | null },
+  ): Promise<void> {
+    const { storage } = this.deps;
+    if (source.clean) {
+      await storage.put(item.storageKey, source.clean, item.mimeType);
+    } else if (!(await storage.copyIfUnchanged(pendingKey, item.storageKey, source.stored.etag))) {
+      throw new UploadChangedError();
+    }
   }
 
   // A refused file is removed at once, and the attempt is on record (SEC-05).
@@ -133,42 +191,15 @@ export class FinalizeMedia implements FinalizeMediaUseCase {
     });
   }
 
-  private async record(checked: CheckedUpload, sizeBytes: number): Promise<MediaView> {
-    const { command, mediaId, filename } = checked;
-    const storageKey = originalKey(mediaId, checked.extension);
-    const item = MediaItem.create({
-      id: mediaId,
-      storageKey,
-      filename,
-      mimeType: command.mimeType,
-      sizeBytes,
-      uploadedBy: command.actor.id,
-      createdAt: this.deps.clock.now(),
-      metadata: { altText: command.altText ?? null, caption: command.caption ?? null },
-    });
+  // The media is safely recorded by now. A leftover here is harmless, and the daily purge takes it.
+  private async removePending(key: string): Promise<void> {
     try {
-      await this.deps.tx.run(async () => {
-        await this.deps.media.create(item);
-        await this.deps.audit.record({
-          actorId: command.actor.id,
-          actorIp: command.ip,
-          action: 'media.upload',
-          targetType: 'media',
-          targetId: mediaId,
-          summary: { filename, mime_type: command.mimeType, size_bytes: sizeBytes },
-        });
-      });
+      await this.deps.storage.delete([key]);
     } catch (error) {
-      // When another request finalized this upload first, the file now belongs to its record.
-      if (!(error instanceof MediaAlreadyExistsError)) await this.deps.storage.delete([storageKey]);
-      throw error;
+      this.deps.logger.error('Could not remove a finished upload', {
+        key,
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
-    const event: MediaUploaded = {
-      type: 'MediaUploaded',
-      mediaId,
-      needsVariants: item.variantStatus === 'pending',
-    };
-    await this.deps.events.publishAll([event]);
-    return toMediaView(this.deps, item);
   }
 }

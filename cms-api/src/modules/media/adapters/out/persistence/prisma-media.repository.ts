@@ -102,13 +102,12 @@ export class PrismaMediaRepository implements MediaRepository {
     return pagedResult(rows.map(toWithUploader), total, page);
   }
 
-  async findMissing(ids: readonly string[]): Promise<readonly string[]> {
+  async findMimeTypes(ids: readonly string[]): Promise<ReadonlyMap<string, string>> {
     const rows = await this.db.client.mediaItem.findMany({
       where: { id: { in: [...ids] } },
-      select: { id: true },
+      select: { id: true, mimeType: true },
     });
-    const found = new Set(rows.map((row) => row.id));
-    return ids.filter((id) => !found.has(id));
+    return new Map(rows.map((row) => [row.id, row.mimeType]));
   }
 
   async create(item: MediaItem): Promise<void> {
@@ -154,6 +153,33 @@ export class PrismaMediaRepository implements MediaRepository {
 
   async delete(id: string): Promise<void> {
     await this.db.client.mediaItem.delete({ where: { id } });
+  }
+
+  async failPendingVariantsBefore(cutoff: Date): Promise<number> {
+    const { count } = await this.db.client.mediaItem.updateMany({
+      where: { variantStatus: 'pending', createdAt: { lt: cutoff } },
+      data: { variantStatus: 'failed' },
+    });
+    return count;
+  }
+
+  async addPendingFileDeletions(keys: readonly string[], at: Date): Promise<void> {
+    await this.db.client.mediaFileDeletion.createMany({
+      data: keys.map((key) => ({ key, createdAt: at })),
+      skipDuplicates: true,
+    });
+  }
+
+  async findPendingFileDeletions(limit: number): Promise<readonly string[]> {
+    const rows = await this.db.client.mediaFileDeletion.findMany({
+      orderBy: { createdAt: 'asc' },
+      take: limit,
+    });
+    return rows.map((row) => row.key);
+  }
+
+  async clearPendingFileDeletions(keys: readonly string[]): Promise<void> {
+    await this.db.client.mediaFileDeletion.deleteMany({ where: { key: { in: [...keys] } } });
   }
 
   async findPendingVariants(createdBefore: Date, limit: number): Promise<readonly string[]> {

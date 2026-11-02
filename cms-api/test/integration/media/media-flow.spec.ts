@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { CreateBucketCommand, S3Client } from '@aws-sdk/client-s3';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type { Worker } from 'bullmq';
@@ -17,6 +16,7 @@ import { loadEnv } from '../../../src/config/env.schema.js';
 import { startVariantWorker } from '../../../src/modules/media/adapters/in/queue/variant-worker.js';
 import { GenerateMediaVariants } from '../../../src/modules/media/application/use-cases/media-background.use-case.js';
 import { configureApp } from '../../../src/shared/adapters/http/configure-app.js';
+import { createTestBucket, STORAGE_KEY, STORAGE_SECRET } from '../support/test-bucket.js';
 import { createTestDatabase, type TestDatabase } from '../support/test-database.js';
 
 const AUTHOR_ID = '10000000-0000-4000-8000-000000000001';
@@ -24,8 +24,6 @@ const ADMIN_ID = '10000000-0000-4000-8000-000000000002';
 const PASSWORD = 'correct-horse-1';
 const MEDIA = '/api/admin/media';
 const CONTENT = '/api/admin/content';
-const KEY = 'test-only-key';
-const SECRET = 'test-only-secret';
 
 interface MediaResponse {
   id: string;
@@ -90,16 +88,7 @@ describe('media against real infrastructure', () => {
 
   beforeAll(async () => {
     db = await createTestDatabase();
-    const endpoint = inject('minioUrl');
-    const bucket = `flow-${randomUUID()}`;
-    const admin = new S3Client({
-      endpoint,
-      region: 'us-east-1',
-      forcePathStyle: true,
-      credentials: { accessKeyId: KEY, secretAccessKey: SECRET },
-    });
-    await admin.send(new CreateBucketCommand({ Bucket: bucket }));
-    admin.destroy();
+    const { endpoint, bucket } = await createTestBucket();
 
     const redisUrl = `${inject('redisUrl')}/6`;
     running = createInfrastructure(
@@ -118,8 +107,8 @@ describe('media against real infrastructure', () => {
         OBJECT_STORAGE_PROVIDER: 'minio',
         OBJECT_STORAGE_ENDPOINT: endpoint,
         OBJECT_STORAGE_BUCKET: bucket,
-        OBJECT_STORAGE_ACCESS_KEY: KEY,
-        OBJECT_STORAGE_SECRET_KEY: SECRET,
+        OBJECT_STORAGE_ACCESS_KEY: STORAGE_KEY,
+        OBJECT_STORAGE_SECRET_KEY: STORAGE_SECRET,
       }),
     );
     worker = startVariantWorker(
@@ -267,20 +256,121 @@ describe('media against real infrastructure', () => {
       .send({ storage_key: key, filename: 'hero.png', mime_type: 'image/png' })
       .expect(201);
 
+    const media = (res.body as { data: MediaResponse }).data;
+
+    // Wrong bytes are refused by the checks.
     const evil = Buffer.alloc(png.length, 0x41);
     await fetch(url, {
       method: 'PUT',
       body: new Uint8Array(evil),
       headers: { 'Content-Type': 'image/png' },
     });
-
-    const media = (res.body as { data: MediaResponse }).data;
-    expect(Buffer.from(await (await fetch(media.url)).arrayBuffer())).toEqual(png);
     await client()
       .post(MEDIA)
       .set('Authorization', author)
       .send({ storage_key: key, filename: 'hero.png', mime_type: 'image/png' })
       .expect(422);
+
+    // A valid image of the same size passes the checks, and is still refused.
+    const valid = Buffer.from(png);
+    valid[valid.length - 20] = (valid[valid.length - 20] ?? 0) ^ 0xff;
+    await fetch(url, {
+      method: 'PUT',
+      body: new Uint8Array(valid),
+      headers: { 'Content-Type': 'image/png' },
+    });
+    const again = await client()
+      .post(MEDIA)
+      .set('Authorization', author)
+      .send({ storage_key: key, filename: 'hero.png', mime_type: 'image/png' })
+      .expect(409);
+
+    expect((again.body as { error: { code: string } }).error.code).toBe('MEDIA_EXISTS');
+    expect(Buffer.from(await (await fetch(media.url)).arrayBuffer())).toEqual(png);
+    await expect(running.infrastructure.storage.head(key)).resolves.toBeNull();
+  });
+
+  it('lets simultaneous finalizes of one upload produce one record', async () => {
+    const author = await tokenOf('author@example.com');
+    const { upload_url: url, storage_key: key } = await presign(author, {
+      filename: 'hero.png',
+      mime: 'image/png',
+      bytes: png,
+    });
+    await fetch(url, {
+      method: 'PUT',
+      body: new Uint8Array(png),
+      headers: { 'Content-Type': 'image/png' },
+    });
+    const finalize = () =>
+      client()
+        .post(MEDIA)
+        .set('Authorization', author)
+        .send({ storage_key: key, filename: 'hero.png', mime_type: 'image/png' });
+
+    const results = await Promise.all([finalize(), finalize(), finalize()]);
+
+    expect(results.filter((res) => res.status === 201)).toHaveLength(1);
+    await expect(db.context.client.mediaItem.count()).resolves.toBe(1);
+  });
+
+  it('keeps the upload when its metadata fails validation', async () => {
+    const author = await tokenOf('author@example.com');
+    const { upload_url: url, storage_key: key } = await presign(author, {
+      filename: 'hero.png',
+      mime: 'image/png',
+      bytes: png,
+    });
+    await fetch(url, {
+      method: 'PUT',
+      body: new Uint8Array(png),
+      headers: { 'Content-Type': 'image/png' },
+    });
+    const finalize = (altText: string) =>
+      client().post(MEDIA).set('Authorization', author).send({
+        storage_key: key,
+        filename: 'hero.png',
+        mime_type: 'image/png',
+        alt_text: altText,
+      });
+
+    await finalize('a'.repeat(600)).expect(422);
+    await finalize('Short').expect(201);
+  });
+
+  it('refuses a PDF as an image, and accepts an uppercase id for a real one', async () => {
+    const author = await tokenOf('author@example.com');
+    const pdf = await uploadAndFinalize(author, {
+      filename: 'faq.pdf',
+      mime: 'application/pdf',
+      bytes: Buffer.from('%PDF-1.7\n'),
+    });
+    const image = await uploadAndFinalize(author, {
+      filename: 'hero.png',
+      mime: 'image/png',
+      bytes: png,
+    });
+
+    const refused = await client()
+      .post(CONTENT)
+      .set('Authorization', author)
+      .send({
+        type: 'article',
+        title: 'A',
+        featured_image_id: (pdf.body as { data: MediaResponse }).data.id,
+      })
+      .expect(422);
+    expect((refused.body as { error: { code: string } }).error.code).toBe('MEDIA_NOT_IMAGE');
+
+    await client()
+      .post(CONTENT)
+      .set('Authorization', author)
+      .send({
+        type: 'article',
+        title: 'B',
+        featured_image_id: (image.body as { data: MediaResponse }).data.id.toUpperCase(),
+      })
+      .expect(201);
   });
 
   it('refuses to finalize an upload that never happened', async () => {
@@ -329,10 +419,20 @@ describe('media against real infrastructure', () => {
 
     await client().delete(`${MEDIA}/${id}?force=true`).set('Authorization', author).expect(403);
     await client().delete(`${MEDIA}/${id}?force=true`).set('Authorization', admin).expect(204);
+    await expect(db.context.client.mediaFileDeletion.count()).resolves.toBe(0);
 
     expect((await fetch(url)).status).toBe(404);
     const row = await db.context.client.content.findUniqueOrThrow({ where: { id: articleId } });
     expect(row.featuredImageId).toBeNull();
+
+    // The first version still names the deleted file, and can still be restored.
+    const reverted = await client()
+      .post(`${CONTENT}/${articleId}/revert/1`)
+      .set('Authorization', author)
+      .expect(200);
+    expect(
+      (reverted.body as { data: { featured_image_id: unknown } }).data.featured_image_id,
+    ).toBeNull();
   });
 
   it('refuses content that points at media that does not exist', async () => {

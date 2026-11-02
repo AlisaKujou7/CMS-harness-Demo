@@ -6,8 +6,6 @@ import type {
   VariantStatus,
 } from '../../../domain/entities/media-item.entity.js';
 
-export type MediaSortField = 'created_at' | 'filename';
-
 // FR-MEDIA-08, plus the type filter from 03-DESIGN 12.5.
 export interface MediaCriteria {
   readonly search?: string;
@@ -34,8 +32,8 @@ export interface MediaRepository {
   findWithUploader(id: string): Promise<MediaWithUploader | null>;
   // Newest first.
   findMany(criteria: MediaCriteria, page: PageRequest): Promise<PagedResult<MediaWithUploader>>;
-  // Of the given ids, those that do not exist.
-  findMissing(ids: readonly string[]): Promise<readonly string[]>;
+  // The type of each id that exists, keyed by the id in lowercase, as PostgreSQL returns it.
+  findMimeTypes(ids: readonly string[]): Promise<ReadonlyMap<string, string>>;
   // Throws MediaAlreadyExistsError when this upload was already finalized.
   create(item: MediaItem): Promise<void>;
   // Writes only the metadata, so it cannot undo variants the worker saved meanwhile.
@@ -44,4 +42,10 @@ export interface MediaRepository {
   saveVariants(id: string, result: VariantResult): Promise<boolean>;
   delete(id: string): Promise<void>;
   findPendingVariants(createdBefore: Date, limit: number): Promise<readonly string[]>;
+  // Ends the wait for variants that were never made. Returns how many.
+  failPendingVariantsBefore(cutoff: Date): Promise<number>;
+  // Files owed a deletion. Written with the delete itself, so a storage outage cannot lose track.
+  addPendingFileDeletions(keys: readonly string[], at: Date): Promise<void>;
+  findPendingFileDeletions(limit: number): Promise<readonly string[]>;
+  clearPendingFileDeletions(keys: readonly string[]): Promise<void>;
 }

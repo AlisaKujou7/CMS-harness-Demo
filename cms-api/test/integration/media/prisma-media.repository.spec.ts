@@ -120,10 +120,36 @@ describe('PrismaMediaRepository', () => {
     });
   });
 
-  it('names the ids that do not exist', async () => {
+  it('gives the type of each id that exists, keyed in lowercase', async () => {
     await repo.create(item(1));
 
-    await expect(repo.findMissing([id(1), id(2)])).resolves.toEqual([id(2)]);
+    const types = await repo.findMimeTypes([id(1).toUpperCase(), id(2)]);
+
+    expect([...types]).toEqual([[id(1), 'image/png']]);
+  });
+
+  it('gives up on pending variants older than a cutoff, leaving the rest', async () => {
+    await repo.create(item(1, { createdAt: at(1) }));
+    await repo.create(item(2, { createdAt: at(5) }));
+    await repo.create(item(3, { createdAt: at(1), variantStatus: 'ready' }));
+
+    await expect(repo.failPendingVariantsBefore(at(3))).resolves.toBe(1);
+
+    await expect(repo.findById(id(1))).resolves.toMatchObject({ variantStatus: 'failed' });
+    await expect(repo.findById(id(2))).resolves.toMatchObject({ variantStatus: 'pending' });
+    await expect(repo.findById(id(3))).resolves.toMatchObject({ variantStatus: 'ready' });
+  });
+
+  it('keeps track of file deletions, oldest first, and tolerates repeats', async () => {
+    await repo.addPendingFileDeletions(['b'], at(2));
+    await repo.addPendingFileDeletions(['a', 'b'], at(1));
+
+    await expect(repo.findPendingFileDeletions(10)).resolves.toEqual(['a', 'b']);
+    await expect(repo.findPendingFileDeletions(1)).resolves.toEqual(['a']);
+
+    await repo.clearPendingFileDeletions(['a']);
+
+    await expect(repo.findPendingFileDeletions(10)).resolves.toEqual(['b']);
   });
 
   it('updates only the metadata it was given', async () => {
@@ -188,6 +214,28 @@ describe('PrismaMediaRepository', () => {
 
       await expect(contents.countMediaUsage(id(1))).resolves.toBe(4);
       await expect(contents.countMediaUsage(id(2))).resolves.toBe(1);
+    });
+
+    it('reports media removed between the check and the write as missing', async () => {
+      const gone = id(9);
+
+      await expect(contents.create(content(1, { featuredImageId: gone }))).rejects.toMatchObject({
+        code: 'MEDIA_NOT_FOUND',
+        details: { ids: [gone] },
+      });
+
+      await contents.create(content(2));
+      await expect(
+        contents.save(content(2, { version: 2, socialImageId: gone })),
+      ).rejects.toMatchObject({
+        code: 'MEDIA_NOT_FOUND',
+      });
+    });
+
+    it('does not blame media for another foreign key', async () => {
+      await expect(
+        contents.create(content(3, { authorId: '10000000-0000-4000-8000-000000000099' })),
+      ).rejects.not.toMatchObject({ code: 'MEDIA_NOT_FOUND' });
     });
 
     it('follows edits', async () => {

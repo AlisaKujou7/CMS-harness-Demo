@@ -245,3 +245,11 @@ model MediaItem {
   @@index([variantStatus, createdAt])
   @@map("media_items")
 }
+
+model MediaFileDeletion {
+  key       String   @id
+  createdAt DateTime @map("created_at") @db.Timestamptz(3)
+
+  @@index([createdAt])
+  @@map("media_file_deletions")
+}

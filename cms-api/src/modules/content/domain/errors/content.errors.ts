@@ -78,6 +78,18 @@ export class MissingMediaError extends AppError {
   }
 }
 
+// Every content field that references media shows it as an image, so a PDF would render broken.
+export class MediaNotImageError extends AppError {
+  constructor(ids: readonly string[]) {
+    super({
+      kind: 'validation',
+      code: 'MEDIA_NOT_IMAGE',
+      message: 'This content uses a file that is not an image as an image',
+      details: { ids },
+    });
+  }
+}
+
 // An Editor approved what is scheduled, so changing it would publish text nobody reviewed.
 export class ContentScheduledError extends AppError {
   constructor() {

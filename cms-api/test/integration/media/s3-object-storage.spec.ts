@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { CreateBucketCommand, S3Client } from '@aws-sdk/client-s3';
 import { beforeAll, describe, expect, inject, it } from 'vitest';
 import {
   S3ObjectStorage,
   type S3StorageConfig,
 } from '../../../src/modules/media/adapters/out/storage/s3-object-storage.js';
+import { createTestBucket, STORAGE_KEY, STORAGE_SECRET } from '../support/test-bucket.js';
 
-const CREDENTIALS = { accessKey: 'test-only-key', secretKey: 'test-only-secret' };
+const CREDENTIALS = { accessKey: STORAGE_KEY, secretKey: STORAGE_SECRET };
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3, 4]);
 
 describe('S3ObjectStorage against real MinIO', () => {
@@ -15,16 +15,7 @@ describe('S3ObjectStorage against real MinIO', () => {
   const key = (name: string) => `${randomUUID()}/${name}`;
 
   beforeAll(async () => {
-    const endpoint = inject('minioUrl');
-    const bucket = `test-${randomUUID()}`;
-    const admin = new S3Client({
-      endpoint,
-      region: 'us-east-1',
-      forcePathStyle: true,
-      credentials: { accessKeyId: CREDENTIALS.accessKey, secretAccessKey: CREDENTIALS.secretKey },
-    });
-    await admin.send(new CreateBucketCommand({ Bucket: bucket }));
-    admin.destroy();
+    const { endpoint, bucket } = await createTestBucket();
     config = { bucket, endpoint, region: 'us-east-1', forcePathStyle: true, ...CREDENTIALS };
     storage = new S3ObjectStorage(config);
   });

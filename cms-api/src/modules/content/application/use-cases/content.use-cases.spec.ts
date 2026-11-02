@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { aContent, aTextBody } from '../../../../../test/builders/a-content.js';
-import { InMemoryContentRepository } from '../../../../../test/fakes/content.fakes.js';
+import {
+  InMemoryContentRepository,
+  InMemoryMediaCatalog,
+} from '../../../../../test/fakes/content.fakes.js';
 import {
   FakeClock,
   FakeTransactionRunner,
@@ -62,7 +65,8 @@ describe('content use cases', () => {
   let logger: InMemoryLogger;
   let deps: ContentDeps;
   const MEDIA = '77777777-7777-4777-8777-777777777777';
-  const knownMedia = new Set([MEDIA]);
+  const GONE = '88888888-8888-4888-8888-888888888888';
+  let mediaCatalog: InMemoryMediaCatalog;
 
   const stored = (overrides: Parameters<typeof aContent>[0] = {}) => {
     const content = aContent({ id: ID, authorId: author.id, ...overrides });
@@ -79,6 +83,8 @@ describe('content use cases', () => {
     tx = new FakeTransactionRunner();
     clock = new FakeClock('2026-06-01T00:00:00Z');
     logger = new InMemoryLogger();
+    mediaCatalog = new InMemoryMediaCatalog();
+    mediaCatalog.missing.add(GONE);
     deps = {
       contents,
       audit,
@@ -88,9 +94,7 @@ describe('content use cases', () => {
       logger,
       ids: new SequentialIdGenerator(),
       contentCategories: ['news', 'guides'],
-      mediaCatalog: {
-        findMissing: (ids) => Promise.resolve(ids.filter((id) => !knownMedia.has(id))),
-      },
+      mediaCatalog,
     };
   });
 
@@ -245,7 +249,6 @@ describe('content use cases', () => {
     });
 
     describe('media references', () => {
-      const GONE = '88888888-8888-4888-8888-888888888888';
       const bodyWith = (mediaId: string) => ({
         type: 'doc',
         content: [{ type: 'image', attrs: { src: '/a.png', mediaId } }],
@@ -255,6 +258,15 @@ describe('content use cases', () => {
         await expect(
           create({ featuredImageId: MEDIA, socialImageId: MEDIA, body: bodyWith(MEDIA) }),
         ).resolves.toMatchObject({ featuredImageId: MEDIA, socialImageId: MEDIA });
+      });
+
+      it('refuses a file that is not an image', async () => {
+        mediaCatalog.notImages.add(MEDIA);
+
+        await expect(create({ featuredImageId: MEDIA })).rejects.toMatchObject({
+          code: 'MEDIA_NOT_IMAGE',
+          details: { ids: [MEDIA] },
+        });
       });
 
       it.each([
@@ -406,7 +418,6 @@ describe('content use cases', () => {
     });
 
     it('does not recheck media it already refers to, which may since have been force-deleted', async () => {
-      const GONE = '88888888-8888-4888-8888-888888888888';
       stored({ version: 3, featuredImageId: GONE });
 
       await expect(update(author, { title: 'Fine', featuredImageId: GONE })).resolves.toMatchObject(
@@ -417,7 +428,6 @@ describe('content use cases', () => {
     });
 
     it('checks media it did not refer to before', async () => {
-      const GONE = '88888888-8888-4888-8888-888888888888';
       stored({ version: 3 });
 
       await expect(update(author, { socialImageId: GONE })).rejects.toThrow(MissingMediaError);
@@ -908,10 +918,8 @@ describe('content use cases', () => {
         await expect(revert(author, 2)).resolves.toMatchObject({ title: 'Two', version: 4 });
 
         expect(contents.versions.map((v) => v.versionNo)).toEqual([2, 3, 4]);
-        expect(audit.events.at(-1)).toMatchObject({
-          action: 'content.revert',
-          summary: { to_version: 2 },
-        });
+        expect(audit.events.at(-1)).toMatchObject({ action: 'content.revert' });
+        expect(audit.events.at(-1)?.summary).toEqual({ to_version: 2 });
       });
 
       it('applies the same rules as editing', async () => {
@@ -919,6 +927,30 @@ describe('content use cases', () => {
 
         contents.add(aContent({ ...contents.get(ID), ...publishable, status: 'in_review' }));
         await expect(revert(author, 2)).rejects.toThrow(InvalidTransitionError);
+      });
+
+      it('restores what it can when media in that version has since been deleted', async () => {
+        const body = {
+          type: 'doc',
+          content: [
+            { type: 'image', attrs: { src: '/gone', mediaId: GONE } },
+            { type: 'image', attrs: { src: '/kept', mediaId: MEDIA } },
+          ],
+        };
+        await save(author, 'Four', 3);
+        contents.add(aContent({ ...contents.get(ID), featuredImageId: null }));
+        const version = contents.versions.find((v) => v.versionNo === 4);
+        if (!version) throw new Error('no version 4');
+        contents.versions[contents.versions.indexOf(version)] = {
+          ...version,
+          snapshot: { ...version.snapshot, body, featuredImageId: GONE, socialImageId: MEDIA },
+        };
+
+        const view = await revert(author, 4);
+
+        expect(view).toMatchObject({ featuredImageId: null, socialImageId: MEDIA });
+        expect(view.body.content?.map((node) => node.attrs?.['mediaId'])).toEqual([MEDIA]);
+        expect(audit.events.at(-1)?.summary).toEqual({ to_version: 4, dropped_media: [GONE] });
       });
 
       it('stops an Author reverting a scheduled draft', async () => {
