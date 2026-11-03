@@ -7,6 +7,7 @@ Headless Content Management System with an admin SPA. The specifications live in
 | ---------- | ------------------------------------------------------- |
 | `cms-api/` | Backend: hexagonal architecture (04-ARCH §4)            |
 | `cms-web/` | Admin SPA: reactive architecture (04-ARCH §5)           |
+| `infra/`   | Compose, nginx, deploy and backup scripts, runbooks     |
 | `tools/`   | Quality gate runner and its self-test (05-METRICS §11)  |
 | `docs/`    | ADRs and the [gate status table](docs/quality/gates.md) |
 
@@ -58,5 +59,15 @@ pnpm --filter cms-web dev
 Open <http://localhost:5173>. Vite forwards `/api/` to the API on port 3000, because the session
 cookie only works on the same site. After an API change, run `pnpm openapi:generate` in `cms-api`
 and then `pnpm --filter cms-web openapi:types`.
+
+## Run the whole stack in containers
+
+```bash
+infra/scripts/local-up.sh
+```
+
+This builds the images, starts everything behind nginx at <https://localhost:8443> with a self-signed
+certificate, and runs the smoke tests. The [operations runbook](infra/runbooks/README.md) covers this and
+deployment. People using the CMS have the [user guide](docs/user-guide.md).
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow.

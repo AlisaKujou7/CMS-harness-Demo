@@ -47,7 +47,7 @@ changes. `pnpm gate` runs the local steps, and `pnpm gate:self-test` proves that
 | Lighthouse and Web Vitals          | M-BUN-04..08         | Needs a decision on where it runs        |
 | Storybook and Chromatic            | 06-TEST-STRATEGY 8.6 | Needs a decision on the external service |
 | Slice size and invalidation review | M-STATE-01, 03       | By review                                |
-| Container scan, SBOM, signing      | G-05, M-INF-*        | Phase 8                                  |
+| SBOM, signing, image checks in CI  | G-05, M-INF-01..03   | Workflow written, never run. No remote   |
 
 ## Not measured by design for now
 
@@ -59,9 +59,7 @@ changes. `pnpm gate` runs the local steps, and `pnpm gate:self-test` proves that
 
 ## Known gaps in what passes
 
-- Deployed environments must connect as a login in the `cms_app` role. A test proves the app works
-  with only those privileges, and a trigger blocks changes for every role, but no environment is
-  configured this way until phase 8. Migrations must keep running as the owner.
+- Only the Compose stack connects as `cms_app`, which `infra/scripts/smoke-flow.sh` checks. Local development and E2E still use the owner.
 - Email delivery depends on `dist/worker.js` running, and a crash between commit and enqueue loses
   that email. Resending an invitation or a reset request recovers it.
 - Mutation testing skips driven adapters (`adapters/out`), because they need containers. They are
@@ -71,7 +69,9 @@ changes. `pnpm gate` runs the local steps, and `pnpm gate:self-test` proves that
   application are held to it, and adapters only count toward the overall 80%.
 - M-HEX-07 asks for an integration test per use case. The check proves that a spec imports each one.
 - SMTP is tested against a real server with STARTTLS, but not against a production provider or with authentication.
-- Graceful shutdown in `main.ts` has not been exercised, because Windows delivers no SIGTERM. Phase 8 can verify it in a container.
+- Graceful shutdown is verified by hand, by stopping the containers, and no automated test covers it. Both exit 0 within about a second.
+- `infra/scripts/check-images.sh` covers M-INF-01 to 03, but nothing runs it until the release workflow does. The deploy scripts and restore were rehearsed once by hand on Linux in Docker-in-Docker, not on a real VM. Bucket CORS was tried against the gateway, not AWS S3.
+- Alerts, metrics and error tracking from 07-OPS-ARCH 14 and 15 are not built, as ADR-0013 records. Terraform (M-INF-04) is not used.
 
 - M-BUN-02 is measured per file. The editor route is split into several files that each pass, but
   opening it downloads about 130 KB gzipped in total, over the 100 KB the metric asks of a route.
