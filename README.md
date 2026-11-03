@@ -68,6 +68,7 @@ infra/scripts/local-up.sh
 
 This builds the images, starts everything behind nginx at <https://localhost:8443> with a self-signed
 certificate, and runs the smoke tests. The [operations runbook](infra/runbooks/README.md) covers this and
-deployment. People using the CMS have the [user guide](docs/user-guide.md).
+deployment. People using the CMS have the [user guide](docs/user-guide.md). For a walkthrough with demo
+accounts and content, run `infra/scripts/demo-up.sh` and follow the [demo guide](docs/demo-guide.md).
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow.

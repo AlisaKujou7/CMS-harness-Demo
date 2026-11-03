@@ -27,7 +27,7 @@ choose a password. If it has expired, ask an Admin to use **Resend invite**.
 
 ## Writing content
 
-1. Open **Content**, then **Create**, and choose an article or a page.
+1. Open **Content**, choose the **Articles** or **Pages** tab, then **New Article** or **New Page**.
 2. Enter a **Title**. The **Slug**, the address of the item, is made from the title on the first save.
    Titles without Latin letters or digits, such as Thai ones, get a generated slug, which you should
    replace with something readable.
@@ -90,7 +90,7 @@ them a link, and you never see or set their password.
 **API Keys.** **New Key** creates a key for a frontend that reads published content. It is shown only
 once, so store it right away. **Revoke** stops it immediately.
 
-**Audit log.** **Audit** records who did what and when, such as sign-ins, publishing and changes to
+**Audit log.** **Audit Log** records who did what and when, such as sign-ins, publishing and changes to
 users. Nobody can alter it, and exporting it is itself recorded.
 
 ## When something goes wrong

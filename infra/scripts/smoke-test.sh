@@ -29,6 +29,16 @@ expect_status() {
   fi
 }
 
+# Takes the body as a value. Piping into `grep -q` could fail a healthy system, because grep stops
+# at its match, and pipefail then counts the writer's broken pipe.
+expect_body() {
+  local expected="$1" body="$2"
+  if ! grep -qi "${expected}" <<<"${body}"; then
+    echo "FAILED: the response does not contain ${expected}" >&2
+    exit 1
+  fi
+}
+
 expect_header() {
   local headers="$1" name="$2"
   if ! grep -qi "^${name}:" <<<"${headers}"; then
@@ -41,7 +51,7 @@ echo "1. Health"
 expect_status 200 "${base}/healthz"
 
 echo "2. Readiness inside the network, as the application's database role"
-compose exec -T nginx wget -qO- http://cms-api:3000/readyz | grep -q '"ready"'
+expect_body '"ready"' "$(compose exec -T nginx wget -qO- http://cms-api:3000/readyz)"
 
 echo "3. Readiness is not exposed outside"
 expect_status 404 "${base}/readyz"
@@ -58,8 +68,8 @@ else
 fi
 
 echo "6. Admin SPA, including a deep link on reload"
-curl "${curl_flags[@]}" -f "${base}/" | grep -qi '<title'
-curl "${curl_flags[@]}" -f "${base}/content" | grep -qi '<title'
+expect_body '<title' "$(curl "${curl_flags[@]}" -f "${base}/")"
+expect_body '<title' "$(curl "${curl_flags[@]}" -f "${base}/content")"
 
 echo "7. Security headers"
 spa_headers="$(curl "${curl_flags[@]}" -o /dev/null -D - "${base}/")"
