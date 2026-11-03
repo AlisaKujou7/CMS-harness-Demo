@@ -5,6 +5,11 @@ import {
 } from './composition/infrastructure.js';
 import { mediaDeps, wirePublicCacheInvalidation } from './composition/module-deps.js';
 import { createMaintenanceJobs } from './composition/maintenance-jobs.js';
+import {
+  HEARTBEAT_INTERVAL_MS,
+  HEARTBEAT_PATH,
+  startHeartbeat,
+} from './composition/worker-heartbeat.js';
 import { loadEnv } from './config/env.schema.js';
 import { startVariantWorker } from './modules/media/adapters/in/queue/variant-worker.js';
 import { GenerateMediaVariants } from './modules/media/application/use-cases/media-background.use-case.js';
@@ -27,11 +32,17 @@ const maintenance = await startMaintenance(
   createMaintenanceJobs(running.infrastructure, config.scheduledPublishIntervalMs),
   logger,
 );
+const stopHeartbeat = startHeartbeat(
+  HEARTBEAT_PATH,
+  HEARTBEAT_INTERVAL_MS,
+  () => emailWorker.isRunning() && variantWorker.isRunning(),
+);
 logger.info('Worker started');
 
 async function shutdown(signal: string): Promise<void> {
   try {
     logger.info('Shutting down', { signal });
+    stopHeartbeat();
     await maintenance.close();
     await variantWorker.close();
     await emailWorker.close();
