@@ -136,6 +136,9 @@ The stricter or more specific document wins unless noted.
 - `FEATURE_*`, `DB_POOL_*`, `HTTP_BODY_LIMIT_MB`, `SENTRY_*`, `OTEL_*`, `WORKER_CONCURRENCY`, `APP_*`, `API_PUBLIC_URL`, `LOG_FORMAT`, `PASSWORD_HASH_ALGO` and `RATE_LIMIT_ADMIN_MUTATION_PER_MIN` in 7.2 are left out of `.env.example`, which lists what the stack really reads.
 - Not built, and needs its own decision: `/metrics`, Prometheus and Alertmanager rules, Grafana, Sentry and off-host log forwarding (14.4, 15.2 to 15.4). Runbooks name those alerts as triggers, and say that detection is manual until they exist. Terraform (M-INF-04) is not used, because 3.1 allows any provider and no VM exists.
 
+- The Markdown fallback in 01-Requirements 6.1 is left out of the MVP. FR-CONTENT-15 in the more specific SRS does not ask for it, and it can be added later. Recorded as the choice for the Demo in T-002, since cutting scope belongs to the Product Owner.
+- There is no `notifications` module as 04-ARCH draws one. Email is the only notification, so it stays in a shared driven adapter until there is a second kind.
+
 ## Consequences
 
 - Positive: every interpretation is written down and reversible.
