@@ -25,6 +25,8 @@ export class ForgotPasswordPage {
   async request(email: string): Promise<void> {
     await this.page.goto('/login');
     await this.page.getByRole('link', { name: 'Forgot password?' }).click();
+    // The route loads lazily, and the sign-in form it replaces has an Email box too.
+    await expect(this.page.getByRole('heading', { name: 'Forgot your password?' })).toBeVisible();
     await this.page.getByRole('textbox', { name: 'Email' }).fill(email);
     await this.page.getByRole('button', { name: 'Send reset link' }).click();
     await expect(this.page.getByRole('status')).toContainText('reset link is on its way');
