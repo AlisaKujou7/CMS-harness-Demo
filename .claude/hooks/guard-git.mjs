@@ -4,6 +4,7 @@ import {
   changedSinceGate,
   classifyGitCommand,
   decideGitCommand,
+  tddContext,
 } from '../../tools/gates/git-guard.mjs';
 
 const ROOT = join(import.meta.dirname, '..', '..');
@@ -25,7 +26,9 @@ for await (const chunk of process.stdin) input += chunk;
 const command = JSON.parse(input).tool_input?.command ?? '';
 
 // Most commands are not commits, and the tree is only worth computing for those that are.
-const changed = classifyGitCommand(command).commits ? changedSinceGate(ROOT) : [];
-const { decision, reason } = decideGitCommand(command, changed);
+const { commits } = classifyGitCommand(command);
+const changed = commits ? changedSinceGate(ROOT) : [];
+const tdd = commits ? tddContext(ROOT) : undefined;
+const { decision, reason } = decideGitCommand(command, changed, tdd);
 // An `allow` here would also skip the user's permission settings, so it stays silent.
 if (decision !== 'allow') answer(decision, reason);

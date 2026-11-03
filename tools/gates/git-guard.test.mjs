@@ -79,4 +79,41 @@ describe('decideGitCommand', () => {
   it('asks before any push', () => {
     assert.equal(decision('git push origin main', []), 'ask');
   });
+
+  describe('TDD steps, which cannot pass a gate yet', () => {
+    const red = 'git commit -m "red(shared): log each request"';
+    const green = 'git commit -m "green(shared): log each request"';
+    const decide = (command, stagedFiles, headSubject = 'feat(a): b') =>
+      decideGitCommand(command, null, { stagedFiles, headSubject }).decision;
+
+    it('allows a red commit that holds a test, without a gate', () => {
+      assert.equal(decide(red, ['cms-api/src/a.spec.ts', 'cms-api/src/a.ts']), 'allow');
+      assert.equal(decide(red, ['cms-api/test/integration/a.ts']), 'allow');
+    });
+
+    it('refuses a red commit with no test staged', () => {
+      assert.equal(decide(red, ['cms-api/src/a.ts']), 'deny');
+      assert.equal(decide(red, []), 'deny');
+    });
+
+    it('allows green only straight after red or green', () => {
+      assert.equal(decide(green, ['a.ts'], 'red(shared): x'), 'allow');
+      assert.equal(decide(green, ['a.ts'], 'green(shared): x'), 'allow');
+      assert.equal(decide(green, ['a.ts'], 'feat(shared): x'), 'deny');
+    });
+
+    it('still skips no hooks', () => {
+      assert.equal(decide('git commit --no-verify -m "red(a): b"', ['a.spec.ts']), 'deny');
+    });
+
+    it('reads a message passed through a heredoc', () => {
+      const command = `git commit -m "$(cat <<'EOF'\nred(shared): x\nEOF\n)"`;
+      assert.equal(classifyGitCommand(command).tddStep, 'red');
+    });
+
+    it('holds an ordinary commit to the gate, even one that mentions red', () => {
+      assert.equal(classifyGitCommand('git commit -m "fix(a): red(b) text"').tddStep, null);
+      assert.equal(decide('git commit -m "fix(a): b"', ['a.spec.ts']), 'deny');
+    });
+  });
 });

@@ -1,16 +1,22 @@
 # CLAUDE.md
 
 Headless CMS MVP built from the specifications in `AIAGENT_POC/`. `README.md` has the commands, and
-`docs/harness-workflow.md` explains how the work is controlled.
+`docs/harness/README.md` explains how the work is controlled.
+
+**Start every session with `docs/harness/STATUS.md`, and check it against `git log`.**
 
 ## Working agreements
 
 - Reply to the user in Thai. Code, commits and repository documents stay in English, except the Thai
-  guides `docs/demo-guide.md` and `docs/harness-workflow.md`.
+  guides `docs/demo-guide.md` and `docs/harness/`.
+- All new work follows `docs/harness/workflow.md`. Write no code until the user approves the Contract in
+  its Ticket, and stop to ask rather than go beyond it. Never write Tickets, Handoffs or `red` and `green`
+  commits for work already done, or present them as if they happened at the time.
 - Commit only after `pnpm gate` passes, and read its result first. The hook in `.claude/settings.json`
-  refuses a commit otherwise, and refuses skipping git hooks.
-- Local commits are approved per phase. Never push or merge unless the user asks, each time.
-- Offer a code review at the end of a phase, then fix what the user chooses.
+  refuses a commit otherwise, and refuses skipping git hooks. `red` and `green` commits follow the
+  rules in the workflow instead.
+- Local commits are approved per Ticket. Never push or merge unless the user asks, each time.
+- Offer a code review at the end of a Ticket, then fix what the user chooses.
 - Commit subjects are lowercase with a scope from `commitlint.config.mjs`, and body lines stay within
   100 characters. A commit of about 240 files overflows lint-staged, so split large ones.
 - Run `pnpm gate:self-test` whenever a gate changes, and update `docs/quality/gates.md`.
@@ -35,6 +41,8 @@ Headless CMS MVP built from the specifications in `AIAGENT_POC/`. `README.md` ha
 - Unit specs with mocks miss real integration faults, so check with E2E and `infra/scripts/smoke-flow.sh`.
 - Code must run on Windows too. A path under `/tmp` once crashed the worker there.
 - Rebuild images before trusting a Compose check. One round once ran on old images and looked like a pass.
+- Routes load lazily and the old screen stays until the new one is ready. In a test, wait for the new
+  heading before filling a field that both screens have.
 - MUI marks what sits behind a modal `aria-hidden`, so role queries miss a toast there. Axe during a fade-in
   reports false contrast failures, so wait for finite animations first.
 

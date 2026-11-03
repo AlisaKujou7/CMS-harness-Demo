@@ -17,22 +17,45 @@ const gitRunning = (subcommand) =>
   new RegExp(`\\bgit\\b(?:\\s+-{1,2}\\S+(?:\\s+[^\\s-]\\S*)?)*\\s+${subcommand}\\b`);
 
 const SKIPS_HOOKS = /--no-verify|core\.hookspath|\bcommit\b[^;&|\n]*\s-[a-z]*n[a-z]*(?:\s|$)/i;
+// The start of the first -m message, written directly or through a heredoc.
+const TDD_STEP = /\s-[a-z]*m\s+["'](?:\$\(cat\s+<<-?\s*['"]?\w+['"]?\s+)?(red|green)\(/;
+const TEST_FILE = /\.(?:spec|test)\.[cm]?[jt]sx?$|(?:^|\/)test\//;
 
 export function classifyGitCommand(command) {
   const code = withoutQuotedText(command);
   const commits = gitRunning('commit').test(code);
   const pushes = gitRunning('push').test(code);
-  return { commits, pushes, skipsHooks: (commits || pushes) && SKIPS_HOOKS.test(code) };
+  return {
+    commits,
+    pushes,
+    skipsHooks: (commits || pushes) && SKIPS_HOOKS.test(code),
+    tddStep: commits ? (TDD_STEP.exec(command)?.[1] ?? null) : null,
+  };
+}
+
+// A failing test cannot pass a gate, so these two steps are held to their own rules, and the next
+// ordinary commit is what needs the gate. That keeps a task from ending on them.
+function decideTddStep(step, { stagedFiles, headSubject }) {
+  if (step === 'red') {
+    if (stagedFiles.some((file) => TEST_FILE.test(file))) return { decision: 'allow' };
+    return {
+      decision: 'deny',
+      reason: 'A red commit needs a test file staged. Run `git add` first, in a separate command.',
+    };
+  }
+  if (/^(?:red|green)\(/.test(headSubject)) return { decision: 'allow' };
+  return { decision: 'deny', reason: 'A green commit must follow a red commit on this branch.' };
 }
 
 // `changedSinceGate` is null when no gate has passed, or its tree is no longer known.
-export function decideGitCommand(command, changedSinceGate) {
-  const { commits, pushes, skipsHooks } = classifyGitCommand(command);
+export function decideGitCommand(command, changedSinceGate, tdd) {
+  const { commits, pushes, skipsHooks, tddStep } = classifyGitCommand(command);
   if (skipsHooks) {
     return { decision: 'deny', reason: 'Git hooks may not be skipped. Fix what they report.' };
   }
   if (pushes) return { decision: 'ask', reason: 'Pushing needs the user to approve it each time.' };
   if (!commits) return { decision: 'allow' };
+  if (tddStep !== null) return decideTddStep(tddStep, tdd);
   if (changedSinceGate === null) {
     return { decision: 'deny', reason: 'No full gate has passed. Run `pnpm gate` first.' };
   }
@@ -64,6 +87,14 @@ export function workingTree(root) {
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+}
+
+export function tddContext(root) {
+  const staged = git(root, ['diff', '--cached', '--name-only']);
+  return {
+    stagedFiles: staged === '' ? [] : staged.split('\n'),
+    headSubject: git(root, ['log', '-1', '--format=%s']),
+  };
 }
 
 export function writeGateStamp(root, tree) {
