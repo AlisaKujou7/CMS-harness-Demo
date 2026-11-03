@@ -85,7 +85,10 @@ export interface ContentVersion {
   readonly createdAt: Date;
 }
 
-export type ContentVersionSummary = Omit<ContentVersion, 'snapshot'>;
+// A list row names the editor for display, while a version itself only keeps the reference.
+export type ContentVersionSummary = Omit<ContentVersion, 'snapshot'> & {
+  readonly editorName: string | null;
+};
 
 export type ContentCounts = Readonly<Record<ContentStatus, number>>;
 
@@ -107,7 +110,9 @@ export interface ContentRepository {
     readonly parent: PublishedParent | null;
   } | null>;
   countPublishedMediaUsage(mediaId: string, now: Date): Promise<number>;
-  // Soft-deleted items do not exist as far as every caller is concerned.
+  // The one read that sees a soft-deleted item, so that Undo can bring it back.
+  findDeletedById(id: string): Promise<Content | null>;
+  // Soft-deleted items do not exist as far as every other caller is concerned.
   findById(id: string): Promise<Content | null>;
   findMany(criteria: ContentCriteria, page: PageRequest): Promise<PagedResult<ContentListItem>>;
   countByStatus(authorId: string | null): Promise<ContentCounts>;

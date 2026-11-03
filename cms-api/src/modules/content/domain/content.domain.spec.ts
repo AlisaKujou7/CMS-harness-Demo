@@ -403,6 +403,34 @@ describe('Content lifecycle methods', () => {
     });
   });
 
+  describe('undoUnpublish (03-DESIGN 15.1)', () => {
+    const unpublished = (overrides: Parameters<typeof publishable>[0] = {}) =>
+      publishable({ status: 'unpublished', publishedAt: T0, updatedAt: T0, ...overrides });
+    const atMs = (ms: number) => new Date(T0.getTime() + ms);
+
+    it('publishes again within 60 seconds and keeps published_at', () => {
+      const next = unpublished().undoUnpublish(atMs(60_000));
+
+      expect(next).toMatchObject({ status: 'published', publishedAt: T0 });
+    });
+
+    it('closes after 60 seconds', () => {
+      expect(() => unpublished().undoUnpublish(atMs(60_001))).toThrow(InvalidTransitionError);
+    });
+
+    it('applies only to unpublished content', () => {
+      const draft = unpublished({ status: 'draft' });
+
+      expect(() => draft.undoUnpublish(atMs(1))).toThrow(InvalidTransitionError);
+    });
+
+    it('still requires what publishing requires', () => {
+      const empty = unpublished({ body: EMPTY_DOCUMENT });
+
+      expect(() => empty.undoUnpublish(atMs(1))).toThrow(MissingRequiredFieldsError);
+    });
+  });
+
   describe('unpublish and archive', () => {
     it('unpublishes and keeps published_at', () => {
       const next = aContent({ status: 'published', publishedAt: T0 }).unpublish(after(1));
@@ -467,6 +495,15 @@ describe('Content lifecycle methods', () => {
 
       expect(next.deletedAt).toEqual(after(1));
       expect(next.scheduledAt).toBeNull();
+    });
+
+    it('can be undone, as a new version', () => {
+      const deleted = publishable().softDelete(after(1));
+
+      const next = deleted.restore(after(2));
+
+      expect(next.deletedAt).toBeNull();
+      expect(next).toMatchObject({ version: deleted.version + 1, updatedAt: after(2) });
     });
   });
 });

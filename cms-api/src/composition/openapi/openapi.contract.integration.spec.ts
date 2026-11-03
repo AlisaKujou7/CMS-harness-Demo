@@ -263,7 +263,26 @@ describe('the published specification (M-API-04)', () => {
         expect(
           mismatches(route('unpublishContent'), await act('unpublishContent', 'unpublish')),
         ).toEqual([]);
+        expect(
+          mismatches(
+            route('undoUnpublishContent'),
+            await act('undoUnpublishContent', 'unpublish/undo'),
+          ),
+        ).toEqual([]);
+        expect(
+          mismatches(route('unpublishContent'), await act('unpublishContent', 'unpublish')),
+        ).toEqual([]);
         expect(mismatches(route('archiveContent'), await act('archiveContent', 'archive'))).toEqual(
+          [],
+        );
+      });
+
+      it('restoreContent', async () => {
+        infra.contents.add(
+          aContent({ id: ACTION, slug: 'gone', authorId: ADMIN, deletedAt: infra.clock.now() }),
+        );
+
+        expect(mismatches(route('restoreContent'), await act('restoreContent', 'restore'))).toEqual(
           [],
         );
       });
@@ -295,7 +314,9 @@ describe('the published specification (M-API-04)', () => {
         'rejectContent',
         'publishContent',
         'unpublishContent',
+        'undoUnpublishContent',
         'archiveContent',
+        'restoreContent',
         'revertContent',
         'exportAuditEvents',
       ]);

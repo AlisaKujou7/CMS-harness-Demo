@@ -59,6 +59,7 @@ export class InMemoryContentRepository implements ContentRepository {
   readonly versions: ContentVersion[] = [];
   // Set to act as another user saving between this caller's read and its write.
   failNextSave: Error | null = null;
+  editorName: string | null = 'An Editor';
 
   add(content: Content): void {
     this.contents.set(content.id, content);
@@ -128,6 +129,11 @@ export class InMemoryContentRepository implements ContentRepository {
       (content) => isPublic(content, now) && referencedMediaIds(content).includes(mediaId),
     );
     return Promise.resolve(using.length);
+  }
+
+  findDeletedById(id: string): Promise<Content | null> {
+    const content = this.contents.get(id);
+    return Promise.resolve(content && content.deletedAt !== null ? content : null);
   }
 
   findById(id: string): Promise<Content | null> {
@@ -232,7 +238,17 @@ export class InMemoryContentRepository implements ContentRepository {
       .filter((version) => version.contentId === contentId)
       .sort((a, b) => b.versionNo - a.versionNo);
     const start = (page.page - 1) * page.pageSize;
-    return Promise.resolve(pagedResult(own.slice(start, start + page.pageSize), own.length, page));
+    const items = own
+      .slice(start, start + page.pageSize)
+      .map(({ id, contentId, versionNo, editorId, createdAt }) => ({
+        id,
+        contentId,
+        versionNo,
+        editorId,
+        createdAt,
+        editorName: this.editorName,
+      }));
+    return Promise.resolve(pagedResult(items, own.length, page));
   }
 
   findVersion(contentId: string, versionNo: number): Promise<ContentVersion | null> {

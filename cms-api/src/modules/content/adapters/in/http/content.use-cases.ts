@@ -27,9 +27,11 @@ export interface ContentUseCases {
   readonly publish: ContentActionUseCase;
   readonly reject: RejectContentUseCase;
   readonly unpublish: ContentActionUseCase;
+  readonly undoUnpublish: ContentActionUseCase;
   readonly archive: ContentActionUseCase;
   readonly schedule: ScheduleContentUseCase;
   readonly remove: DeleteContentUseCase;
+  readonly restore: ContentActionUseCase;
   readonly versions: ListContentVersionsUseCase;
   readonly version: GetContentVersionUseCase;
   readonly revert: RevertContentUseCase;

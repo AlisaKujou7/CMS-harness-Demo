@@ -1,4 +1,5 @@
 import type { Content } from '../../domain/entities/content.entity.js';
+import { ContentNotFoundError } from '../../domain/errors/content.errors.js';
 import type { ContentDeps } from '../content-deps.js';
 import { assertCanModerate, assertCanSubmit } from '../policies/content.policy.js';
 import type {
@@ -9,7 +10,13 @@ import type {
   RejectContentUseCase,
   ScheduleContentUseCase,
 } from '../ports/in/content.ports.js';
-import { type ContentMutation, mutateContent, toContentView } from '../services/content-helpers.js';
+import {
+  type ContentMutation,
+  mutateContent,
+  publishContentEvent,
+  recordChange,
+  toContentView,
+} from '../services/content-helpers.js';
 
 const noDetails = () => ({});
 
@@ -90,6 +97,20 @@ export class UnpublishContent implements ContentActionUseCase {
   }
 }
 
+export class UndoUnpublishContent implements ContentActionUseCase {
+  constructor(private readonly deps: ContentDeps) {}
+
+  async execute(command: ContentCommand): Promise<ContentView> {
+    const content = await mutateContent(this.deps, {
+      ...moderation(command),
+      action: 'content.unpublish_undo',
+      event: 'ContentPublished',
+      change: (current) => current.undoUnpublish(this.deps.clock.now()),
+    });
+    return toContentView(content);
+  }
+}
+
 export class ArchiveContent implements ContentActionUseCase {
   constructor(private readonly deps: ContentDeps) {}
 
@@ -136,5 +157,33 @@ export class DeleteContent implements DeleteContentUseCase {
       event: 'ContentDeleted',
       change: (current) => current.softDelete(this.deps.clock.now()),
     });
+  }
+}
+
+// The Undo that 03-DESIGN 15.1 offers after a delete. The deleted item gave up its slug, so this
+// fails with SLUG_TAKEN if another item has taken it since.
+export class RestoreContent implements ContentActionUseCase {
+  constructor(private readonly deps: ContentDeps) {}
+
+  async execute(command: ContentCommand): Promise<ContentView> {
+    const { actor, id, ip } = command;
+    assertCanModerate(actor);
+    const restored = await this.deps.tx.run(async () => {
+      const deleted = await this.deps.contents.findDeletedById(id);
+      if (!deleted) throw new ContentNotFoundError();
+      const next = deleted.restore(this.deps.clock.now());
+      await this.deps.contents.save(next);
+      await recordChange(this.deps, next, {
+        actorId: actor.id,
+        ip,
+        action: 'content.restore',
+        summary: {},
+      });
+      return next;
+    });
+    if (restored.status === 'published') {
+      await publishContentEvent(this.deps, 'ContentPublished', restored);
+    }
+    return toContentView(restored);
   }
 }

@@ -30,6 +30,8 @@ import { CreateContent } from './create-content.use-case.js';
 import {
   ArchiveContent,
   DeleteContent,
+  UndoUnpublishContent,
+  RestoreContent,
   PublishContent,
   RejectContent,
   ScheduleContent,
@@ -742,6 +744,86 @@ describe('content use cases', () => {
         stored();
 
         await expect(remove(author)).rejects.toThrow(ForbiddenError);
+      });
+    });
+
+    describe('UndoUnpublishContent', () => {
+      const undo = (actor: Actor) => new UndoUnpublishContent(deps).execute(command(actor));
+      const unpublished = () => {
+        stored({
+          status: 'unpublished',
+          slug: 'live',
+          title: 'T',
+          body: aTextBody('Text'),
+          updatedAt: clock.now(),
+        });
+      };
+
+      it('publishes again, audits it and clears the public cache', async () => {
+        unpublished();
+
+        await expect(undo(editor)).resolves.toMatchObject({ status: 'published' });
+
+        expect(audit.actions()).toEqual(['content.unpublish_undo']);
+        expect(events.published).toEqual([
+          { type: 'ContentPublished', contentId: ID, contentType: 'article', slug: 'live' },
+        ]);
+      });
+
+      it('forbids an Author', async () => {
+        unpublished();
+
+        await expect(undo(author)).rejects.toThrow(ForbiddenError);
+      });
+    });
+
+    describe('RestoreContent', () => {
+      const restore = (actor: Actor) => new RestoreContent(deps).execute(command(actor));
+      const deleted = (overrides: Parameters<typeof stored>[0] = {}) => {
+        stored({ deletedAt: clock.now(), slug: 'back', ...overrides });
+      };
+
+      it('brings a deleted item back as a new version, and audits it', async () => {
+        deleted({ version: 3 });
+
+        const view = await restore(editor);
+
+        expect(view).toMatchObject({ id: ID, slug: 'back', version: 4 });
+        expect(contents.get(ID).deletedAt).toBeNull();
+        expect(contents.versions[0]).toMatchObject({ versionNo: 4, editorId: editor.id });
+        expect(audit.actions()).toEqual(['content.restore']);
+        expect(audit.events[0]).toMatchObject({ actorId: editor.id, targetId: ID });
+      });
+
+      it('announces published content, since the public cache must learn of it', async () => {
+        deleted({ status: 'published' });
+
+        await restore(editor);
+
+        expect(events.published).toEqual([
+          { type: 'ContentPublished', contentId: ID, contentType: 'article', slug: 'back' },
+        ]);
+      });
+
+      it('announces nothing for content that is not public', async () => {
+        deleted({ status: 'draft' });
+
+        await restore(editor);
+
+        expect(events.published).toEqual([]);
+      });
+
+      it('refuses an item that is not deleted', async () => {
+        stored();
+
+        await expect(restore(editor)).rejects.toThrow(ContentNotFoundError);
+      });
+
+      it('forbids an Author, before looking anything up', async () => {
+        deleted({ authorId: author.id });
+
+        await expect(restore(author)).rejects.toThrow(ForbiddenError);
+        expect(contents.get(ID).deletedAt).not.toBeNull();
       });
     });
   });

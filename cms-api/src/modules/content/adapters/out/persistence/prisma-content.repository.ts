@@ -217,6 +217,13 @@ export class PrismaContentRepository implements ContentRepository {
     return row && toDomain(row);
   }
 
+  async findDeletedById(id: string): Promise<Content | null> {
+    const row = await this.db.client.content.findFirst({
+      where: { id, deletedAt: { not: null } },
+    });
+    return row && toDomain(row);
+  }
+
   async findMany(
     criteria: ContentCriteria,
     page: PageRequest,
@@ -322,13 +329,15 @@ export class PrismaContentRepository implements ContentRepository {
       this.db.client.contentVersion.findMany({
         where: { contentId },
         omit: { snapshot: true },
+        include: { editor: { select: { name: true } } },
         orderBy: { versionNo: 'desc' },
         skip: (page.page - 1) * page.pageSize,
         take: page.pageSize,
       }),
       this.db.client.contentVersion.count({ where: { contentId } }),
     ]);
-    return pagedResult(rows, total, page);
+    const items = rows.map(({ editor, ...row }) => ({ ...row, editorName: editor?.name ?? null }));
+    return pagedResult(items, total, page);
   }
 
   async findVersion(contentId: string, versionNo: number): Promise<ContentVersion | null> {

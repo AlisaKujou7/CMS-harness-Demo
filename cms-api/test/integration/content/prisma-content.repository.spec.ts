@@ -354,6 +354,20 @@ describe('PrismaContentRepository', () => {
     await expect(repo.hasChildren(id(1))).resolves.toBe(true);
   });
 
+  describe('findDeletedById', () => {
+    it('finds only what has been soft deleted', async () => {
+      await repo.create(item(1));
+      await expect(repo.findDeletedById(id(1))).resolves.toBeNull();
+
+      const stored = await repo.findById(id(1));
+      if (!stored) throw new Error('Expected the item to exist');
+      await repo.save(stored.softDelete(new Date('2026-05-02T00:00:00Z')));
+
+      await expect(repo.findDeletedById(id(1))).resolves.toMatchObject({ id: id(1) });
+      await expect(repo.findById(id(1))).resolves.toBeNull();
+    });
+  });
+
   describe('versions', () => {
     beforeEach(() => repo.create(item(1)));
 
@@ -365,6 +379,7 @@ describe('PrismaContentRepository', () => {
       expect(list.items.map((version) => version.versionNo)).toEqual([2, 1]);
       expect(list.total).toBe(2);
       expect(list.items[0]).not.toHaveProperty('snapshot');
+      expect(list.items[0]).toMatchObject({ editorName: 'Ann Author' });
 
       await expect(repo.findVersion(id(1), 2)).resolves.toEqual(aVersion(id(1), 2));
       await expect(repo.findVersion(id(1), 9)).resolves.toBeNull();

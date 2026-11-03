@@ -140,7 +140,10 @@ const versionFields = {
   editor_id: uuid.nullable(),
   created_at: timestamp,
 };
-export const contentVersion = z.strictObject(versionFields);
+export const contentVersion = z.strictObject({
+  ...versionFields,
+  editor_name: z.string().nullable(),
+});
 export const contentVersionDetail = z.strictObject({
   ...versionFields,
   snapshot: z.strictObject(contentFields),

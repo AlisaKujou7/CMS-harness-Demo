@@ -186,12 +186,19 @@ function toVersionSummary(version: ContentVersionSummary) {
     id: version.id,
     version_no: version.versionNo,
     editor_id: version.editorId,
+    editor_name: version.editorName,
     created_at: version.createdAt,
   };
 }
 
 function toVersionDetail(version: ContentVersionDetail) {
-  return { ...toVersionSummary(version), snapshot: snapshotFields(version.snapshot) };
+  return {
+    id: version.id,
+    version_no: version.versionNo,
+    editor_id: version.editorId,
+    created_at: version.createdAt,
+    snapshot: snapshotFields(version.snapshot),
+  };
 }
 
 const toData = (content: ContentView) => ({ data: toResponse(content) });
@@ -265,6 +272,28 @@ export class ContentController {
     @ClientIp() ip: string | null,
   ): Promise<void> {
     await this.useCases.remove.execute({ actor, ip, id: parseId(id) });
+  }
+
+  @Post(':id/unpublish/undo')
+  @RequireRoles('admin', 'editor')
+  @HttpCode(200)
+  async undoUnpublish(
+    @Param('id') id: string,
+    @CurrentActor() actor: Actor,
+    @ClientIp() ip: string | null,
+  ) {
+    return toData(await this.useCases.undoUnpublish.execute({ actor, ip, id: parseId(id) }));
+  }
+
+  @Post(':id/restore')
+  @RequireRoles('admin', 'editor')
+  @HttpCode(200)
+  async restore(
+    @Param('id') id: string,
+    @CurrentActor() actor: Actor,
+    @ClientIp() ip: string | null,
+  ) {
+    return toData(await this.useCases.restore.execute({ actor, ip, id: parseId(id) }));
   }
 
   @Post(':id/submit')

@@ -8,6 +8,7 @@ import type {
   ContentCriteria,
   ContentListItem,
   ContentSnapshot,
+  ContentVersion,
   ContentVersionSummary,
   PublishedCriteria,
   PublishedListItem,
@@ -82,9 +83,7 @@ export interface ListContentCommand extends Partial<
   readonly pageSize?: number;
 }
 
-export interface ContentVersionDetail extends ContentVersionSummary {
-  readonly snapshot: ContentSnapshot;
-}
+export type ContentVersionDetail = ContentVersion;
 
 export interface CreateContentUseCase {
   execute(command: CreateContentCommand): Promise<ContentView>;

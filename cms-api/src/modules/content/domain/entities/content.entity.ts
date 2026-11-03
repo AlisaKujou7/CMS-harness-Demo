@@ -9,6 +9,8 @@ import { EMPTY_DOCUMENT, plainText, type RichTextNode } from '../services/rich-t
 import { safeText } from '../../../../shared/kernel/text-safety.js';
 import { Slug } from '../value-objects/slug.vo.js';
 
+const UNDO_UNPUBLISH_WINDOW_MS = 60_000;
+
 const MAX_TITLE_LENGTH = 200;
 const MAX_SEO_TITLE_LENGTH = 70;
 const MAX_SEO_DESCRIPTION_LENGTH = 160;
@@ -246,6 +248,17 @@ export class Content implements ContentProps {
     return this.next({ status: 'unpublished' }, now);
   }
 
+  // The Undo that 03-DESIGN 15.1 offers for 60 seconds. 5.4.1 draws no path back, so it is only
+  // open while nothing has changed since the unpublish, which any later save would show.
+  undoUnpublish(now: Date): Content {
+    const expired = now.getTime() - this.updatedAt.getTime() > UNDO_UNPUBLISH_WINDOW_MS;
+    if (this.status !== 'unpublished' || expired) {
+      throw new InvalidTransitionError(this.status, 'published');
+    }
+    assertPublishable(this);
+    return this.next({ status: 'published' }, now);
+  }
+
   archive(now: Date): Content {
     assertTransition(this.status, 'archived');
     return this.next({ status: 'archived' }, now);
@@ -264,6 +277,10 @@ export class Content implements ContentProps {
 
   softDelete(now: Date): Content {
     return this.next({ deletedAt: now, scheduledAt: null }, now);
+  }
+
+  restore(now: Date): Content {
+    return this.next({ deletedAt: null }, now);
   }
 
   effectiveSeo(): { title: string; description: string } {

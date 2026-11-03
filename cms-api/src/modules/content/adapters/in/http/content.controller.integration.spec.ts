@@ -339,6 +339,42 @@ describe('content endpoints', () => {
       await http(app).delete(`${CONTENT}/${ID}`).set('Authorization', editor).expect(204);
       await http(app).get(`${CONTENT}/${ID}`).set('Authorization', editor).expect(404);
     });
+
+    it('restores a deleted item, and forbids Authors from doing so', async () => {
+      store();
+      const editor = await bearer('editor');
+      await http(app).delete(`${CONTENT}/${ID}`).set('Authorization', editor).expect(204);
+
+      const author = await bearer('author');
+      await http(app).post(`${CONTENT}/${ID}/restore`).set('Authorization', author).expect(403);
+      const restored = await http(app)
+        .post(`${CONTENT}/${ID}/restore`)
+        .set('Authorization', editor)
+        .expect(200);
+
+      expect(restored.body).toMatchObject({ data: { id: ID } });
+      await http(app).get(`${CONTENT}/${ID}`).set('Authorization', editor).expect(200);
+    });
+
+    it('undoes an unpublish for an Editor, and forbids Authors from doing so', async () => {
+      store({ status: 'unpublished', body: aTextBody('Text'), updatedAt: infra.clock.now() });
+      const author = await bearer('author');
+      const editor = await bearer('editor');
+      const undo = `${CONTENT}/${ID}/unpublish/undo`;
+
+      await http(app).post(undo).set('Authorization', author).expect(403);
+      const res = await http(app).post(undo).set('Authorization', editor).expect(200);
+
+      expect(res.body).toMatchObject({ data: { status: 'published' } });
+      await http(app).post(undo).set('Authorization', editor).expect(409);
+    });
+
+    it('answers 404 when restoring an item that is not deleted', async () => {
+      store();
+      const editor = await bearer('editor');
+
+      await http(app).post(`${CONTENT}/${ID}/restore`).set('Authorization', editor).expect(404);
+    });
   });
 
   describe('GET /content', () => {
@@ -458,8 +494,8 @@ describe('content endpoints', () => {
         .expect(200);
       expect(list.body).toMatchObject({
         data: [
-          { version_no: 3, editor_id: actorId('author') },
-          { version_no: 2, editor_id: actorId('author') },
+          { version_no: 3, editor_id: actorId('author'), editor_name: 'An Editor' },
+          { version_no: 2, editor_id: actorId('author'), editor_name: 'An Editor' },
         ],
         pagination: { total: 2 },
       });
