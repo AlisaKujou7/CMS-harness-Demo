@@ -171,6 +171,12 @@ const SCENARIOS = [
     expect: /complexity/,
   },
   {
+    name: 'browser code uses a Node global',
+    files: { 'cms-web/src/shared/zzq.ts': 'export const home = process.env.HOME;\n' },
+    command: 'pnpm --filter cms-web typecheck',
+    expect: /process/,
+  },
+  {
     name: 'unchecked indexed access',
     files: {
       'cms-api/src/shared/zzq.ts':

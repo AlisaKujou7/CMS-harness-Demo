@@ -6,35 +6,36 @@ changes. `pnpm gate` runs the local steps, and `pnpm gate:self-test` proves that
 
 ## G-03 PR gate
 
-| Check                                                   | Metric                     | Status                                             |
-| ------------------------------------------------------- | -------------------------- | -------------------------------------------------- |
-| TypeScript compile and strict flags                     | M-TS-01..05                | Enforced. Self-tested                              |
-| ESLint and Prettier, 0 warnings                         | M-LINT-01..03              | Enforced                                           |
-| Complexity and size limits                              | M-CPX-01..07               | Enforced. Self-tested for complexity               |
-| `any` and undocumented suppressions                     | M-DEBT-04..06              | Enforced. Self-tested for `any`                    |
-| Unlinked TODO and FIXME                                 | M-DEBT-02                  | Enforced. Self-tested                              |
-| Skipped and focused tests                               | M-TEST-05                  | Enforced. Self-tested for skipped tests            |
-| Hexagonal rules                                         | M-HEX-01..05               | Enforced. Self-tested                              |
-| Fake for every outbound port                            | M-HEX-06                   | Enforced. Self-tested                              |
-| Use case without a spec                                 | M-HEX-07                   | Enforced as "a spec imports it". Self-tested       |
-| Mutable domain fields and setters                       | M-HEX-08                   | Enforced for fields and setters. Self-tested       |
-| Circular dependencies                                   | M-DEP-01                   | Enforced. Self-tested                              |
-| Reactive rules                                          | M-RX-01,02,04..08          | Enforced. Self-tested for 01, 04, 06 and 08        |
-| Query key convention, stream teardown                   | M-STATE-02,04              | Enforced as lint rules. Self-tested                |
-| UI text in message files                                | NFR-I18N-03                | Enforced for JSX text and text props. Self-tested  |
-| React hooks and JSX accessibility                       | NFR-USE-03                 | Enforced with lint, and axe in component tests     |
-| Coverage, overall and per layer                         | §3.2, §3.3                 | Enforced across unit and Docker tests. Self-tested |
-| Mutation score                                          | M-TDD-03, M-TEST-06        | Enforced on the in-process suite. Self-tested      |
-| Mutation on domain and critical code                    | M-TEST-07, §3.3            | Enforced at 90% by group. Self-tested              |
-| Duplication                                             | M-DUP-01                   | Enforced. Self-tested                              |
-| Bundle budgets                                          | M-BUN-01..03               | Enforced                                           |
-| E2E flows on the built SPA, axe with contrast, keyboard | G-04, 06-TEST-STRATEGY 9.2 | Enforced by `pnpm test:e2e`, in `pnpm gate`        |
-| License allow-list                                      | M-LIC-01..03               | Enforced for production dependencies               |
-| Dependency CVEs, critical and high                      | M-SEC-01,02,05             | Enforced                                           |
-| Commit and PR title format                              | M-PR-06                    | Enforced                                           |
-| Test-to-code ratio                                      | M-TDD-01,06                | Skipped until `origin/main` exists                 |
-| Secret scan                                             | M-SAST-02                  | Enforced locally, in pre-commit and in CI          |
-| SAST (CodeQL)                                           | M-SAST-01                  | CI workflow written, never run                     |
+| Check                                                               | Metric                     | Status                                             |
+| ------------------------------------------------------------------- | -------------------------- | -------------------------------------------------- |
+| TypeScript compile and strict flags                                 | M-TS-01..05                | Enforced. Self-tested                              |
+| Browser source free of Node types                                   | M-TS                       | Enforced by `tsconfig.browser.json`. Self-tested   |
+| ESLint and Prettier, 0 warnings                                     | M-LINT-01..03              | Enforced                                           |
+| Complexity and size limits                                          | M-CPX-01..07               | Enforced. Self-tested for complexity               |
+| `any` and undocumented suppressions                                 | M-DEBT-04..06              | Enforced. Self-tested for `any`                    |
+| Unlinked TODO and FIXME                                             | M-DEBT-02                  | Enforced. Self-tested                              |
+| Skipped and focused tests                                           | M-TEST-05                  | Enforced. Self-tested for skipped tests            |
+| Hexagonal rules                                                     | M-HEX-01..05               | Enforced. Self-tested                              |
+| Fake for every outbound port                                        | M-HEX-06                   | Enforced. Self-tested                              |
+| Use case without a spec                                             | M-HEX-07                   | Enforced as "a spec imports it". Self-tested       |
+| Mutable domain fields and setters                                   | M-HEX-08                   | Enforced for fields and setters. Self-tested       |
+| Circular dependencies                                               | M-DEP-01                   | Enforced. Self-tested                              |
+| Reactive rules                                                      | M-RX-01,02,04..08          | Enforced. Self-tested for 01, 04, 06 and 08        |
+| Query key convention, stream teardown                               | M-STATE-02,04              | Enforced as lint rules. Self-tested                |
+| UI text in message files                                            | NFR-I18N-03                | Enforced for JSX text and text props. Self-tested  |
+| React hooks and JSX accessibility                                   | NFR-USE-03                 | Enforced with lint, and axe in component tests     |
+| Coverage, overall and per layer                                     | §3.2, §3.3                 | Enforced across unit and Docker tests. Self-tested |
+| Mutation score                                                      | M-TDD-03, M-TEST-06        | Enforced on the in-process suite. Self-tested      |
+| Mutation on domain and critical code                                | M-TEST-07, §3.3            | Enforced at 90% by group. Self-tested              |
+| Duplication                                                         | M-DUP-01                   | Enforced. Self-tested                              |
+| Bundle budgets                                                      | M-BUN-01..03               | Enforced                                           |
+| E2E flows on the built SPA, axe with contrast, keyboard on one flow | G-04, 06-TEST-STRATEGY 9.2 | Enforced by `pnpm test:e2e`, in `pnpm gate`        |
+| License allow-list                                                  | M-LIC-01..03               | Enforced for production dependencies               |
+| Dependency CVEs, critical and high                                  | M-SEC-01,02,05             | Enforced                                           |
+| Commit and PR title format                                          | M-PR-06                    | Enforced                                           |
+| Test-to-code ratio                                                  | M-TDD-01,06                | Skipped until `origin/main` exists                 |
+| Secret scan                                                         | M-SAST-02                  | Enforced locally, in pre-commit and in CI          |
+| SAST (CodeQL)                                                       | M-SAST-01                  | CI workflow written, never run                     |
 
 ## Not enforced yet
 
@@ -80,7 +81,11 @@ changes. `pnpm gate` runs the local steps, and `pnpm gate:self-test` proves that
   writes for components, because its JSX is markup. Complexity limits still apply to it. Hooks and
   other functions keep the 50 lines.
 - The axe scans in component tests leave out color contrast, since jsdom has no layout. The E2E
-  accessibility flow checks it in a real browser, in both themes, on the main screens with no dialog open.
+  accessibility flow checks it in a real browser, in both themes, on the main screens, a row menu and
+  the media picker. Other dialogs and error states are not scanned for contrast.
+- 06-TEST-STRATEGY 8.7 asks for keyboard-only checks of all interactive flows. One flow does this:
+  signing in, finding an article, using its menu, and saving an edit. Screen reader checks with NVDA
+  or VoiceOver are manual and have not been done.
 - `eslint-plugin-jsx-a11y` declares support up to ESLint 9. It runs under ESLint 10 today, and needs
   replacing if a later ESLint breaks it.
 

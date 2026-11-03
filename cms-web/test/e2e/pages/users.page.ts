@@ -23,9 +23,9 @@ export class UsersPage {
     const row = this.page.getByRole('row').filter({ hasText: name });
     const next = this.page.getByRole('button', { name: 'Next' });
     await expect(this.page.getByRole('table', { name: 'Users' })).toBeVisible();
-    while ((await row.count()) === 0 && (await next.isEnabled())) {
+    for (let page = 2; (await row.count()) === 0 && (await next.isEnabled()); page += 1) {
       await next.click();
-      await this.page.waitForLoadState('networkidle');
+      await expect(this.page.getByText(new RegExp(`^Page ${String(page)} of`))).toBeVisible();
     }
     return row;
   }

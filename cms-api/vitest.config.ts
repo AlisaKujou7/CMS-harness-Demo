@@ -6,6 +6,9 @@ const FULL = { lines: 100, functions: 100, branches: 100, statements: 100 };
 // in process. `docker` runs driven adapters against real Postgres and Redis containers.
 // Thresholds follow 05-METRICS 3.2 (per layer) and 3.3 (critical paths).
 export default defineConfig({
+  // Its own cache: packages run at once, and a shared one fails with EBUSY on Windows when both
+  // rebuild it after a dependency change.
+  cacheDir: 'node_modules/.vitest',
   test: {
     projects: [
       { test: { name: 'unit', include: ['src/**/*.spec.ts'] } },

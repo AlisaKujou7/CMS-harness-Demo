@@ -4,6 +4,9 @@ import { defineConfig } from 'vitest/config';
 // Thresholds follow 05-METRICS 3.2. The app shell is verified by E2E only.
 export default defineConfig({
   plugins: [react()],
+  // Its own cache: packages run at once, and a shared one fails with EBUSY on Windows when both
+  // rebuild it after a dependency change.
+  cacheDir: 'node_modules/.vitest',
   test: {
     environment: 'jsdom',
     environmentOptions: { jsdom: { url: 'http://localhost:5173/' } },

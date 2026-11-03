@@ -10,7 +10,8 @@ export async function publicTitles(request: APIRequestContext, apiKey: string): 
   const response = await request.get('/api/v1/articles?page_size=100', {
     headers: { 'X-API-Key': apiKey },
   });
-  if (!response.ok()) return [];
+  // A failure must not read as "not listed", or an outage would pass for an unpublished article.
+  if (!response.ok()) throw new Error(`The public API answered ${String(response.status())}`);
   const { data } = (await response.json()) as { data: readonly PublicArticle[] };
   return data.map((article) => article.title);
 }

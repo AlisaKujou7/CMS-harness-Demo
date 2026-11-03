@@ -67,9 +67,11 @@ export class ContentEditorPage {
   }
 
   // Seconds are what let a flow watch a schedule fire without waiting minutes for it.
-  async scheduleAt(when: Date): Promise<void> {
+  // The clock starts once the dialog is open, so a slow machine does not use up the lead.
+  async scheduleIn(leadMs: number): Promise<void> {
     await this.button('Schedule...').click();
     const dialog = this.page.getByRole('dialog');
+    const when = new Date(Date.now() + leadMs);
     await dialog.getByLabel('Publish on').fill(toLocalInputWithSeconds(when));
     await dialog.getByRole('button', { name: 'Schedule' }).click();
     await this.expectStatus('Scheduled');

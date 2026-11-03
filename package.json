@@ -20,7 +20,7 @@
     "depcruise": "pnpm -r depcruise",
     "test": "pnpm -r test",
     "test:unit": "pnpm -r test:unit",
-    "test:cov": "pnpm -r --workspace-concurrency=1 test:cov",
+    "test:cov": "pnpm -r test:cov",
     "test:integration": "pnpm -r test:integration",
     "test:mutation": "pnpm -r test:mutation",
     "test:e2e": "pnpm --filter cms-web test:e2e",

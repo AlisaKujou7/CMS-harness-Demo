@@ -1,16 +1,24 @@
 import { expect, type Page } from '@playwright/test';
 
 export class LoginPage {
+  private lastStatus: number | null = null;
+
   constructor(private readonly page: Page) {}
 
   async goto(): Promise<void> {
     await this.page.goto('/login');
   }
 
+  // Waits for this attempt's answer, since the banner from the last attempt says the same thing.
   async submit(email: string, password: string): Promise<void> {
     await this.page.getByRole('textbox', { name: 'Email' }).fill(email);
     await this.page.getByRole('textbox', { name: 'Password' }).fill(password);
+    const answer = this.page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' && response.url().endsWith('/api/admin/auth/login'),
+    );
     await this.page.getByRole('button', { name: 'Sign in' }).click();
+    this.lastStatus = (await answer).status();
   }
 
   // Signs in and accepts the privacy notice a new browser shows on first login.
@@ -30,6 +38,7 @@ export class LoginPage {
   }
 
   async expectRefused(): Promise<void> {
+    expect(this.lastStatus).toBe(401);
     await expect(this.error).toContainText('incorrect');
     await expect(this.page).toHaveURL(/\/login$/);
   }

@@ -32,12 +32,14 @@ export async function seedUser(role: Role): Promise<TestUser> {
   const id = randomUUID();
   const name = uniqueName(role);
   const email = `${name}@e2e.test`;
-  await query(
+  const inserted = await query(
     `INSERT INTO users (id, email, name, password_hash, role, status, created_at, updated_at)
      SELECT $1, $2, $3, password_hash, $4::user_role, 'active', now(), now()
-     FROM users WHERE email = $5`,
+     FROM users WHERE email = $5
+     RETURNING id`,
     [id, email, name, role, ADMIN_EMAIL],
   );
+  if (inserted.length !== 1) throw new Error(`The seeded Admin ${ADMIN_EMAIL} is missing`);
   return { id, email, name, password: USER_PASSWORD };
 }
 

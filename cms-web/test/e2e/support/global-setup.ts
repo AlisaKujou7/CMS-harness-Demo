@@ -1,6 +1,7 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { mkdirSync, openSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { join } from 'node:path';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { RedisContainer } from '@testcontainers/redis';
@@ -110,6 +111,29 @@ function startProcess(name: string, args: readonly string[], cwd: string, env: N
   return spawn(process.execPath, args, { cwd, env, stdio: ['ignore', log, log] });
 }
 
+// A leftover server on these ports would answer for the one this run starts.
+async function assertPortFree(port: number): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const probe = createServer();
+    probe.once('error', () => {
+      reject(new Error(`Port ${String(port)} is in use. Stop whatever holds it first.`));
+    });
+    probe.listen(port, () => {
+      probe.close(() => {
+        resolve();
+      });
+    });
+  });
+}
+
+function failsIfItExits(name: string, child: ChildProcess): Promise<never> {
+  return new Promise((_resolve, reject) => {
+    child.once('exit', (code) => {
+      reject(new Error(`${name} exited with ${String(code)} during startup. See ${LOG_DIR}.`));
+    });
+  });
+}
+
 async function waitFor(url: string): Promise<void> {
   const deadline = Date.now() + READY_TIMEOUT_MS;
   while (Date.now() < deadline) {
@@ -143,6 +167,7 @@ async function prepareDatabase(services: Services, env: NodeJS.ProcessEnv): Prom
 // storage and mail servers, in containers that exist for this run alone.
 export default async function globalSetup(): Promise<() => Promise<void>> {
   mkdirSync(LOG_DIR, { recursive: true });
+  await Promise.all([assertPortFree(API_PORT), assertPortFree(WEB_PORT)]);
   const services = await startServices();
   const running: ChildProcess[] = [];
   const stop = async () => {
@@ -153,18 +178,23 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
     const env = apiEnv(services);
     await prepareDatabase(services, env);
     runToEnd('pnpm build', WEB_DIR);
-    running.push(startProcess('api', ['dist/main.js'], API_DIR, env));
-    running.push(startProcess('worker', ['dist/worker.js'], API_DIR, env));
-    running.push(
-      startProcess(
-        'web',
-        ['node_modules/vite/bin/vite.js', 'preview', '--port', String(WEB_PORT), '--strictPort'],
-        WEB_DIR,
-        { ...process.env, CMS_API_PROXY: API_URL },
-      ),
+    const api = startProcess('api', ['dist/main.js'], API_DIR, env);
+    const worker = startProcess('worker', ['dist/worker.js'], API_DIR, env);
+    const web = startProcess(
+      'web',
+      ['node_modules/vite/bin/vite.js', 'preview', '--port', String(WEB_PORT), '--strictPort'],
+      WEB_DIR,
+      { ...process.env, CMS_API_PROXY: API_URL },
     );
-    await waitFor(`${API_URL}/readyz`);
-    await waitFor(WEB_URL);
+    running.push(api, worker, web);
+    const crashes = [
+      failsIfItExits('The API', api),
+      failsIfItExits('The worker', worker),
+      failsIfItExits('The web server', web),
+    ];
+    // Stopping them at the end of the run also ends these, and nobody is waiting by then.
+    for (const crash of crashes) crash.catch(() => undefined);
+    await Promise.race([Promise.all([waitFor(`${API_URL}/readyz`), waitFor(WEB_URL)]), ...crashes]);
     process.env[ENV_DATABASE_URL] = services.postgres;
     process.env[ENV_MAILPIT_URL] = services.mailpit;
     return stop;
