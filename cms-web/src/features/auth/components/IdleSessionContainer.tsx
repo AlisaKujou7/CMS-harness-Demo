@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { ConfirmDialog } from '../../../design-system/components/ConfirmDialog';
 import { useObservableState } from '../../../shared/hooks/useObservableState';
-import { makeIdleSession, userActivity$ } from '../../../shared/streams/idle-session.stream';
+import { makeIdleSession, sharedActivity$ } from '../../../shared/streams/idle-session.stream';
 import { notify } from '../../../shared/stores/ui.store';
 import { authMessages as m } from '../auth.messages';
 import { useLogout } from '../hooks/useLogout';
@@ -15,7 +15,7 @@ export function IdleSessionContainer() {
   const logout = useLogout();
   const idle$ = useMemo(
     () =>
-      makeIdleSession(userActivity$(), {
+      makeIdleSession(sharedActivity$(), {
         warnAfterMs: IDLE_WARN_MS,
         expireAfterMs: IDLE_EXPIRE_MS,
       }),

@@ -14,6 +14,22 @@ export interface ContentSaveArgs {
   onCreated(content: ContentDetail): void;
 }
 
+const NORMALIZED_FIELDS = ['title', 'slug', 'seo_title', 'seo_description'] as const;
+
+// The server trims text, strips tags and makes the first slug. A field still holding what was sent
+// takes the server's version, or it would look unsaved forever. One edited since is left alone.
+function takeServerText(
+  form: UseFormReturn<EditorValues>,
+  sent: EditorValues,
+  saved: EditorValues,
+): void {
+  for (const name of NORMALIZED_FIELDS) {
+    if (saved[name] !== sent[name] && form.getValues(name) === sent[name]) {
+      form.setValue(name, saved[name]);
+    }
+  }
+}
+
 // Knows what the server last confirmed, and sends only the difference with that version.
 export function useContentSave(args: ContentSaveArgs) {
   const { form, type, initial } = args;
@@ -31,9 +47,18 @@ export function useContentSave(args: ContentSaveArgs) {
       baseline.current = toValues(saved);
       setContent(saved);
       queryClient.setQueryData(['content', 'detail', saved.id], saved);
-      if (form.getValues('slug') === '') form.setValue('slug', saved.slug);
     },
-    [form, queryClient],
+    [queryClient],
+  );
+
+  const send = useCallback(
+    (values: EditorValues, existing: ContentDetail | null) => {
+      if (existing === null) return createContent(toCreateBody(type, values));
+      const patch = toPatch(baseline.current, values);
+      if (patch === null) return null;
+      return updateContent(existing.id, { ...patch, version: existing.version });
+    },
+    [type],
   );
 
   const save = useCallback(async (): Promise<boolean> => {
@@ -41,17 +66,14 @@ export function useContentSave(args: ContentSaveArgs) {
     const existing = current.current;
     if (paused.current || !latest.current.canEdit(existing)) return false;
     if (!editorSchema.safeParse(values).success) return false;
-    if (existing === null) {
-      const created = await createContent(toCreateBody(type, values));
-      adopt(created);
-      latest.current.onCreated(created);
-      return true;
-    }
-    const patch = toPatch(baseline.current, values);
-    if (patch === null) return false;
-    adopt(await updateContent(existing.id, { ...patch, version: existing.version }));
+    const request = send(values, existing);
+    if (request === null) return false;
+    const saved = await request;
+    adopt(saved);
+    takeServerText(form, values, toValues(saved));
+    if (existing === null) latest.current.onCreated(saved);
     return true;
-  }, [adopt, form, type]);
+  }, [adopt, form, send]);
 
   const hasUnsaved = useCallback(
     () => toPatch(baseline.current, form.getValues()) !== null,

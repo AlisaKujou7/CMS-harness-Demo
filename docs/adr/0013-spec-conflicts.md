@@ -111,6 +111,10 @@ The stricter or more specific document wins unless noted.
 - Navigation uses the rail from 840 pixels and the drawer below it, following the breakpoint table in 03-DESIGN 11.4 over the 1240 in 10.3, which contradicts it.
 - A component is held to 200 lines (M-RX-07) rather than the 50 of M-CPX-04, because its JSX is markup. Complexity limits still apply.
 
+- Autosave stops once content is Published, so unfinished edits do not reach the public. 03-DESIGN 19.4 asks for autosave without excepting anything, but an edit to live content stays live, as this ADR records above. Edits there wait for Save changes, and the prompt on leaving still protects them. A separate draft of live content would be better, and needs a new data model.
+- An outage during a token refresh keeps the session and fails the request, so it can be retried. Only a 401 from the refresh ends the session. FR-AUTH-05 is unaffected, because a revoked token still gets that 401.
+- Activity in any tab counts for SEC-12's idle timeout in every tab, because signing out revokes the session they share.
+
 ## Consequences
 
 - Positive: every interpretation is written down and reversible.

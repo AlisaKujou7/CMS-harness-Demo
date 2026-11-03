@@ -58,8 +58,7 @@ export function ContentEditorContainer(props: ContentEditorProps) {
   });
   const { content, form } = editor;
   const { can, status, crumb, historyPath, scheduledLabel } = describeEditor(viewer, type, content);
-  const save = () => void editor.saveNow();
-  const { target } = actions;
+  const save = editor.saveOnBlur;
 
   return (
     <>
@@ -74,7 +73,7 @@ export function ContentEditorContainer(props: ContentEditorProps) {
         scheduledLabel={scheduledLabel}
         canCancelSchedule={can.canSchedule}
         onCancelSchedule={() => {
-          if (target) actions.schedule.mutate({ target, at: null });
+          actions.scheduleAt(null);
         }}
       />
       <Box
@@ -120,14 +119,8 @@ export function ContentEditorContainer(props: ContentEditorProps) {
         blocker={navigation.blocker}
         onConfirm={actions.confirm}
         onClose={actions.close}
-        onSchedule={(at) => {
-          actions.close();
-          if (target) actions.schedule.mutate({ target, at });
-        }}
-        onReject={(note) => {
-          actions.close();
-          if (target) actions.reject.mutate({ target, note });
-        }}
+        onSchedule={actions.scheduleAt}
+        onReject={actions.rejectWith}
         onReload={onReload}
         onSaveCopy={() => {
           actions.saveCopy.mutate(form.getValues());

@@ -18,7 +18,20 @@ function withRefreshLock<T>(work: () => Promise<T>): Promise<T> {
   return locks ? locks.request(LOCK_NAME, work) : work();
 }
 
-async function requestNewSession(): Promise<string | null> {
+export type RefreshOutcome =
+  | { readonly kind: 'refreshed'; readonly token: string }
+  | { readonly kind: 'ended' }
+  | { readonly kind: 'unavailable' };
+
+// Only a refusal says the session is over. An outage says nothing about it, so an open editor stays
+// open and retries. Before any session is known there is nothing to keep, so that shows sign-in.
+function unavailable(): RefreshOutcome {
+  const store = useSessionStore.getState();
+  if (store.status === 'loading') store.end();
+  return { kind: 'unavailable' };
+}
+
+async function requestNewSession(): Promise<RefreshOutcome> {
   const store = useSessionStore.getState();
   try {
     const response = await fetch(`${apiOrigin()}${REFRESH_PATH}`, {
@@ -26,23 +39,23 @@ async function requestNewSession(): Promise<string | null> {
       credentials: 'same-origin',
       headers: { 'X-Requested-With': 'cms-admin' },
     });
-    if (!response.ok) {
+    if (response.status === 401) {
       store.end();
-      return null;
+      return { kind: 'ended' };
     }
+    if (!response.ok) return unavailable();
     const { data } = (await response.json()) as { data: AuthSession };
     store.start(data);
-    return data.access_token;
+    return { kind: 'refreshed', token: data.access_token };
   } catch {
-    store.end();
-    return null;
+    return unavailable();
   }
 }
 
-let refreshing: Promise<string | null> | null = null;
+let refreshing: Promise<RefreshOutcome> | null = null;
 
 // Rotation treats a replayed cookie as theft, so concurrent callers must share one request.
-export function refreshSession(): Promise<string | null> {
+export function refreshSession(): Promise<RefreshOutcome> {
   refreshing ??= withRefreshLock(requestNewSession).finally(() => {
     refreshing = null;
   });
@@ -63,6 +76,9 @@ export async function sessionFetch(request: Request): Promise<Response> {
   const response = await fetch(withAuth(request, accessToken));
   if (response.status !== 401 || NO_REFRESH.test(new URL(request.url).pathname)) return response;
 
-  const token = await refreshSession();
-  return token === null ? response : fetch(withAuth(retry, token));
+  const outcome = await refreshSession();
+  if (outcome.kind === 'ended') return response;
+  // Reported as a failed request, which callers already treat as worth trying again.
+  if (outcome.kind === 'unavailable') throw new TypeError('The session could not be refreshed');
+  return fetch(withAuth(retry, outcome.token));
 }

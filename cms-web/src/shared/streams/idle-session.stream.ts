@@ -4,7 +4,7 @@ import {
   fromEvent,
   map,
   merge,
-  type Observable,
+  Observable,
   of,
   type SchedulerLike,
   asyncScheduler,
@@ -47,4 +47,28 @@ export function userActivity$(target: Window = window): Observable<unknown> {
   return merge(...ACTIVITY_EVENTS.map((name) => fromEvent(target, name))).pipe(
     throttleTime(ACTIVITY_THROTTLE_MS),
   );
+}
+
+const ACTIVITY_CHANNEL = 'cms-session-activity';
+
+// Tabs share one session, and signing out revokes it for all of them. So activity in any tab counts
+// in every tab, or a forgotten tab would sign out someone working in another.
+export function sharedActivity$(
+  local$: Observable<unknown> = userActivity$(),
+  openChannel: () => BroadcastChannel = () => new BroadcastChannel(ACTIVITY_CHANNEL),
+): Observable<unknown> {
+  return new Observable((subscriber) => {
+    const channel = openChannel();
+    channel.onmessage = () => {
+      subscriber.next(null);
+    };
+    const subscription = local$.subscribe((activity) => {
+      channel.postMessage(null);
+      subscriber.next(activity);
+    });
+    return () => {
+      subscription.unsubscribe();
+      channel.close();
+    };
+  });
 }

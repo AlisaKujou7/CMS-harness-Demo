@@ -9,6 +9,7 @@ import { PageHeader } from '../../../design-system/components/PageHeader';
 import { AddIcon, ArticleIcon } from '../../../design-system/icons';
 import type { ContentType } from '../../../shared/api/types';
 import { QueryBoundary } from '../../../shared/components/QueryBoundary';
+import { useClampPage } from '../../../shared/hooks/useClampPage';
 import { useDebouncedValue } from '../../../shared/hooks/useDebouncedValue';
 import { useQueryParams } from '../../../shared/hooks/useQueryParams';
 import { common } from '../../../shared/i18n/common.messages';
@@ -66,6 +67,7 @@ export function ContentListPage({ type }: ContentListPageProps) {
     queryFn: () => listContent(filter),
     placeholderData: keepPreviousData,
   });
+  useClampPage(query.data, setPage);
   const { actionsFor, confirmations } = useRowActions(viewer);
   const newPath = `${listPath(type)}/new`;
   const newLabel = format(m.newItem, { type: m.types[type] });

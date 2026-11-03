@@ -8,6 +8,7 @@ import type { AuditQuery, AuditRow, Paged } from '../../../shared/api/types';
 import { useUserDirectory } from '../../../shared/audit/useUserDirectory';
 import { saveBlob } from '../../../shared/browser/download';
 import { QueryBoundary } from '../../../shared/components/QueryBoundary';
+import { useClampPage } from '../../../shared/hooks/useClampPage';
 import { useQueryParams } from '../../../shared/hooks/useQueryParams';
 import { common } from '../../../shared/i18n/common.messages';
 import { toAuditFilter } from '../audit-filters';
@@ -37,6 +38,7 @@ export function AuditPage() {
     queryKey: ['audit', 'list', filter, page],
     queryFn: () => listEvents({ ...filter, page }),
   });
+  useClampPage(query.data, setPage);
   const exportCsv = useMutation({ mutationFn: () => exportEvents(filter) });
 
   return (

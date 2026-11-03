@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { useSessionStore } from '../stores/session.store';
 import { globalErrors$ } from '../streams/global-errors.stream';
 import { ApiError } from './api-error';
 import { createQueryClient, shouldRetryQuery } from './query-client';
@@ -19,6 +20,27 @@ async function runFailingMutation(error: unknown, meta?: { handlesErrors: boolea
 }
 
 describe('createQueryClient', () => {
+  it('forgets everything when a session ends, however it ends', () => {
+    const client = createQueryClient();
+    client.setQueryData(['content', 'list'], 'rows of the previous user');
+    useSessionStore.setState({ status: 'authenticated' });
+    expect(client.getQueryData(['content', 'list'])).toBeDefined();
+
+    useSessionStore.getState().end();
+
+    expect(client.getQueryData(['content', 'list'])).toBeUndefined();
+  });
+
+  it('keeps what it has when a session merely starts', () => {
+    const client = createQueryClient();
+    useSessionStore.setState({ status: 'loading' });
+    client.setQueryData(['content', 'list'], 'rows');
+
+    useSessionStore.setState({ status: 'anonymous' });
+
+    expect(client.getQueryData(['content', 'list'])).toBe('rows');
+  });
+
   it('retries a query once, and only for what might recover', () => {
     expect(shouldRetryQuery(0, anError(500))).toBe(true);
     expect(shouldRetryQuery(1, anError(500))).toBe(false);

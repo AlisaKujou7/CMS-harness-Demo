@@ -6,6 +6,7 @@ import { PageHeader } from '../../../design-system/components/PageHeader';
 import { AddIcon } from '../../../design-system/icons';
 import type { InviteBody, UserRow } from '../../../shared/api/types';
 import { QueryBoundary } from '../../../shared/components/QueryBoundary';
+import { useClampPage } from '../../../shared/hooks/useClampPage';
 import { useQueryParams } from '../../../shared/hooks/useQueryParams';
 import { common } from '../../../shared/i18n/common.messages';
 import { format } from '../../../shared/i18n/format';
@@ -66,6 +67,7 @@ export function UsersPage() {
     setPending(null);
   };
   const query = useQuery({ queryKey: ['users', 'list', page], queryFn: () => listUsers(page) });
+  useClampPage(query.data, setPage);
   const { invite, edit } = useUserForms(close);
   const actions = useUserActions();
 

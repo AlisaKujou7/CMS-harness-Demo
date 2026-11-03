@@ -13,28 +13,35 @@ export interface EditorBannersProps {
   onCancelSchedule(): void;
 }
 
+function ScheduledBanner(props: Omit<EditorBannersProps, 'banner' | 'content' | 'canEdit'>) {
+  const { scheduledLabel, canCancelSchedule, onCancelSchedule } = props;
+  if (scheduledLabel === null) return null;
+  return (
+    <>
+      <FormBanner
+        tone="info"
+        message={format(m.editor.scheduledBanner, { date: scheduledLabel })}
+      />
+      {canCancelSchedule ? (
+        <Button size="small" sx={{ mb: 2 }} onClick={onCancelSchedule}>
+          {m.editor.cancelSchedule}
+        </Button>
+      ) : null}
+    </>
+  );
+}
+
 // 03-DESIGN 15.2
-export function EditorBanners(props: EditorBannersProps) {
-  const { banner, content, canEdit, scheduledLabel, canCancelSchedule, onCancelSchedule } = props;
+export function EditorBanners({ banner, content, canEdit, ...schedule }: EditorBannersProps) {
   const note = content?.status === 'draft' ? content.review_note : null;
+  const live = canEdit && content?.status === 'published';
   return (
     <>
       {banner === null ? null : <FormBanner message={banner} />}
       {canEdit ? null : <FormBanner tone="info" message={m.editor.readOnly} />}
+      {live ? <FormBanner tone="warning" message={m.editor.liveNotice} /> : null}
       {note ? <FormBanner tone="warning" message={format(m.editor.reviewNote, { note })} /> : null}
-      {scheduledLabel === null ? null : (
-        <>
-          <FormBanner
-            tone="info"
-            message={format(m.editor.scheduledBanner, { date: scheduledLabel })}
-          />
-          {canCancelSchedule ? (
-            <Button size="small" sx={{ mb: 2 }} onClick={onCancelSchedule}>
-              {m.editor.cancelSchedule}
-            </Button>
-          ) : null}
-        </>
-      )}
+      <ScheduledBanner {...schedule} />
     </>
   );
 }

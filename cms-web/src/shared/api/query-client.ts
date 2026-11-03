@@ -1,4 +1,5 @@
 import { MutationCache, QueryClient } from '@tanstack/react-query';
+import { useSessionStore } from '../stores/session.store';
 import { globalErrors$ } from '../streams/global-errors.stream';
 import { hasStatus, isRetryable } from './api-error';
 
@@ -18,7 +19,7 @@ export function shouldRetryQuery(failures: number, error: unknown): boolean {
 }
 
 export function createQueryClient(): QueryClient {
-  return new QueryClient({
+  const client = new QueryClient({
     defaultOptions: {
       queries: {
         staleTime: STALE_MS,
@@ -35,4 +36,9 @@ export function createQueryClient(): QueryClient {
       },
     }),
   });
+  // Keys do not name the user, so the next person to sign in here must not see this one's data.
+  useSessionStore.subscribe((session, previous) => {
+    if (previous.status === 'authenticated' && session.status !== 'authenticated') client.clear();
+  });
+  return client;
 }

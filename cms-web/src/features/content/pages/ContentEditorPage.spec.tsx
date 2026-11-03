@@ -741,6 +741,233 @@ describe('ContentEditorPage (03-DESIGN 12.4)', () => {
     });
   });
 
+  describe('the editor stays in place once open', () => {
+    it('keeps the same editor when a save adds an image not seen before', async () => {
+      answer();
+      const bodies = capturePatch();
+      server.use(
+        http.get('*/api/admin/media', () =>
+          HttpResponse.json({ data: [aMedia()], pagination: aPage() }),
+        ),
+        http.get(`*/api/admin/media/${ID.media}`, async () => {
+          await new Promise((resolve) => {
+            window.setTimeout(resolve, 200);
+          });
+          return HttpResponse.json({ data: aMediaDetail() });
+        }),
+      );
+      const { user } = setup();
+
+      const before = await editorReady();
+      await user.click(screen.getByRole('button', { name: 'Image' }));
+      await user.click(await screen.findByRole('button', { name: /hero.jpg/ }));
+      await user.click(screen.getByRole('button', { name: 'Insert' }));
+      await user.click(screen.getByRole('button', { name: 'Save Draft' }));
+
+      await waitFor(() => {
+        expect(bodies).toHaveLength(1);
+      });
+      await screen.findByText('Draft saved');
+      expect(screen.queryByRole('status', { name: 'Loading' })).not.toBeInTheDocument();
+      expect(await editorReady()).toBe(before);
+    });
+
+    it('keeps the editor when the refetch after an action fails', async () => {
+      answer();
+      server.use(
+        http.post(`${ONE}/submit`, () =>
+          HttpResponse.json({ data: aContent({ status: 'in_review' }) }),
+        ),
+      );
+      const { user } = setup();
+
+      const before = await editorReady();
+      server.use(http.get(ONE, () => new HttpResponse(null, { status: 500 })));
+      await user.click(screen.getByRole('button', { name: 'Submit for Review' }));
+
+      expect(await screen.findByText('Article submitted for review')).toBeInTheDocument();
+      expect(await editorReady()).toBe(before);
+      expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+    });
+  });
+
+  describe('published content (ADR-0013)', () => {
+    const published = () => aContent({ status: 'published' });
+
+    it('saves nothing on blur, and says how to send edits live', async () => {
+      answer(published());
+      const bodies = capturePatch({ status: 'published' });
+      const { user } = setup();
+
+      await editorReady();
+      expect(screen.getByText(/stay here until you press Save changes/)).toBeInTheDocument();
+      await user.type(await titleField(), '!');
+      await user.tab();
+      await user.type(screen.getByLabelText('Meta Title'), 'x');
+      await user.tab();
+
+      expect(screen.queryByText('Saving...')).not.toBeInTheDocument();
+      expect(bodies).toEqual([]);
+    });
+
+    it('saves when asked', async () => {
+      answer(published());
+      const bodies = capturePatch({ status: 'published' });
+      const { user } = setup();
+
+      await editorReady();
+      await user.type(await titleField(), '!');
+      await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+      expect(await screen.findByText('Changes saved')).toBeInTheDocument();
+      expect(bodies).toEqual([{ title: 'Q2 Report!', version: 1 }]);
+    });
+
+    it('still asks before leaving with edits', async () => {
+      answer(published());
+      const { user, router } = setup();
+
+      await editorReady();
+      await user.type(await titleField(), '!');
+      void router.navigate('/content/articles');
+
+      expect(
+        await screen.findByRole('dialog', { name: 'Leave without saving?' }),
+      ).toBeInTheDocument();
+    });
+
+    it('does not publish pending edits on the way to unpublishing', async () => {
+      answer(published());
+      const bodies = capturePatch();
+      server.use(
+        http.post(`${ONE}/unpublish`, () =>
+          HttpResponse.json({ data: aContent({ status: 'unpublished' }) }),
+        ),
+      );
+      const { user } = setup();
+
+      await editorReady();
+      await user.type(await titleField(), '!');
+      await user.click(screen.getByRole('button', { name: 'Unpublish' }));
+      await user.click(
+        within(screen.getByRole('dialog')).getByRole('button', { name: 'Unpublish' }),
+      );
+
+      expect(await screen.findByText('Article unpublished')).toBeInTheDocument();
+      expect(bodies).toEqual([]);
+    });
+  });
+
+  describe('actions save first', () => {
+    it('saves pending edits before archiving', async () => {
+      answer(aContent({ status: 'unpublished' }));
+      const bodies = capturePatch({ status: 'draft' });
+      const saved: number[] = [];
+      server.use(
+        http.post(`${ONE}/archive`, () => {
+          saved.push(bodies.length);
+          return HttpResponse.json({ data: aContent({ status: 'archived' }) });
+        }),
+      );
+      const { user } = setup();
+
+      await editorReady();
+      await user.type(screen.getByLabelText('Meta Title'), 'x');
+      await user.click(screen.getByRole('button', { name: 'Archive' }));
+      await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Archive' }));
+
+      await waitFor(() => {
+        expect(saved).toEqual([1]);
+      });
+    });
+
+    it('does not act when the fields are invalid, and says so', async () => {
+      answer(aContent({ status: 'in_review' }));
+      const reject = vi.fn(() => HttpResponse.json({ data: aContent() }));
+      server.use(http.post(`${ONE}/reject`, reject));
+      const { user } = setup();
+
+      await editorReady();
+      await user.clear(await titleField());
+      await user.click(screen.getByRole('button', { name: 'Reject' }));
+      await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Reject' }));
+
+      expect(
+        await screen.findByText('Fix the highlighted fields and try again.'),
+      ).toBeInTheDocument();
+      expect(reject).not.toHaveBeenCalled();
+    });
+
+    it('can still delete with invalid fields', async () => {
+      answer();
+      server.use(http.delete(ONE, () => new HttpResponse(null, { status: 204 })));
+      const { user, router } = setup();
+
+      await editorReady();
+      await user.clear(await titleField());
+      await user.click(screen.getByRole('button', { name: 'Delete' }));
+      await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }));
+
+      await waitFor(() => {
+        expect(router.state.location.pathname).toBe('/content/articles');
+      });
+    });
+  });
+
+  describe('text the server normalizes', () => {
+    it('takes the server version, so it does not look unsaved', async () => {
+      answer();
+      const bodies = capturePatch({ title: 'Q2 Report' });
+      const { user, router } = setup();
+
+      await editorReady();
+      const title = await titleField();
+      await user.type(title, ' ');
+      await user.tab();
+
+      await waitFor(() => {
+        expect(title).toHaveValue('Q2 Report');
+      });
+      expect(bodies).toHaveLength(1);
+
+      void router.navigate('/content/articles');
+      await waitFor(() => {
+        expect(router.state.location.pathname).toBe('/content/articles');
+      });
+    });
+
+    it('leaves a field alone if it changed during the save', async () => {
+      answer();
+      let release: () => void = () => undefined;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      server.use(
+        http.patch(ONE, async ({ request }) => {
+          await held;
+          const { title: sent, version } = (await request.json()) as {
+            title: string;
+            version: number;
+          };
+          return HttpResponse.json({
+            data: aContent({ title: sent.trim(), version: version + 1 }),
+          });
+        }),
+      );
+      const { user } = setup();
+
+      await editorReady();
+      const title = await titleField();
+      await user.type(title, ' ');
+      await user.tab();
+      await user.type(title, 'later');
+      release();
+
+      await screen.findByText(/^Saved/);
+      expect(title).toHaveValue('Q2 Report later');
+    });
+  });
+
   describe('inline images (ADR-0013)', () => {
     const body = (mediaId: string) => ({
       type: 'doc',

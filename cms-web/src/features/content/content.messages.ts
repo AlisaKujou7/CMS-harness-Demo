@@ -50,11 +50,13 @@ export const contentMessages = {
     delete: 'Delete',
     schedule: 'Schedule...',
     saveDraft: 'Save Draft',
+    saveChanges: 'Save changes',
     history: 'View version history',
     undo: 'Undo',
   },
   toasts: {
     saved: 'Draft saved',
+    changesSaved: 'Changes saved',
     submitted: '{type} submitted for review',
     published: '{type} published',
     unpublished: '{type} unpublished',
@@ -119,6 +121,8 @@ export const contentMessages = {
     scheduledBanner: 'This content is scheduled to publish on {date}.',
     cancelSchedule: 'Cancel schedule',
     readOnly: 'You can read this, but not edit it right now.',
+    liveNotice:
+      'This is published. Your edits stay here until you press Save changes, and then go live.',
     saving: 'Saving...',
     savedAgo: 'Saved {ago}',
     retrying: "Couldn't save. Retrying...",

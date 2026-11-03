@@ -1,7 +1,7 @@
 import { Subject } from 'rxjs';
 import { TestScheduler } from 'rxjs/testing';
-import { describe, expect, it } from 'vitest';
-import { makeIdleSession, userActivity$ } from './idle-session.stream';
+import { describe, expect, it, vi } from 'vitest';
+import { makeIdleSession, sharedActivity$, userActivity$ } from './idle-session.stream';
 
 const scheduler = () =>
   new TestScheduler((actual, expected) => {
@@ -62,6 +62,43 @@ describe('makeIdleSession (SEC-12)', () => {
     subscription.unsubscribe();
 
     expect(seen).toEqual(['active']);
+  });
+});
+
+describe('sharedActivity$', () => {
+  const fakeChannel = () => ({
+    onmessage: null as (() => void) | null,
+    postMessage: vi.fn(),
+    close: vi.fn(),
+  });
+
+  it('counts activity from another tab, and tells other tabs about its own', () => {
+    const channel = fakeChannel();
+    const local = new Subject<string>();
+    const seen: unknown[] = [];
+    const subscription = sharedActivity$(
+      local,
+      () => channel as unknown as BroadcastChannel,
+    ).subscribe((activity) => seen.push(activity));
+
+    channel.onmessage?.();
+    expect(seen).toEqual([null]);
+    expect(channel.postMessage).not.toHaveBeenCalled();
+
+    local.next('keydown');
+    expect(seen).toEqual([null, 'keydown']);
+    expect(channel.postMessage).toHaveBeenCalledOnce();
+
+    subscription.unsubscribe();
+    expect(channel.close).toHaveBeenCalledOnce();
+    expect(local.observed).toBe(false);
+  });
+
+  it('uses a real channel by default', () => {
+    const subscription = sharedActivity$(new Subject()).subscribe();
+
+    expect(subscription.closed).toBe(false);
+    subscription.unsubscribe();
   });
 });
 

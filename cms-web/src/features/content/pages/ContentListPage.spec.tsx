@@ -220,6 +220,26 @@ describe('ContentListPage (03-DESIGN 12.3)', () => {
     expect(screen.getByLabelText('Search by title')).toHaveValue('');
   });
 
+  it('goes to the last page when this one no longer exists', async () => {
+    const urls: URL[] = [];
+    server.use(
+      http.get(LIST, ({ request }) => {
+        const url = new URL(request.url);
+        urls.push(url);
+        const past = url.searchParams.get('page') === '3';
+        return HttpResponse.json({
+          data: past ? [] : [aListRow()],
+          pagination: aPage({ page: past ? 3 : 2, total: 26, total_pages: 2 }),
+        });
+      }),
+    );
+    const { router } = setup('/content/articles?page=3');
+
+    expect(await screen.findByRole('link', { name: 'Q2 Report' })).toBeInTheDocument();
+    expect(router.state.location.search).toBe('?page=2');
+    expect(screen.queryByRole('heading', { name: 'No articles yet' })).not.toBeInTheDocument();
+  });
+
   it('offers a retry when the list fails', async () => {
     server.use(http.get(LIST, () => new HttpResponse(null, { status: 500 })));
     setup();

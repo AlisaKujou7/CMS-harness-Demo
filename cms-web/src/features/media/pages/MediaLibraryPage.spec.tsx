@@ -220,6 +220,20 @@ describe('MediaLibraryPage (03-DESIGN 12.5)', () => {
       expect(screen.queryByText('2 selected')).not.toBeInTheDocument();
     });
 
+    it('forgets the selection when the listing changes (03-DESIGN 13.5)', async () => {
+      answer(two);
+      const { user } = setup();
+
+      await selectBoth(user);
+      expect(screen.getByText('2 selected')).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Next' }));
+
+      await waitFor(() => {
+        expect(screen.queryByText('2 selected')).not.toBeInTheDocument();
+      });
+      expect(screen.queryByRole('button', { name: 'Delete selected' })).not.toBeInTheDocument();
+    });
+
     it('says what could not be deleted', async () => {
       answer(two);
       server.use(

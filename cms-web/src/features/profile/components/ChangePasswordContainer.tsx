@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import Button from '@mui/material/Button';
 import Stack from '@mui/material/Stack';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { FormBanner } from '../../../design-system/components/FormBanner';
@@ -38,7 +38,6 @@ function submit({ current, password }: PasswordValues): Promise<unknown> {
 
 // FR-AUTH-05: this ends every session, this one included, so it signs out rather than failing later.
 export function ChangePasswordContainer() {
-  const queryClient = useQueryClient();
   const { register, handleSubmit, setError, formState } = useForm<PasswordValues>({
     resolver: zodResolver(schema),
     mode: 'onTouched',
@@ -50,7 +49,6 @@ export function ChangePasswordContainer() {
     onSuccess: () => {
       notify.success(m.changed);
       useSessionStore.getState().end();
-      queryClient.clear();
     },
     onError: (error) => {
       applyServerFieldError(error, SERVER_FIELDS, setError);

@@ -8,6 +8,7 @@ import { EmptyState } from '../../../design-system/components/EmptyState';
 import { PageHeader } from '../../../design-system/components/PageHeader';
 import { MediaIcon } from '../../../design-system/icons';
 import { QueryBoundary } from '../../../shared/components/QueryBoundary';
+import { useClampPage } from '../../../shared/hooks/useClampPage';
 import { useDebouncedValue } from '../../../shared/hooks/useDebouncedValue';
 import { useQueryParams } from '../../../shared/hooks/useQueryParams';
 import { common } from '../../../shared/i18n/common.messages';
@@ -86,6 +87,12 @@ export function MediaLibraryPage() {
     placeholderData: keepPreviousData,
     refetchInterval: (state) => pollWhileProcessing(state.state.data),
   });
+  useClampPage(query.data, setPage);
+  // A selection means what is on screen, because deleting cannot be undone.
+  const listing = params.toString();
+  useEffect(() => {
+    setSelected(NOTHING);
+  }, [listing]);
   useEffect(() => {
     if (settled !== (params.get('search') ?? '')) update({ search: settled });
     // Only a settled change writes the URL. A URL change is not a reason to write it back.

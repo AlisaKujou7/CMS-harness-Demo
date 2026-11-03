@@ -67,7 +67,7 @@ export function PublishPanel(props: PublishPanelProps) {
       <Action
         show={can.canEdit}
         busy={busy}
-        label={m.actions.saveDraft}
+        label={status === 'published' ? m.actions.saveChanges : m.actions.saveDraft}
         icon={<SaveIcon />}
         onClick={props.onSave}
       />

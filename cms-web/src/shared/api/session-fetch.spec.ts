@@ -91,10 +91,30 @@ describe('sessionFetch', () => {
     expect(useSessionStore.getState()).toMatchObject({ status: 'anonymous', accessToken: null });
   });
 
-  it('ends the session when the refresh cannot reach the server', async () => {
+  it.each([
+    ['a network failure', () => HttpResponse.error()],
+    ['a server error', () => new HttpResponse(null, { status: 503 })],
+  ])(
+    'keeps a live session through %s, and fails the request so it can retry',
+    async (_n, reply) => {
+      useSessionStore.setState({ status: 'authenticated', accessToken: 'expired' });
+      respondWithBearer();
+      server.use(http.post(REFRESH, reply));
+
+      await expect(get()).rejects.toThrow('could not be refreshed');
+
+      expect(useSessionStore.getState()).toMatchObject({
+        status: 'authenticated',
+        accessToken: 'expired',
+      });
+    },
+  );
+
+  it('shows sign-in when an outage hits before any session is known', async () => {
     server.use(http.post(REFRESH, () => HttpResponse.error()));
 
-    await expect(refreshSession()).resolves.toBeNull();
+    await expect(refreshSession()).resolves.toEqual({ kind: 'unavailable' });
+
     expect(useSessionStore.getState().status).toBe('anonymous');
   });
 
@@ -156,7 +176,7 @@ describe('sessionFetch', () => {
     vi.stubGlobal('navigator', { ...navigator, locks: { request } });
     server.use(http.post(REFRESH, () => HttpResponse.json({ data: session })));
 
-    await expect(refreshSession()).resolves.toBe('new-token');
+    await expect(refreshSession()).resolves.toEqual({ kind: 'refreshed', token: 'new-token' });
 
     expect(request).toHaveBeenCalledWith('cms-session-refresh', expect.any(Function));
   });

@@ -22,49 +22,64 @@ function announce(summary: UploadSummary): void {
   if (count > 1) notify.success(format(m.uploaded, { count }));
 }
 
+function acceptable(files: readonly File[]): readonly File[] {
+  return files.filter((file) => {
+    const problem = validateFile(file);
+    if (problem !== null) notify.error(problem);
+    return problem === null;
+  });
+}
+
 export interface MediaUpload {
   readonly progress: UploadSummary | null;
   start(files: readonly File[]): void;
 }
 
+// Files chosen during an upload wait their turn, so nothing already on its way is dropped.
 export function useMediaUpload(onUploaded?: (items: readonly MediaRow[]) => void): MediaUpload {
   const queryClient = useQueryClient();
   const [progress, setProgress] = useState<UploadSummary | null>(null);
   const subscription = useRef<Subscription | null>(null);
+  const waiting = useRef<File[]>([]);
 
   useEffect(
     () => () => {
+      waiting.current = [];
       subscription.current?.unsubscribe();
     },
     [],
   );
 
-  const start = useCallback(
-    (files: readonly File[]) => {
-      const valid = files.filter((file) => {
-        const problem = validateFile(file);
-        if (problem !== null) notify.error(problem);
-        return problem === null;
-      });
-      if (valid.length === 0) return;
-
-      let latest: UploadSummary | null = null;
-      subscription.current?.unsubscribe();
-      subscription.current = uploadProgress$(valid, DEPS).subscribe({
-        next: (summary) => {
-          latest = summary;
-          setProgress(summary);
-        },
-        complete: () => {
-          setProgress(null);
-          if (latest === null) return;
+  const sendNext = useCallback(() => {
+    const batch = waiting.current;
+    waiting.current = [];
+    let latest: UploadSummary | null = null;
+    subscription.current = uploadProgress$(batch, DEPS).subscribe({
+      next: (summary) => {
+        latest = summary;
+        setProgress(summary);
+      },
+      complete: () => {
+        subscription.current = null;
+        setProgress(null);
+        if (latest !== null) {
           announce(latest);
           void queryClient.invalidateQueries({ queryKey: ['media'] });
           onUploaded?.(latest.items);
-        },
-      });
+        }
+        if (waiting.current.length > 0) sendNext();
+      },
+    });
+  }, [queryClient, onUploaded]);
+
+  const start = useCallback(
+    (files: readonly File[]) => {
+      const valid = acceptable(files);
+      if (valid.length === 0) return;
+      waiting.current = [...waiting.current, ...valid];
+      if (subscription.current === null) sendNext();
     },
-    [queryClient, onUploaded],
+    [sendNext],
   );
 
   return { progress, start };

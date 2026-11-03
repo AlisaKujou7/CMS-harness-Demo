@@ -92,6 +92,31 @@ describe('useMediaUpload', () => {
     expect(await screen.findByText('2 files uploaded')).toBeInTheDocument();
   });
 
+  it('finishes what is on its way when more files are chosen', async () => {
+    let finalized = 0;
+    allowUploads();
+    server.use(
+      http.post('*/api/admin/media', () => {
+        finalized += 1;
+        return HttpResponse.json({ data: aMedia() }, { status: 201 });
+      }),
+    );
+    const onUploaded = vi.fn();
+    const { result } = setup(onUploaded);
+
+    act(() => {
+      result.current.start([png('first.png')]);
+    });
+    act(() => {
+      result.current.start([png('second.png')]);
+    });
+
+    await waitFor(() => {
+      expect(onUploaded).toHaveBeenCalledTimes(2);
+    });
+    expect(finalized).toBe(2);
+  });
+
   it('reports a refused file and sends the rest', async () => {
     allowUploads();
     const onUploaded = vi.fn();
