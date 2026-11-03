@@ -23,6 +23,24 @@ const ALLOWED_LICENSES = new Set([
   '0BSD',
 ]);
 
+// 02-SRS 11.3. A code counts as traced when a test names it. That shows someone connected the two,
+// not that the test proves the requirement, so a person still reads what gets added.
+export function findUntracedRequirements(srsText, testSources, exceptions) {
+  const required = new Set([...srsText.matchAll(/^\|\s*(FR-[A-Z]+-\d+)\s*\|/gm)].map((m) => m[1]));
+  if (required.size === 0) return ['No FR codes found in the specification'];
+  const traced = new Set(testSources.flatMap((source) => source.match(/\bFR-[A-Z]+-\d+\b/g) ?? []));
+
+  const untraced = [...required]
+    .filter((code) => !traced.has(code) && !(code in exceptions))
+    .map((code) => `${code} has no test and no exception`);
+  const badExceptions = Object.entries(exceptions).flatMap(([code, reason]) => {
+    if (!required.has(code)) return [`${code} is an exception, but the specification lacks it`];
+    if (traced.has(code)) return [`${code} is an exception, but a test now traces it`];
+    return reason.trim() === '' ? [`${code} is an exception with no reason`] : [];
+  });
+  return [...untraced, ...badExceptions];
+}
+
 export function findPortsWithoutFakes(portSources, fakeSources) {
   const fakes = fakeSources.join('\n');
   const ports = portSources.flatMap((source) =>

@@ -207,6 +207,12 @@ const SCENARIOS = [
     expect: /too many duplicates/i,
   },
   {
+    name: 'requirement that nothing traces',
+    files: { 'reports/zzq-srs.md': '| FR-ZZQ-01 | A requirement nobody built. |\n' },
+    command: 'node tools/gates/check.mjs traceability reports/zzq-srs.md',
+    expect: /FR-ZZQ-01 has no test/,
+  },
+  {
     name: 'unlinked TODO',
     files: { 'cms-api/src/shared/zzq.ts': '// TODO: later\nexport const a = 1;\n' },
     command: 'node tools/gates/check.mjs todos',

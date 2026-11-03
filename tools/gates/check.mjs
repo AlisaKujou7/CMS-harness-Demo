@@ -12,6 +12,7 @@ import {
   findPortsWithoutFakes,
   findUnlinkedTodos,
   findUntestedUseCases,
+  findUntracedRequirements,
   findWeakMutationScores,
 } from './checks.mjs';
 
@@ -60,6 +61,23 @@ const checks = {
       console.log(`${file.kind.padEnd(8)}${(file.gzipBytes / 1024).toFixed(1)} KB  ${file.name}`);
     }
     return report(checkBundleBudgets(files));
+  },
+
+  // The optional path is for the self-test, which plants a code that nothing traces.
+  traceability() {
+    const srs = process.argv[3] ?? 'AIAGENT_POC/02-Software-Requirements-Specification.md';
+    const isTest = (path) => /[\\/]test[\\/]|\.spec\.tsx?$/.test(path);
+    const tests = ['cms-api/src', 'cms-api/test', 'cms-web/src', 'cms-web/test'].flatMap((source) =>
+      [...walk(join(ROOT, source))]
+        .filter((path) => /\.tsx?$/.test(path) && isTest(path))
+        .map((path) => readFileSync(path, 'utf8')),
+    );
+    const exceptions = JSON.parse(
+      readFileSync(join(ROOT, 'tools/gates/traceability-exceptions.json'), 'utf8'),
+    );
+    return report(
+      findUntracedRequirements(readFileSync(join(ROOT, srs), 'utf8'), tests, exceptions),
+    );
   },
 
   todos() {
