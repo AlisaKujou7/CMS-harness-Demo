@@ -177,7 +177,7 @@ describe('content lifecycle against real infrastructure', () => {
     expect(content.title).toBe('Nul and lone � here');
   });
 
-  it('sees a body it stored as unchanged when the editor sends it again', async () => {
+  it('sees a body it stored as unchanged when the editor sends it again (FR-CONTENT-14)', async () => {
     const editor = await tokenOf('editor@example.com');
     const body = {
       type: 'doc',

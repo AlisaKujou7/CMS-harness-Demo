@@ -1,1 +1,3 @@
-{}
+{
+  "FR-AUDIT-04": "A 365 day retention cannot be observed by a test. No job purges audit events, and a trigger refuses deleting them (FR-AUDIT-03), so they are kept indefinitely."
+}

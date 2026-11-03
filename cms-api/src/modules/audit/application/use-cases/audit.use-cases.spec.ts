@@ -1,3 +1,5 @@
+// FR-AUDIT-02 is met where each action happens, so each is asserted in the spec of its use case:
+// login, logout, users, content and media. This one covers reading what they wrote.
 import { beforeEach, describe, expect, it } from 'vitest';
 import { InMemoryAuditEventReader } from '../../../../../test/fakes/audit.fakes.js';
 import { InMemoryAuditLog } from '../../../../../test/fakes/system.fakes.js';

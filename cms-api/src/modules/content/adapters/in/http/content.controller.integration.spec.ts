@@ -39,7 +39,7 @@ describe('content endpoints', () => {
 
   afterEach(() => app.close());
 
-  describe('authorization matrix (02-SRS 5.3.1)', () => {
+  describe('authorization matrix (02-SRS 5.3.1, FR-AUTHZ-01)', () => {
     type Call = readonly ['GET' | 'POST' | 'PATCH' | 'DELETE', string, object?];
     const every: readonly Call[] = [
       ['GET', CONTENT],
@@ -89,9 +89,18 @@ describe('content endpoints', () => {
     );
 
     it.each(cases(moderation))(
-      '%s %s reaches the use case for an Editor',
+      '%s %s reaches the use case for an Editor (FR-AUTHZ-03)',
       async (_method, _path, call) => {
         const res = await send(call).set('Authorization', await bearer('editor'));
+
+        expect(res.status).toBe(404);
+      },
+    );
+
+    it.each(cases(moderation))(
+      '%s %s reaches the use case for an Admin (FR-AUTHZ-04)',
+      async (_method, _path, call) => {
+        const res = await send(call).set('Authorization', await bearer('admin'));
 
         expect(res.status).toBe(404);
       },
@@ -421,7 +430,7 @@ describe('content endpoints', () => {
       ['tag, whatever its case', { tag: ' FRUIT ' }, ['b']],
       ['search, case-insensitively', { search: 'APP' }, ['a']],
       ['a date range', { from: '2000-01-01T00:00:00Z', to: '2000-01-02T00:00:00Z' }, []],
-    ])('filters by %s', async (_name, query, expected) => {
+    ])('filters by %s (FR-CONTENT-10)', async (_name, query, expected) => {
       expect(ids(await get('editor', query))).toEqual(expected);
     });
 

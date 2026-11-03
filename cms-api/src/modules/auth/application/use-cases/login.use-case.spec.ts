@@ -20,7 +20,7 @@ describe('Login', () => {
     ctx.accounts.add(anAccount());
   });
 
-  describe('with correct credentials', () => {
+  describe('with correct credentials (FR-AUTH-01)', () => {
     it('returns an access token, refresh token and the user', async () => {
       const result = await attempt();
 

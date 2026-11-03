@@ -69,7 +69,7 @@ const checks = {
     const isTest = (path) => /[\\/]test[\\/]|\.spec\.tsx?$/.test(path);
     const tests = ['cms-api/src', 'cms-api/test', 'cms-web/src', 'cms-web/test'].flatMap((source) =>
       [...walk(join(ROOT, source))]
-        .filter((path) => /\.tsx?$/.test(path) && isTest(path))
+        .filter((path) => /\.tsx?$/.test(path) && isTest(relative(ROOT, path)))
         .map((path) => readFileSync(path, 'utf8')),
     );
     const exceptions = JSON.parse(

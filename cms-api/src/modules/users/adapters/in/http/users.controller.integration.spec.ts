@@ -36,7 +36,7 @@ describe('user endpoints', () => {
 
   afterEach(() => app.close());
 
-  describe('authorization matrix (FR-USER-01)', () => {
+  describe('authorization matrix (FR-USER-01, FR-AUTHZ-01)', () => {
     type Call = readonly ['GET' | 'POST' | 'PATCH' | 'DELETE', string, object?];
     const calls: readonly Call[] = [
       ['GET', USERS],
@@ -136,7 +136,7 @@ describe('user endpoints', () => {
     });
 
     it.each([
-      ['an unknown role', { email: 'a@example.com', role: 'root' }, 'role'],
+      ['an unknown role (FR-USER-03)', { email: 'a@example.com', role: 'root' }, 'role'],
       ['a missing role', { email: 'a@example.com' }, 'role'],
       ['an invalid email', { email: 'nope', role: 'author' }, 'email'],
       ['a blank name', { email: 'a@example.com', role: 'author', name: ' ' }, 'name'],

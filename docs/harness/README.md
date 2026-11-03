@@ -42,14 +42,14 @@
 | ความจำข้ามหน้าต่าง | สถานะงานล่าสุด                  | memory ของ Claude Code (อยู่นอก repo)                       |
 | การตีความสเปก      | บันทึกเหตุผลเมื่อสเปกขัดกัน     | `docs/adr/` โดยเฉพาะ `0013-spec-conflicts.md`               |
 | กฎสถาปัตยกรรม      | ห้ามเขียนผิดโครงสร้าง           | `eslint.config.mjs`, `tools/eslint/`, `.dependency-cruiser` |
-| Quality gate       | ตรวจก่อน commit 17 ขั้น         | `tools/gates/run-gate.mjs`, สถานะใน `docs/quality/gates.md` |
-| ทดสอบตัว gate เอง  | ฝังโค้ดผิด 27 แบบ ต้องจับได้ครบ | `tools/gates/self-test.mjs`                                 |
+| Quality gate       | ตรวจก่อน commit 18 ขั้น         | `tools/gates/run-gate.mjs`, สถานะใน `docs/quality/gates.md` |
+| ทดสอบตัว gate เอง  | ฝังโค้ดผิด 28 แบบ ต้องจับได้ครบ | `tools/gates/self-test.mjs`                                 |
 | Claude Code hook   | กันคำสั่งของ AI ก่อนรันจริง     | `.claude/settings.json`, `tools/gates/git-guard.mjs`        |
 | Git hooks          | กันที่ commit และ push          | `.husky/`                                                   |
 | ตรวจระบบจริง       | รันทั้งระบบ ไม่ใช่แค่ unit test | `cms-web/test/e2e/`, `infra/scripts/smoke-*.sh`             |
 | คน                 | อนุมัติเฟส ตัดสินใจเรื่องสำคัญ  | ไม่ push หรือ merge จนกว่าจะสั่ง                            |
 
-Gate 17 ขั้นครอบคลุม format, TypeScript, lint, สถาปัตยกรรม, coverage, mutation, duplication, secret scan, bundle,
+Gate 18 ขั้นครอบคลุม format, TypeScript, lint, สถาปัตยกรรม, requirement traceability, coverage, mutation, duplication, secret scan, bundle,
 E2E, CVE และ license ส่วน test-to-code ratio ยังถูกข้ามเพราะไม่มี `origin/main` ให้เทียบ
 
 Claude Code hook ตรวจทุกคำสั่ง shell ของ AI ก่อนรัน โดยมีกฎ 5 ข้อ:
@@ -101,7 +101,7 @@ Claude Code hook ตรวจทุกคำสั่ง shell ของ AI ก�
    ```
 
 4. พิสูจน์ว่า gate จับของผิดได้จริง ซึ่งเป็นจุดที่น่าโชว์ที่สุด คำสั่งนี้ใช้เวลาราว 5.5 นาที จึงควรรันทิ้งไว้ก่อนเดโม
-   แล้วเปิดผล `27/27 caught` ให้ดู:
+   แล้วเปิดผล `28/28 caught` ให้ดู:
 
    ```bash
    pnpm gate:self-test

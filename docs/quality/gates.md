@@ -34,6 +34,7 @@ changes. `pnpm gate` runs the local steps, and `pnpm gate:self-test` proves that
 | Dependency CVEs, critical and high                                  | M-SEC-01,02,05             | Enforced                                           |
 | Commit and PR title format                                          | M-PR-06                    | Enforced                                           |
 | Test-to-code ratio                                                  | M-TDD-01,06                | Skipped until `origin/main` exists                 |
+| FR codes traced to tests or a written exception                     | 02-SRS 11.3, ADR-0017      | Enforced as "a test names the code". Self-tested   |
 | Secret scan                                                         | M-SAST-02                  | Enforced locally, in pre-commit and in CI          |
 | SAST (CodeQL)                                                       | M-SAST-01                  | CI workflow written, never run                     |
 

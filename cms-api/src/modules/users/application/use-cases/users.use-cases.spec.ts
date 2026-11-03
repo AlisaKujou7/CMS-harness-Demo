@@ -119,7 +119,7 @@ describe('users use cases', () => {
       expect(tx.runs).toBe(1);
     });
 
-    it('audits the acting admin and never the email in the summary fields beyond the role', async () => {
+    it('audits the acting admin and never the email in the summary fields beyond the role (FR-USER-08)', async () => {
       const { id } = await invite();
 
       expect(audit.events).toEqual([
@@ -192,7 +192,7 @@ describe('users use cases', () => {
       users.add(aUser());
     });
 
-    it('changes the role and audits both values', async () => {
+    it('changes the role and audits both values (FR-USER-08)', async () => {
       const result = await update({ role: 'author' });
 
       expect(result.role).toBe('author');
@@ -307,7 +307,7 @@ describe('users use cases', () => {
       users.add(aUser());
     });
 
-    it('deactivates, audits, and publishes UserDeactivated', async () => {
+    it('deactivates, audits, and publishes UserDeactivated (FR-USER-08)', async () => {
       await deactivate();
 
       expect(users.users.get('user-1')?.status).toBe('deactivated');

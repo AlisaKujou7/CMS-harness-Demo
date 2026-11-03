@@ -1,3 +1,4 @@
+// FR-CONTENT-16: each mutation test here also asserts its audit event, by action name.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { aContent, aTextBody } from '../../../../../test/builders/a-content.js';
 import {
@@ -490,7 +491,7 @@ describe('content use cases', () => {
     });
 
     describe('who may edit (FR-AUTHZ-02, 03)', () => {
-      it("lets an Editor or Admin edit anyone's content", async () => {
+      it("lets an Editor or Admin edit anyone's content (FR-AUTHZ-03, FR-AUTHZ-04)", async () => {
         stored({ version: 3 });
         await expect(update(editor)).resolves.toBeDefined();
 
@@ -852,7 +853,7 @@ describe('content use cases', () => {
       await expect(get(otherAuthor)).resolves.toBeDefined();
     });
 
-    it('lets an Editor read any draft', async () => {
+    it('lets an Editor read any draft (FR-AUTHZ-03)', async () => {
       stored();
 
       await expect(get(editor)).resolves.toBeDefined();
@@ -878,7 +879,7 @@ describe('content use cases', () => {
       expect(result.items.map((item) => item.id)).toEqual(['a']);
     });
 
-    it('shows an Editor everything and honors the author filter', async () => {
+    it('shows an Editor everything and honors the author filter (FR-AUTHZ-03, FR-CONTENT-10)', async () => {
       await expect(list(editor)).resolves.toMatchObject({ total: 2 });
       await expect(list(editor, { authorId: otherAuthor.id })).resolves.toMatchObject({ total: 1 });
     });

@@ -64,7 +64,7 @@ describe('PrismaContentRepository', () => {
     await db.seedUser(OTHER, { name: 'Oli Other' });
   });
 
-  it('stores and restores every field', async () => {
+  it('stores and restores every field, with the body as a JSON tree (FR-CONTENT-14)', async () => {
     const media = new PrismaMediaRepository(db.context);
     for (const n of [90, 91]) {
       await media.create(
