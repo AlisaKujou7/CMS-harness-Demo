@@ -72,6 +72,7 @@ changes. `pnpm gate` runs the local steps, and `pnpm gate:self-test` proves that
 - Graceful shutdown is verified by hand, by stopping the containers, and no automated test covers it. Both exit 0 within about a second.
 - `infra/scripts/check-images.sh` covers M-INF-01 to 03, but nothing runs it until the release workflow does. The deploy scripts and restore were rehearsed once by hand on Linux in Docker-in-Docker, not on a real VM. Bucket CORS was tried against the gateway, not AWS S3.
 - `postgres:15.19-alpine` has critical and high findings in the Go `stdlib` of its bundled `gosu`, so M-INF-01 does not hold for it, and `check-images.sh` only scans our own images. Nothing runs `gosu` here, because the container starts as user 70.
+- The Claude Code hook in `.claude/settings.json` refuses a commit without a passing full gate, but it reads command text, so a commit inside a script gets past it, and it does not bind commits made outside Claude Code. Files ending in `.md` may change after the gate without another run.
 - Alerts, metrics and error tracking from 07-OPS-ARCH 14 and 15 are not built, as ADR-0013 records. Terraform (M-INF-04) is not used.
 
 - M-BUN-02 is measured per file. The editor route is split into several files that each pass, but

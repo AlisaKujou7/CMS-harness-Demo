@@ -19,3 +19,4 @@ cms-api/test
 cms-web/test
 infra/.local
 infra/runbooks
+**/.claude

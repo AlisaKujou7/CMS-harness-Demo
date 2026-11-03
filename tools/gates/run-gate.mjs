@@ -4,6 +4,7 @@
 //   node tools/gates/run-gate.mjs --only=a,b the named steps
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
+import { workingTree, writeGateStamp } from './git-guard.mjs';
 
 const EXIT_SKIP = 78;
 const ROOT = join(import.meta.dirname, '..', '..');
@@ -67,7 +68,10 @@ function runStep(step) {
   return { label: step.label, outcome, seconds };
 }
 
-const results = selectSteps(process.argv.slice(2)).map(runStep);
+const args = process.argv.slice(2);
+// Taken first, so an edit made while the gate runs does not count as checked.
+const treeAtStart = args.length === 0 ? workingTree(ROOT) : null;
+const results = selectSteps(args).map(runStep);
 
 console.log('\n===== Quality Gate Report =====');
 for (const { label, outcome, seconds } of results) {
@@ -79,4 +83,6 @@ const skipped = results.filter((result) => result.outcome === 'SKIP');
 if (failed.length > 0) console.log(`\nRESULT: FAIL (${String(failed.length)} failed)`);
 else if (skipped.length > 0) console.log(`\nRESULT: PASS WITH ${String(skipped.length)} SKIPPED`);
 else console.log('\nRESULT: PASS');
+// Only a full run counts, and the Claude Code hook reads this before a commit.
+if (treeAtStart !== null && failed.length === 0) writeGateStamp(ROOT, treeAtStart);
 process.exit(failed.length > 0 ? 1 : 0);
