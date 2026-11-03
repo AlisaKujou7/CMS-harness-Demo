@@ -41,15 +41,19 @@ async function startServices(): Promise<Services> {
   const [postgres, redis, minio, mailpit] = await Promise.all([
     new PostgreSqlContainer('postgres:15-alpine').start(),
     new RedisContainer('redis:7-alpine').start(),
-    // Official MinIO images are no longer public, as ADR-0013 records.
-    new GenericContainer('bitnamilegacy/minio:2025.7.23')
+    // The S3 service that deployments run (ADR-0013). A bucket is a top-level directory.
+    new GenericContainer('versity/versitygw:v1.10.0')
       .withEnvironment({
-        MINIO_ROOT_USER: 'e2e-only-key',
-        MINIO_ROOT_PASSWORD: 'e2e-only-secret',
-        MINIO_DEFAULT_BUCKETS: 'cms-media',
+        ROOT_ACCESS_KEY: 'e2e-only-key',
+        ROOT_SECRET_KEY: 'e2e-only-secret',
+        VGW_CORS_ALLOW_ORIGIN: WEB_URL,
       })
+      .withEntrypoint(['sh', '-c'])
+      .withCommand([
+        'mkdir -p /data/cms-media && exec versitygw --port :9000 --health /health posix /data',
+      ])
       .withExposedPorts(9000)
-      .withWaitStrategy(Wait.forHttp('/minio/health/live', 9000))
+      .withWaitStrategy(Wait.forHttp('/health', 9000))
       .start(),
     new GenericContainer('axllent/mailpit:v1.27')
       .withExposedPorts(MAILPIT_HTTP, MAILPIT_SMTP)

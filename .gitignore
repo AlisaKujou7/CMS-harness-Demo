@@ -12,3 +12,6 @@ cms-api/src/generated/
 .env
 .env.*
 !.env.example
+
+# Local stack: generated secrets, self-signed certificate and backups
+infra/.local/

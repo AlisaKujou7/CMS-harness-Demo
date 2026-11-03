@@ -1,4 +1,4 @@
-# Local development dependencies only. Production runs from cms-infra (07-OPS-ARCH).
+# Local development dependencies only. Production runs from infra/ (07-OPS-ARCH).
 name: cms-dev
 
 services:
@@ -28,24 +28,28 @@ services:
       timeout: 3s
       retries: 10
 
-  # Official MinIO images are no longer public. This is the same server, for local use only.
-  # The bucket is private: SEC-06 means nothing here may be listed or read anonymously.
-  minio:
-    image: bitnamilegacy/minio:2025.7.23
+  # The S3 service that deployments run (ADR-0013). A bucket is a top-level directory, and it is
+  # private: SEC-06 means nothing here may be listed or read anonymously.
+  object-storage:
+    image: versity/versitygw:v1.10.0
+    entrypoint:
+      - sh
+      - -c
+      - mkdir -p /data/cms-media && exec versitygw --port :9000 --health /health posix /data
     environment:
-      MINIO_ROOT_USER: cms-local-only
-      MINIO_ROOT_PASSWORD: cms-local-only-secret
-      MINIO_DEFAULT_BUCKETS: cms-media
+      ROOT_ACCESS_KEY: cms-local-only
+      ROOT_SECRET_KEY: cms-local-only-secret
+      VGW_CORS_ALLOW_ORIGIN: http://localhost:5173
     ports:
       - '127.0.0.1:9000:9000'
     volumes:
-      - minio-data:/bitnami/minio/data
+      - object-storage-data:/data
     healthcheck:
-      test: ['CMD', 'curl', '-fsS', 'http://localhost:9000/minio/health/live']
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:9000/health']
       interval: 5s
       timeout: 3s
       retries: 20
 
 volumes:
-  minio-data:
+  object-storage-data:
   postgres-data:

@@ -17,14 +17,15 @@ export default async function globalSetup(project: TestProject): Promise<() => P
   const [postgres, redis, minio] = await Promise.all([
     new PostgreSqlContainer('postgres:15-alpine').start(),
     new RedisContainer('redis:7-alpine').start(),
-    // Official MinIO images are no longer public. This is the same server, for tests only.
-    new GenericContainer('bitnamilegacy/minio:2025.7.23')
+    // The S3 service that deployments run (ADR-0013).
+    new GenericContainer('versity/versitygw:v1.10.0')
       .withEnvironment({
-        MINIO_ROOT_USER: 'test-only-key',
-        MINIO_ROOT_PASSWORD: 'test-only-secret',
+        ROOT_ACCESS_KEY: 'test-only-key',
+        ROOT_SECRET_KEY: 'test-only-secret',
       })
+      .withCommand(['--port', ':9000', '--health', '/health', 'posix', '/tmp'])
       .withExposedPorts(9000)
-      .withWaitStrategy(Wait.forHttp('/minio/health/live', 9000))
+      .withWaitStrategy(Wait.forHttp('/health', 9000))
       .start(),
   ]);
   // Roles are cluster-wide. Creating it once here keeps parallel migrations from racing on it.

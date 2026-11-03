@@ -9,7 +9,7 @@ import { createTestBucket, STORAGE_KEY, STORAGE_SECRET } from '../support/test-b
 const CREDENTIALS = { accessKey: STORAGE_KEY, secretKey: STORAGE_SECRET };
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 1, 2, 3, 4]);
 
-describe('S3ObjectStorage against real MinIO', () => {
+describe('S3ObjectStorage against a real S3 service', () => {
   let storage: S3ObjectStorage;
   let config: S3StorageConfig;
   const key = (name: string) => `${randomUUID()}/${name}`;

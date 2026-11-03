@@ -34,7 +34,7 @@ interface MediaResponse {
   variants: Record<string, { url: string; width: number; height: number }>;
 }
 
-// E2E-05 at the API level: real Postgres, Redis, MinIO, sharp and the variant worker.
+// E2E-05 at the API level: real Postgres, Redis, S3 storage, sharp and the variant worker.
 describe('media against real infrastructure', () => {
   let db: TestDatabase;
   let running: RunningInfrastructure;

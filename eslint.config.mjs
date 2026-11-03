@@ -27,6 +27,8 @@ export default tseslint.config(
       '**/.stryker-tmp/**',
       '**/*.generated.ts',
       'cms-api/src/generated/**',
+      // Four lines read by the Prisma CLI inside the migrate image, and in no TypeScript project.
+      'infra/migrate/prisma.config.ts',
     ],
   },
 
