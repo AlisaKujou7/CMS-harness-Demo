@@ -244,6 +244,20 @@ describe('findDisallowedLicenses', () => {
   });
 });
 
+describe('findDisallowedLicenses for fonts (ADR-0016)', () => {
+  it('excepts only the two fonts 03-DESIGN names', () => {
+    const report = {
+      'OFL-1.1': [
+        { name: '@fontsource-variable/roboto-flex' },
+        { name: '@fontsource/roboto-mono' },
+        { name: '@fontsource/other' },
+      ],
+    };
+
+    assert.deepEqual(findDisallowedLicenses(report), ['@fontsource/other (OFL-1.1)']);
+  });
+});
+
 describe('evaluateTestRatio', () => {
   const numstat = (...rows) => rows.map(([add, del, path]) => `${add}\t${del}\t${path}`).join('\n');
 

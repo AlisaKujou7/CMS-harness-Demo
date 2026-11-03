@@ -46,4 +46,16 @@ cd cms-api && node --env-file=.env dist/worker.js
 
 Set `JWT_SECRET` in `.env` first. It refuses the placeholder.
 
+## Run the admin panel locally
+
+With the API running, in another terminal:
+
+```bash
+pnpm --filter cms-web dev
+```
+
+Open <http://localhost:5173>. Vite forwards `/api/` to the API on port 3000, because the session
+cookie only works on the same site. After an API change, run `pnpm openapi:generate` in `cms-api`
+and then `pnpm --filter cms-web openapi:types`.
+
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow.

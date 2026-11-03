@@ -7,6 +7,7 @@ overrides:
   qs@>=6.7.0 <=6.16.0: ^6.16.1
 # Install scripts are denied unless a dependency cannot work without them.
 allowBuilds:
+  '@scarf/scarf': false
   '@prisma/engines': true
   argon2: true
   prisma: true

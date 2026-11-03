@@ -113,6 +113,44 @@ const SCENARIOS = [
     expect: /M-RX-04/,
   },
   {
+    name: 'component has too many useState calls',
+    files: {
+      [`${WEB}/zzq/pages/Bad.tsx`]: [
+        "import { useState } from 'react';",
+        'export function Bad() {',
+        ...['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((name) => `  const ${name} = useState(0);`),
+        '  return <div>{[a, b, c, d, e, f, g].length}</div>;',
+        '}',
+        '',
+      ].join('\n'),
+    },
+    command: LINT,
+    expect: /M-RX-08/,
+  },
+  {
+    name: 'UI text written inline',
+    files: { [`${WEB}/zzq/pages/Bad.tsx`]: 'export const Bad = () => <p>Inline words</p>;\n' },
+    command: LINT,
+    expect: /NFR-I18N-03/,
+  },
+  {
+    name: 'component subscribes by itself',
+    files: {
+      [`${WEB}/zzq/pages/Bad.tsx`]:
+        "import { of } from 'rxjs';\nof(1).subscribe();\nexport const Bad = () => <br />;\n",
+    },
+    command: LINT,
+    expect: /M-STATE-04/,
+  },
+  {
+    name: 'query key without its feature',
+    files: {
+      [`${WEB}/zzq/pages/bad.ts`]: "export const bad = { queryKey: ['stranger', 1] };\n",
+    },
+    command: LINT,
+    expect: /M-STATE-02/,
+  },
+  {
     name: 'skipped test',
     files: {
       'cms-api/src/shared/zzq.spec.ts':

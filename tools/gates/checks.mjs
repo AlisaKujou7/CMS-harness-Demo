@@ -110,8 +110,13 @@ export function isLicenseAllowed(expression) {
 }
 
 // ADR-0015: the prebuilt libvips binaries sharp loads as a separate library, unmodified. An exception
-// names both the package and its exact license, so any other LGPL dependency still fails.
+// names both the package and its exact license, so any other LGPL dependency still fails. ADR-0016
+// does the same for the fonts 03-DESIGN names.
 const LICENSE_EXCEPTIONS = [
+  {
+    name: /^(@fontsource-variable\/roboto-flex|@fontsource\/roboto-mono)$/,
+    licenses: new Set(['OFL-1.1']),
+  },
   {
     name: /^@img\/sharp-(libvips-)?[a-z0-9-]+$/,
     licenses: new Set(['LGPL-3.0-or-later', 'Apache-2.0 AND LGPL-3.0-or-later']),

@@ -6,43 +6,46 @@ changes. `pnpm gate` runs the local steps, and `pnpm gate:self-test` proves that
 
 ## G-03 PR gate
 
-| Check                                | Metric                 | Status                                             |
-| ------------------------------------ | ---------------------- | -------------------------------------------------- |
-| TypeScript compile and strict flags  | M-TS-01..05            | Enforced. Self-tested                              |
-| ESLint and Prettier, 0 warnings      | M-LINT-01..03          | Enforced                                           |
-| Complexity and size limits           | M-CPX-01..07           | Enforced. Self-tested for complexity               |
-| `any` and undocumented suppressions  | M-DEBT-04..06          | Enforced. Self-tested for `any`                    |
-| Unlinked TODO and FIXME              | M-DEBT-02              | Enforced. Self-tested                              |
-| Skipped and focused tests            | M-TEST-05              | Enforced. Self-tested for skipped tests            |
-| Hexagonal rules                      | M-HEX-01..05           | Enforced. Self-tested                              |
-| Fake for every outbound port         | M-HEX-06               | Enforced. Self-tested                              |
-| Use case without a spec              | M-HEX-07               | Enforced as "a spec imports it". Self-tested       |
-| Mutable domain fields and setters    | M-HEX-08               | Enforced for fields and setters. Self-tested       |
-| Circular dependencies                | M-DEP-01               | Enforced. Self-tested                              |
-| Reactive rules                       | M-RX-01,02,04,05,06,07 | Enforced. Self-tested for 01, 04 and 06            |
-| Coverage, overall and per layer      | §3.2, §3.3             | Enforced across unit and Docker tests. Self-tested |
-| Mutation score                       | M-TDD-03, M-TEST-06    | Enforced on the in-process suite. Self-tested      |
-| Mutation on domain and critical code | M-TEST-07, §3.3        | Enforced at 90% by group. Self-tested              |
-| Duplication                          | M-DUP-01               | Enforced. Self-tested                              |
-| Bundle budgets                       | M-BUN-01..03           | Enforced                                           |
-| License allow-list                   | M-LIC-01..03           | Enforced for production dependencies               |
-| Dependency CVEs, critical and high   | M-SEC-01,02,05         | Enforced                                           |
-| Commit and PR title format           | M-PR-06                | Enforced                                           |
-| Test-to-code ratio                   | M-TDD-01,06            | Skipped until `origin/main` exists                 |
-| Secret scan                          | M-SAST-02              | Enforced locally, in pre-commit and in CI          |
-| SAST (CodeQL)                        | M-SAST-01              | CI workflow written, never run                     |
+| Check                                 | Metric              | Status                                             |
+| ------------------------------------- | ------------------- | -------------------------------------------------- |
+| TypeScript compile and strict flags   | M-TS-01..05         | Enforced. Self-tested                              |
+| ESLint and Prettier, 0 warnings       | M-LINT-01..03       | Enforced                                           |
+| Complexity and size limits            | M-CPX-01..07        | Enforced. Self-tested for complexity               |
+| `any` and undocumented suppressions   | M-DEBT-04..06       | Enforced. Self-tested for `any`                    |
+| Unlinked TODO and FIXME               | M-DEBT-02           | Enforced. Self-tested                              |
+| Skipped and focused tests             | M-TEST-05           | Enforced. Self-tested for skipped tests            |
+| Hexagonal rules                       | M-HEX-01..05        | Enforced. Self-tested                              |
+| Fake for every outbound port          | M-HEX-06            | Enforced. Self-tested                              |
+| Use case without a spec               | M-HEX-07            | Enforced as "a spec imports it". Self-tested       |
+| Mutable domain fields and setters     | M-HEX-08            | Enforced for fields and setters. Self-tested       |
+| Circular dependencies                 | M-DEP-01            | Enforced. Self-tested                              |
+| Reactive rules                        | M-RX-01,02,04..08   | Enforced. Self-tested for 01, 04, 06 and 08        |
+| Query key convention, stream teardown | M-STATE-02,04       | Enforced as lint rules. Self-tested                |
+| UI text in message files              | NFR-I18N-03         | Enforced for JSX text and text props. Self-tested  |
+| React hooks and JSX accessibility     | NFR-USE-03          | Enforced with lint, and axe in component tests     |
+| Coverage, overall and per layer       | §3.2, §3.3          | Enforced across unit and Docker tests. Self-tested |
+| Mutation score                        | M-TDD-03, M-TEST-06 | Enforced on the in-process suite. Self-tested      |
+| Mutation on domain and critical code  | M-TEST-07, §3.3     | Enforced at 90% by group. Self-tested              |
+| Duplication                           | M-DUP-01            | Enforced. Self-tested                              |
+| Bundle budgets                        | M-BUN-01..03        | Enforced                                           |
+| License allow-list                    | M-LIC-01..03        | Enforced for production dependencies               |
+| Dependency CVEs, critical and high    | M-SEC-01,02,05      | Enforced                                           |
+| Commit and PR title format            | M-PR-06             | Enforced                                           |
+| Test-to-code ratio                    | M-TDD-01,06         | Skipped until `origin/main` exists                 |
+| Secret scan                           | M-SAST-02           | Enforced locally, in pre-commit and in CI          |
+| SAST (CodeQL)                         | M-SAST-01           | CI workflow written, never run                     |
 
 ## Not enforced yet
 
-| Check                              | Metric             | Arrives in  |
-| ---------------------------------- | ------------------ | ----------- |
-| Diff coverage on changed lines     | M-TDD-02           | With git    |
-| Mutation on changed files only     | M-TDD-03           | With git    |
-| OpenAPI validity and drift         | M-API-04           | Phase 5     |
-| Component limits and subscriptions | M-RX-08, M-STATE-* | Phase 6     |
-| React lint rules, i18n literals    | NFR-I18N-03        | Phase 6     |
-| E2E, Lighthouse, axe               | G-04, M-BUN-04..08 | Phases 6, 7 |
-| Container scan, SBOM, signing      | G-05, M-INF-*      | Phase 8     |
+| Check                              | Metric               | Arrives in                               |
+| ---------------------------------- | -------------------- | ---------------------------------------- |
+| Diff coverage on changed lines     | M-TDD-02             | With git                                 |
+| Mutation on changed files only     | M-TDD-03             | With git                                 |
+| OpenAPI validity and drift         | M-API-04             | Phase 5                                  |
+| E2E and Lighthouse                 | G-04, M-BUN-04..08   | Phase 7                                  |
+| Storybook and Chromatic            | 06-TEST-STRATEGY 8.6 | Needs a decision on the external service |
+| Slice size and invalidation review | M-STATE-01, 03       | By review                                |
+| Container scan, SBOM, signing      | G-05, M-INF-*        | Phase 8                                  |
 
 ## Not measured by design for now
 
@@ -67,6 +70,18 @@ changes. `pnpm gate` runs the local steps, and `pnpm gate:self-test` proves that
 - M-HEX-07 asks for an integration test per use case. The check proves that a spec imports each one.
 - SMTP is tested against a real server with STARTTLS, but not against a production provider or with authentication.
 - Graceful shutdown in `main.ts` has not been exercised, because Windows delivers no SIGTERM. Phase 8 can verify it in a container.
+
+- M-BUN-02 is measured per file. The editor route is split into several files that each pass, but
+  opening it downloads about 130 KB gzipped in total, over the 100 KB the metric asks of a route.
+- Mutation testing of `cms-web` leaves out string and object literal mutants, since those are mostly
+  styling, and message files, tokens and the app shell. M-TEST-07's layer bars are not measured for it.
+- M-CPX-04 limits a function to 50 lines, but a React component is held to 200 lines, the limit M-RX-07
+  writes for components, because its JSX is markup. Complexity limits still apply to it. Hooks and
+  other functions keep the 50 lines.
+- The axe scans in component tests leave out color contrast, since jsdom has no layout. A unit test
+  checks the theme's role pairs instead, and Lighthouse arrives in phase 7.
+- `eslint-plugin-jsx-a11y` declares support up to ESLint 9. It runs under ESLint 10 today, and needs
+  replacing if a later ESLint breaks it.
 
 ## Known dependency findings
 

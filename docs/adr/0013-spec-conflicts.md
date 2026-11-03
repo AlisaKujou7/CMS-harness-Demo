@@ -92,6 +92,25 @@ The stricter or more specific document wins unless noted.
 - `/docs` and `/openapi.json` need no key, since FR-PUBAPI-07 publishes them and they hold no data. They describe the Admin API too, because phase 6 generates its types from the same file. The viewer's assets are served locally with their own Content-Security-Policy.
 - Worker jobs use BullMQ job schedulers. `purge-expired-tokens` also runs there, deleting tokens past their expiry, since replay detection only matters until then.
 
+- Undo for a delete uses `POST /content/{id}/restore`, added for it. A slug taken in the meantime makes it fail with `SLUG_TAKEN`, and a schedule cleared by the delete does not come back. 03-DESIGN 15.1 names a 10 second window, which is how long the Undo is offered. The API does not enforce it, since restoring later within the 30 days does no harm.
+- Undo for an unpublish uses `POST /content/{id}/unpublish/undo`, added for it. 5.4.1 draws no path from Unpublished to Published, so this is not a general transition: it only works within 60 seconds of the unpublish, as 03-DESIGN 15.1 says, and any later save closes it.
+- `editor_name` is added to version list rows, because 03-DESIGN 19.5 shows the editor's name, and Editors and Authors cannot list users. It is left off a single version, which does not show it.
+- The audit log and the dashboard name actors from the user list, since only Admins read either. A deleted user shows as "Someone", and the list reads the first 100 users.
+- The dashboard's recent activity is the audit log for Admins. Everyone else cannot read that log, so they see recently updated content instead.
+- Autosave runs saves one at a time, not with the `switchMap` that 04-ARCH 5.4.2 sketches. A cancelled request still lands on the server and moves the version on, so the next save would look like someone else's edit (`CONTENT_CHANGED`).
+- The editor shows a current URL for an inline image, and saving puts back the stored `src`. Otherwise reading a fresh signed URL would count as a change and add a version. An editor left open past the URL's lifetime (an hour by default) can show a broken image if it redraws one, and reloading fixes it.
+- Inline images cannot be resized with drag handles as 03-DESIGN 19.3 describes, because the sanitizer in SEC-04 keeps no size attribute, so a size would vanish on save.
+- Slug uniqueness is checked when the field is saved on blur, not while typing as 03-DESIGN 12.4 says, since no endpoint checks a slug alone. The result lands on the same field.
+- The privacy notice (02-SRS 10.1) is remembered per user in the browser, not on the server, so it shows again on a new device. No document asks for proof of acceptance.
+- SEC-12's idle timeout is enforced by the SPA: a warning at 28 minutes and sign-out at 30. A refresh token used directly is not limited by it.
+- The content list sorts by Title and Updated only, and the audit log is newest first only, because those are the orders the API offers. 03-DESIGN 12.3 and 12.7 also draw sorting on other columns.
+- The author filter offers the authors in the current results, since Editors cannot list users.
+- Bulk select exists for media, as 03-DESIGN 12.5 asks. The content table has no bulk actions, since 10.7 makes them optional and no endpoint exists.
+- The top app bar has no notification icon, because no notification feature is in scope, and its search icon opens the content list.
+- Icons come from `@mui/icons-material` in the rounded style, the same glyphs as Material Symbols, because the variable font is several megabytes and a page uses a few dozen icons.
+- Navigation uses the rail from 840 pixels and the drawer below it, following the breakpoint table in 03-DESIGN 11.4 over the 1240 in 10.3, which contradicts it.
+- A component is held to 200 lines (M-RX-07) rather than the 50 of M-CPX-04, because its JSX is markup. Complexity limits still apply.
+
 ## Consequences
 
 - Positive: every interpretation is written down and reversible.

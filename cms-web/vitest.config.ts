@@ -6,7 +6,12 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'jsdom',
+    environmentOptions: { jsdom: { url: 'http://localhost:5173/' } },
     include: ['src/**/*.spec.{ts,tsx}'],
+    setupFiles: ['test/setup.ts'],
+    testTimeout: 20_000,
+    // The icon package is CommonJS per file, and Node would hand back its module object.
+    server: { deps: { inline: [/@mui\/icons-material/] } },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json-summary', 'lcov'],
@@ -17,6 +22,7 @@ export default defineConfig({
         'src/**/*.stories.tsx',
         'src/**/*.types.ts',
         'src/**/*.generated.ts',
+        'src/**/*.messages.ts',
         'src/**/index.ts',
         'src/main.tsx',
         'src/app/**',
