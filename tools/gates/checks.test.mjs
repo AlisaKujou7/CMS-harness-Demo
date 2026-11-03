@@ -8,11 +8,84 @@ import {
   findPortsWithoutFakes,
   findUnlinkedTodos,
   findUntestedUseCases,
+  findUntracedRequirements,
   findWeakMutationScores,
   isLicenseAllowed,
 } from './checks.mjs';
 
 const KB = 1024;
+
+describe('findUntracedRequirements (02-SRS 11.3)', () => {
+  const srs = `
+| ID | Requirement |
+| FR-AUTH-01 | Sign in. |
+| FR-AUTH-10 | Audit it. Traces to FR-USER-99 in passing. |
+| FR-USER-02 | Invite. |
+`;
+
+  it('passes when each requirement has a test or an exception', () => {
+    const tests = ["it('signs in (FR-AUTH-01)')", '// FR-USER-02\nit("invites")'];
+
+    assert.deepEqual(findUntracedRequirements(srs, tests, { 'FR-AUTH-10': 'Why not.' }), []);
+  });
+
+  it('names each requirement that nothing traces', () => {
+    const violations = findUntracedRequirements(srs, ["it('x (FR-AUTH-01)')"], {});
+
+    assert.equal(violations.length, 2);
+    assert.match(violations[0], /FR-AUTH-10/);
+    assert.match(violations[1], /FR-USER-02/);
+  });
+
+  it('does not read one code as another that starts the same', () => {
+    const tests = ["it('x (FR-AUTH-101)')", "it('x (FR-AUTH-1)')"];
+
+    const violations = findUntracedRequirements(srs, tests, {
+      'FR-AUTH-10': 'Why not.',
+      'FR-USER-02': 'Why not.',
+    });
+
+    assert.equal(violations.length, 1);
+    assert.match(violations[0], /FR-AUTH-01/);
+  });
+
+  it('only counts codes that start a row of the requirement table', () => {
+    const tests = ["it('x (FR-AUTH-01, FR-AUTH-10, FR-USER-02)')"];
+
+    assert.deepEqual(findUntracedRequirements(srs, tests, {}), []);
+  });
+
+  it('refuses an exception with no reason', () => {
+    const tests = ["it('x (FR-AUTH-01, FR-AUTH-10)')"];
+
+    const violations = findUntracedRequirements(srs, tests, { 'FR-USER-02': '  ' });
+
+    assert.equal(violations.length, 1);
+    assert.match(violations[0], /FR-USER-02.*reason/);
+  });
+
+  it('refuses an exception for a code the specification does not have', () => {
+    const tests = ["it('x (FR-AUTH-01, FR-AUTH-10, FR-USER-02)')"];
+
+    const violations = findUntracedRequirements(srs, tests, { 'FR-GONE-01': 'Why not.' });
+
+    assert.equal(violations.length, 1);
+    assert.match(violations[0], /FR-GONE-01/);
+  });
+
+  it('refuses an exception for a code that a test now traces', () => {
+    const tests = ["it('x (FR-AUTH-01, FR-AUTH-10, FR-USER-02)')"];
+
+    const violations = findUntracedRequirements(srs, tests, { 'FR-AUTH-01': 'Why not.' });
+
+    assert.equal(violations.length, 1);
+    assert.match(violations[0], /FR-AUTH-01/);
+  });
+
+  it('fails rather than passes when it finds no requirements at all', () => {
+    assert.equal(findUntracedRequirements('no table here', [], {}).length, 1);
+  });
+});
 
 describe('findPortsWithoutFakes (M-HEX-06)', () => {
   const ports = `
