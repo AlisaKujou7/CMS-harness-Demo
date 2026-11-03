@@ -4,6 +4,7 @@ import { type Express, json, type NextFunction, type Request, type Response } fr
 import helmet from 'helmet';
 import type { Logger } from '../../ports/system.port.js';
 import { AllExceptionsFilter } from './all-exceptions.filter.js';
+import { requestLog } from './request-log.js';
 import type { HttpConfig } from './tokens.js';
 
 const SAFE_REQUEST_ID = /^[\w-]{1,128}$/;
@@ -38,6 +39,7 @@ export function configureApp(
     infrastructure.http.trustProxy ? 1 : false,
   );
   app.use(requestId);
+  app.use(requestLog(infrastructure.logger));
   app.use(
     helmet({
       contentSecurityPolicy: { useDefaults: false, directives: { defaultSrc: ["'none'"] } },
