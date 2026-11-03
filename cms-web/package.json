@@ -14,7 +14,8 @@
     "test:cov": "vitest run --coverage",
     "test:integration": "echo cms-web integration tests run inside the unit suite with MSW",
     "test:mutation": "stryker run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:compose": "playwright test -c test/compose/playwright.config.ts"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

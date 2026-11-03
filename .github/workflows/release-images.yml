@@ -1,0 +1,56 @@
+# Builds, checks, pushes and signs images (07-OPS-ARCH 10.1, gate G-05). Written, never run: this
+# repository has no remote yet.
+name: Release images
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  images:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      # For keyless signing, which deploy.sh verifies against this workflow's identity.
+      id-token: write
+    env:
+      REGISTRY: ghcr.io/${{ github.repository_owner }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      - name: Build
+        run: |
+          docker build -f infra/docker/api.Dockerfile --target runtime \
+            -t "$REGISTRY/cms-api:${{ steps.version.outputs.version }}" .
+          docker build -f infra/docker/api.Dockerfile --target migrate \
+            -t "$REGISTRY/cms-migrate:${{ steps.version.outputs.version }}" .
+          docker build -f infra/docker/web.Dockerfile \
+            -t "$REGISTRY/cms-web:${{ steps.version.outputs.version }}" .
+      - name: Check non-root, size and CVEs (M-INF-01 to 03)
+        run: |
+          infra/scripts/check-images.sh \
+            "$REGISTRY/cms-api:${{ steps.version.outputs.version }}" \
+            "$REGISTRY/cms-migrate:${{ steps.version.outputs.version }}" \
+            "$REGISTRY/cms-web:${{ steps.version.outputs.version }}"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: sigstore/cosign-installer@v3
+      - uses: anchore/sbom-action/download-syft@v0
+      - name: Push, sign and attach an SBOM
+        run: |
+          for name in cms-api cms-migrate cms-web; do
+            image="$REGISTRY/$name:${{ steps.version.outputs.version }}"
+            docker push "$image"
+            digest="$(docker inspect --format '{{index .RepoDigests 0}}' "$image")"
+            cosign sign --yes "$digest"
+            syft "$digest" -o spdx-json > sbom.json
+            cosign attest --yes --type spdxjson --predicate sbom.json "$digest"
+          done

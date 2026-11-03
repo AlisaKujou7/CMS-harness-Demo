@@ -1,0 +1,10 @@
+[Unit]
+Description=CMS media and environment backup
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=deploy
+ExecStart=/opt/cms/current/scripts/backup.sh media
+ExecStart=/opt/cms/current/scripts/backup.sh env
