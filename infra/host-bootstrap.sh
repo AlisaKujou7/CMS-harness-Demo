@@ -21,10 +21,14 @@ apt-get update
 apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
 # cosign verifies image signatures at deploy (07-OPS-ARCH 16.2).
+# Pinned by hash, because everything deployed afterwards trusts this binary's answer.
 cosign_version=v2.5.0
-curl -fsSL -o /usr/local/bin/cosign \
+cosign_sha256=1f6c194dd0891eb345b436bb71ff9f996768355f5e0ce02dde88567029ac2188
+curl -fsSL -o /tmp/cosign \
   "https://github.com/sigstore/cosign/releases/download/${cosign_version}/cosign-linux-amd64"
-chmod 755 /usr/local/bin/cosign
+echo "${cosign_sha256}  /tmp/cosign" | sha256sum --check --quiet
+install -m 755 /tmp/cosign /usr/local/bin/cosign
+rm -f /tmp/cosign
 
 id deploy >/dev/null 2>&1 || useradd --create-home --shell /bin/bash deploy
 usermod -aG docker deploy

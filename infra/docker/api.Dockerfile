@@ -22,7 +22,7 @@ RUN find /out/node_modules -type f \
   && rm -rf /out/node_modules/.pnpm/@types+* /out/node_modules/.pnpm/typescript@*
 
 # Distroless has no shell or package manager. Node only needs libatomic beyond what it provides.
-FROM gcr.io/distroless/cc-debian13:nonroot AS runtime
+FROM gcr.io/distroless/cc-debian13:nonroot@sha256:08476c244888bfb425bae1ae4dd7c17f093e972aab8426883d97f3c6f280f7c1 AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=builder /usr/local/bin/node /usr/local/bin/node
@@ -57,6 +57,8 @@ COPY --from=migrate-builder /out/node_modules ./node_modules
 COPY --from=migrate-builder /out/package.json ./package.json
 COPY infra/migrate/prisma.config.ts ./prisma.config.ts
 COPY cms-api/prisma ./prisma
-RUN chown -R migrate:migrate /app/node_modules/.pnpm/@prisma+engines*
+# Fetched here, because otherwise each migration downloads it, and an outage there stops a deploy.
+RUN node /app/node_modules/.pnpm/@prisma+engines*/node_modules/@prisma/engines/dist/scripts/postinstall.js \
+  && test -n "$(find /app/node_modules/.pnpm -name 'schema-engine-*' -type f)"
 USER migrate
 CMD ["node", "node_modules/prisma/build/index.js", "migrate", "deploy"]

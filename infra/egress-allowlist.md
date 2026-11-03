@@ -12,3 +12,4 @@ Any new destination is added here before it is used.
 | Let's Encrypt                   | 443  | Host         | Certificate renewal                    |
 | Sigstore (`*.sigstore.dev`)     | 443  | Host         | `cosign verify` during deploy          |
 | OS and Docker package mirrors   | 443  | Host         | Security updates                       |
+| GitHub releases                 | 443  | Host         | Installing cosign during bootstrap     |

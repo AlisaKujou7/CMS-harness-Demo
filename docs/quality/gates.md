@@ -71,6 +71,7 @@ changes. `pnpm gate` runs the local steps, and `pnpm gate:self-test` proves that
 - SMTP is tested against a real server with STARTTLS, but not against a production provider or with authentication.
 - Graceful shutdown is verified by hand, by stopping the containers, and no automated test covers it. Both exit 0 within about a second.
 - `infra/scripts/check-images.sh` covers M-INF-01 to 03, but nothing runs it until the release workflow does. The deploy scripts and restore were rehearsed once by hand on Linux in Docker-in-Docker, not on a real VM. Bucket CORS was tried against the gateway, not AWS S3.
+- `postgres:15.19-alpine` has critical and high findings in the Go `stdlib` of its bundled `gosu`, so M-INF-01 does not hold for it, and `check-images.sh` only scans our own images. Nothing runs `gosu` here, because the container starts as user 70.
 - Alerts, metrics and error tracking from 07-OPS-ARCH 14 and 15 are not built, as ADR-0013 records. Terraform (M-INF-04) is not used.
 
 - M-BUN-02 is measured per file. The editor route is split into several files that each pass, but

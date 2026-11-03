@@ -17,10 +17,10 @@ jobs:
       packages: write
       # For keyless signing, which deploy.sh verifies against this workflow's identity.
       id-token: write
-    env:
-      REGISTRY: ghcr.io/${{ github.repository_owner }}
     steps:
       - uses: actions/checkout@v4
+      # Image references must be lowercase, and an owner's name need not be.
+      - run: echo "REGISTRY=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
       - id: version
         run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
       - name: Build

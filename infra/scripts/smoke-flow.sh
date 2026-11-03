@@ -125,16 +125,22 @@ echo "10. The API and worker hold only the application role"
 compose exec -T postgres sh -c '
   psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atc \
     "SELECT count(*) FROM pg_stat_activity
-     WHERE usename = current_user AND backend_type = '\''client backend'\'' AND pid <> pg_backend_pid()"
+     WHERE usename = current_user AND backend_type = '\''client backend'\''
+       AND pid <> pg_backend_pid() AND application_name NOT IN ('\''pg_dump'\'', '\''psql'\'')"
 ' | grep -qx '0' || {
   echo "FAILED: something other than this check is connected as the database owner" >&2
   exit 1
 }
-if compose exec -T postgres sh -c '
+# Only a refusal counts, because a wrong password or a lost connection would also make this fail.
+refusal="$(compose exec -T postgres sh -c '
   PGPASSWORD="$CMS_APP_DB_PASSWORD" psql -h 127.0.0.1 -U cms_app -d "$POSTGRES_DB" \
-    -c "TRUNCATE audit_events"' >/dev/null 2>&1; then
-  echo "FAILED: the application role could empty the audit log" >&2
-  exit 1
-fi
+    -c "TRUNCATE audit_events"' 2>&1 || true)"
+case "${refusal}" in
+  *"permission denied for table audit_events"*) ;;
+  *)
+    echo "FAILED: the application role was not refused emptying the audit log: ${refusal}" >&2
+    exit 1
+    ;;
+esac
 
 echo "All flow checks passed."

@@ -36,7 +36,7 @@ x-app-environment: &app-environment
   OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-cms-media}
   OBJECT_STORAGE_ACCESS_KEY: ${OBJECT_STORAGE_ACCESS_KEY:-}
   OBJECT_STORAGE_SECRET_KEY: ${OBJECT_STORAGE_SECRET_KEY:-}
-  OBJECT_STORAGE_PUBLIC_URL: ${OBJECT_STORAGE_PUBLIC_URL:?}
+  OBJECT_STORAGE_PUBLIC_URL: ${OBJECT_STORAGE_PUBLIC_URL:-}
   MEDIA_MAX_UPLOAD_MB: ${MEDIA_MAX_UPLOAD_MB:-20}
   MEDIA_UPLOAD_URL_TTL_SEC: ${MEDIA_UPLOAD_URL_TTL_SEC:-900}
   MEDIA_READ_URL_TTL_SEC: ${MEDIA_READ_URL_TTL_SEC:-3600}
@@ -66,7 +66,7 @@ services:
       CMS_DOMAIN: ${CMS_DOMAIN:?}
       MEDIA_DOMAIN: ${MEDIA_DOMAIN:?}
       PUBLIC_URL: ${PUBLIC_URL:?}
-      MEDIA_ORIGIN: ${OBJECT_STORAGE_PUBLIC_URL:?}
+      MEDIA_ORIGIN: ${MEDIA_ORIGIN:?}
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/snippets:/etc/nginx/snippets:ro
@@ -160,7 +160,7 @@ services:
 
   postgres:
     <<: *hardening
-    image: postgres:15-alpine
+    image: postgres:15.19-alpine@sha256:54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984
     # The alpine image's postgres user, so no capabilities are needed to step down from root.
     user: '70:70'
     environment:
@@ -171,7 +171,6 @@ services:
       CMS_APP_DB_PASSWORD: ${CMS_APP_DB_PASSWORD:?}
     volumes:
       - ${CMS_DATA_DIR:-/var/lib/cms}/postgres:/var/lib/postgresql/data
-      - ./postgres/ensure-app-role.sh:/docker-entrypoint-initdb.d/10-ensure-app-role.sh:ro
     networks:
       - cms-internal
     read_only: true
@@ -187,7 +186,7 @@ services:
 
   redis:
     <<: *hardening
-    image: redis:7-alpine
+    image: redis:7.4.12-alpine@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f
     user: '999:1000'
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?}

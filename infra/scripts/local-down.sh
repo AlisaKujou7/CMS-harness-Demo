@@ -6,9 +6,10 @@ set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 cd "${INFRA_DIR}"
 
+# By project name, without the Compose files, so that an .env older than them cannot block a reset.
 if [ "${1:-}" = "--wipe" ]; then
-  compose --profile tools down --volumes --remove-orphans
+  docker compose --project-name cms down --volumes --remove-orphans
   rm -rf .local .env
 else
-  compose --profile tools down --remove-orphans
+  docker compose --project-name cms down --remove-orphans
 fi

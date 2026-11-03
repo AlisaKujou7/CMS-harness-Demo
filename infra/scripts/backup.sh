@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Backs up what cannot be rebuilt (07-OPS-ARCH 13). Usage: scripts/backup.sh postgres|media|env|all
-# The systemd timers run postgres hourly, and media and env daily. Off-site copies go through restic,
-# from its image, so that it can read data files owned by the containers' users.
+# The systemd timers run postgres hourly, and media and env daily. Off-site copies go through restic.
 set -euo pipefail
 
 # shellcheck source=scripts/lib.sh
@@ -12,23 +11,6 @@ cd "${INFRA_DIR}"
 target="${1:?usage: backup.sh postgres|media|env|all}"
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 backup_root="${CMS_BACKUP_DIR:-${CMS_DATA_DIR}/backups}"
-restic_image=restic/restic:0.18.1
-
-# Runs restic with the given extra `docker run` arguments before `--`.
-restic_run() {
-  local docker_args=()
-  while [ "$1" != "--" ]; do
-    docker_args+=("$1")
-    shift
-  done
-  shift
-  docker run --rm \
-    -e RESTIC_REPOSITORY="${BACKUP_RESTIC_REPOSITORY}" \
-    -e RESTIC_PASSWORD \
-    -e AWS_ACCESS_KEY_ID="${BACKUP_S3_ACCESS_KEY:-}" \
-    -e AWS_SECRET_ACCESS_KEY="${BACKUP_S3_SECRET_KEY:-}" \
-    "${docker_args[@]}" "${restic_image}" "$@"
-}
 
 # Sends a directory off site under a tag, creating the repository the first time.
 send_off_site() {

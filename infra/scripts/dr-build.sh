@@ -10,19 +10,20 @@ version="${1:?usage: dr-build.sh <version>}"
 cms_home="${CMS_HOME:-/opt/cms}"
 env_file="${cms_home}/shared/env/.env.production"
 restore_dir="$(mktemp -d)"
-restic_image=restic/restic:0.18.1
+
+# shellcheck source=scripts/lib.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+export RESTIC_PASSWORD
 
 # restic restores files as their original owners, and these include the secrets and a database dump.
 clean_up() {
-  docker run --rm -v "${restore_dir}:/restore" --entrypoint sh "${restic_image}" -c 'rm -rf /restore/*'
+  docker run --rm -v "${restore_dir}:/restore" --entrypoint sh "${RESTIC_IMAGE}" -c 'rm -rf /restore/*'
   rm -rf "${restore_dir}"
 }
 trap clean_up EXIT
 
 restic_restore() {
-  docker run --rm -e RESTIC_REPOSITORY="${BACKUP_RESTIC_REPOSITORY}" -e RESTIC_PASSWORD \
-    -e AWS_ACCESS_KEY_ID="${BACKUP_S3_ACCESS_KEY:-}" -e AWS_SECRET_ACCESS_KEY="${BACKUP_S3_SECRET_KEY:-}" \
-    -v "${restore_dir}:/restore" "${restic_image}" restore latest --tag "$1" --target /restore
+  restic_run -v "${restore_dir}:/restore" -- restore latest --tag "$1" --target /restore
 }
 
 echo "==> Restoring .env"

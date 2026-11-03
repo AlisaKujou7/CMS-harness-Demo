@@ -15,7 +15,11 @@ export function startHeartbeat(
   isAlive: () => boolean,
 ): () => void {
   const beat = () => {
-    if (isAlive()) writeFileSync(path, '');
+    try {
+      if (isAlive()) writeFileSync(path, '');
+    } catch {
+      // A beat that cannot be written goes stale and reads as unhealthy. It must not end the worker.
+    }
   };
   beat();
   const timer = setInterval(beat, intervalMs);

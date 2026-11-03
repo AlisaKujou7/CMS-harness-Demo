@@ -9,7 +9,7 @@ echo "==> Starting the database"
 compose up -d --wait postgres
 
 echo "==> Setting the application role's login"
-compose exec -T postgres sh /docker-entrypoint-initdb.d/10-ensure-app-role.sh
+compose exec -T postgres sh -s <"${INFRA_DIR}/postgres/ensure-app-role.sh"
 
 echo "==> Applying migrations"
 compose run --rm --no-deps cms-migrate

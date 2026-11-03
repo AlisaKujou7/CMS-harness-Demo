@@ -1,7 +1,8 @@
 #!/bin/sh
-# Gives the application role a login, which the migrations leave without one (ADR-0013). Runs when
-# the database is first created, and again from scripts/migrate.sh, so changing the password in .env
-# and deploying applies it. Migrations keep running as the owner.
+# Gives the application role a login, which the migrations leave without one (ADR-0013). Runs from
+# scripts/migrate.sh, piped into the container, since a mount's path would differ per release and so
+# recreate the database on each deploy. Changing the password in .env and deploying applies it.
+# Migrations keep running as the owner.
 set -eu
 
 psql --set ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \

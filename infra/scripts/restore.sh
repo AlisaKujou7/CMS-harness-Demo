@@ -13,14 +13,6 @@ cd "${INFRA_DIR}"
 
 target="${1:?usage: restore.sh postgres <dump> | media <snapshot> | snapshot <snapshot> <directory>}"
 source_ref="${2:?what to restore is required}"
-restic_image=restic/restic:0.18.1
-
-restic_env=(
-  -e RESTIC_REPOSITORY="${BACKUP_RESTIC_REPOSITORY:-}"
-  -e RESTIC_PASSWORD
-  -e AWS_ACCESS_KEY_ID="${BACKUP_S3_ACCESS_KEY:-}"
-  -e AWS_SECRET_ACCESS_KEY="${BACKUP_S3_SECRET_KEY:-}"
-)
 
 restore_postgres() {
   local dump="$1"
@@ -41,10 +33,13 @@ restore_postgres() {
   compose exec -T postgres sh -c '
     dropdb -U "$POSTGRES_USER" --force "$POSTGRES_DB" &&
     createdb -U "$POSTGRES_USER" "$POSTGRES_DB"'
-  compose exec -T postgres sh /docker-entrypoint-initdb.d/10-ensure-app-role.sh
+  compose exec -T postgres sh -s <"${INFRA_DIR}/postgres/ensure-app-role.sh"
   compose exec -T postgres sh -c \
     'pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --exit-on-error --no-owner --role="$POSTGRES_USER"' \
     <"${dump}"
+
+  # The dump can be older than this release, whose code expects its newest schema.
+  scripts/migrate.sh
 
   trap - EXIT
   echo "==> Starting the application"
@@ -59,8 +54,7 @@ restore_media() {
   container="$(compose ps -aq object-storage)"
   echo "==> Stopping object storage"
   compose stop object-storage
-  docker run --rm "${restic_env[@]}" --volumes-from "${container}" "${restic_image}" \
-    restore "${snapshot}" --target / --tag media
+  restic_run --volumes-from "${container}" -- restore "${snapshot}" --target / --tag media
   compose run --rm --no-deps object-storage-init
   compose up -d --wait object-storage
 }
@@ -68,8 +62,7 @@ restore_media() {
 restore_snapshot() {
   local snapshot="$1" directory="${2:?a directory for the files is required}"
   mkdir -p "${directory}"
-  docker run --rm "${restic_env[@]}" -v "$(cd "${directory}" && pwd):/restore" "${restic_image}" \
-    restore "${snapshot}" --target /restore
+  restic_run -v "$(cd "${directory}" && pwd):/restore" -- restore "${snapshot}" --target /restore
 }
 
 case "${target}" in

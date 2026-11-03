@@ -19,7 +19,8 @@ scripts/backup.sh postgres
 
 ## Immediate actions
 
-**Database**, from a local dump. It stops the API and worker meanwhile:
+**Database**, from a local dump. It stops the API and worker meanwhile, and applies any migrations newer
+than the dump before starting them again:
 
 ```bash
 ls -t /var/lib/cms/backups/postgres/hourly | head

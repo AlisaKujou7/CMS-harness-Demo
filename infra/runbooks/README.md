@@ -54,9 +54,11 @@ COMPOSE_ADMIN_EMAIL=admin@cms.test COMPOSE_ADMIN_PASSWORD=... pnpm --filter cms-
    ```
 
 5. With media in AWS S3 rather than the bundled gateway: remove `self-hosted-storage` from
-   `COMPOSE_PROFILES`, set `OBJECT_STORAGE_PROVIDER=s3`, blank the endpoint, point
-   `OBJECT_STORAGE_PUBLIC_URL` at the bucket, and run `scripts/configure-s3-bucket.sh` once. Browsers
-   upload directly, so without this every upload fails.
+   `COMPOSE_PROFILES`, set `OBJECT_STORAGE_PROVIDER=s3` and your region and keys, blank
+   `OBJECT_STORAGE_ENDPOINT` and `OBJECT_STORAGE_PUBLIC_URL`, set `MEDIA_ORIGIN` to
+   `https://<bucket>.s3.<region>.amazonaws.com`, and run `scripts/configure-s3-bucket.sh` once. Browsers
+   upload directly, so without this every upload fails. This route has not been run against AWS yet, so
+   check an upload in a browser the first time.
 6. Deploy with `infra/scripts/deploy.sh 1.0.0` from the checkout, since `current` does not exist yet.
    With no key yet, its smoke test skips the check that needs one.
 7. Create the first Admin, then issue a key in **API Keys**, and put it in `SMOKE_API_KEY`:

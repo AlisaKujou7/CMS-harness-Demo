@@ -47,6 +47,15 @@ describe('worker heartbeat', () => {
     expect(beats).toBe(3);
   });
 
+  it('survives a beat it cannot write, which then reads as stale', () => {
+    const unwritable = join(dir, 'missing-directory', 'beat');
+
+    const stop = startHeartbeat(unwritable, 1000, () => true);
+    stop();
+
+    expect(isHeartbeatFresh(unwritable, 1000, Date.now())).toBe(false);
+  });
+
   it('reads an old beat as stale, and one exactly at the limit as fresh', () => {
     writeFileSync(path, '');
     const beatAt = new Date('2026-01-01T00:00:00.000Z');
