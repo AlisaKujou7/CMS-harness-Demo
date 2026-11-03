@@ -23,6 +23,7 @@ Node 26 LTS, pnpm 12 and Docker. Versions are explained in
 | `pnpm test`           | Run the unit tests                                        |
 | `pnpm test:cov`       | Run the unit tests with coverage thresholds               |
 | `pnpm test:mutation`  | Run Stryker mutation testing                              |
+| `pnpm test:e2e`       | Run the Playwright flows against a full stack in Docker   |
 | `pnpm gate:fast`      | Run the gate without the slow and network steps           |
 | `pnpm gate`           | Run the full G-03 gate                                    |
 | `pnpm gate:self-test` | Plant real violations and prove that the gates catch them |

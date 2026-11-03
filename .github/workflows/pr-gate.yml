@@ -84,6 +84,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  e2e:
+    name: End-to-end flows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter cms-web exec playwright install --with-deps chromium
+      - run: node tools/gates/run-gate.mjs --only=e2e
+
   bundle:
     name: Build and bundle budgets
     runs-on: ubuntu-latest

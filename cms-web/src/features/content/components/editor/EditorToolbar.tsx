@@ -30,6 +30,7 @@ function ToolButton({ label, icon, active, disabled, onClick }: ToolButtonProps)
             width: 40,
             height: 40,
             typography: 'labelLarge',
+            color: 'md.onSurfaceVariant',
             bgcolor: active ? 'md.secondaryContainer' : 'transparent',
             borderRadius: 1,
           }}

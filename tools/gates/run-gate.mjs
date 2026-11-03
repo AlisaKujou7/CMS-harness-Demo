@@ -37,6 +37,7 @@ const STEPS = [
     command: 'pnpm --filter cms-web build && node tools/gates/check.mjs bundle',
     slow: true,
   },
+  { id: 'e2e', label: 'End-to-end flows', command: 'pnpm test:e2e', slow: true },
   { id: 'audit', label: 'Dependency CVEs', command: 'pnpm audit --audit-level high', slow: true },
   {
     id: 'licenses',

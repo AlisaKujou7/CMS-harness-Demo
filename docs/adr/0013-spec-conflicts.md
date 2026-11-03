@@ -102,7 +102,7 @@ The stricter or more specific document wins unless noted.
 - Inline images cannot be resized with drag handles as 03-DESIGN 19.3 describes, because the sanitizer in SEC-04 keeps no size attribute, so a size would vanish on save.
 - Slug uniqueness is checked when the field is saved on blur, not while typing as 03-DESIGN 12.4 says, since no endpoint checks a slug alone. The result lands on the same field.
 - The privacy notice (02-SRS 10.1) is remembered per user in the browser, not on the server, so it shows again on a new device. No document asks for proof of acceptance.
-- SEC-12's idle timeout is enforced by the SPA: a warning at 28 minutes and sign-out at 30. A refresh token used directly is not limited by it.
+- SEC-12's idle timeout has two parts: the SPA warns at 28 minutes and signs out at 30, and the server refuses a refresh token idle for 30 minutes.
 - The content list sorts by Title and Updated only, and the audit log is newest first only, because those are the orders the API offers. 03-DESIGN 12.3 and 12.7 also draw sorting on other columns.
 - The author filter offers the authors in the current results, since Editors cannot list users.
 - Bulk select exists for media, as 03-DESIGN 12.5 asks. The content table has no bulk actions, since 10.7 makes them optional and no endpoint exists.
@@ -114,6 +114,10 @@ The stricter or more specific document wins unless noted.
 - Autosave stops once content is Published, so unfinished edits do not reach the public. 03-DESIGN 19.4 asks for autosave without excepting anything, but an edit to live content stays live, as this ADR records above. Edits there wait for Save changes, and the prompt on leaving still protects them. A separate draft of live content would be better, and needs a new data model.
 - An outage during a token refresh keeps the session and fails the request, so it can be retried. Only a 401 from the refresh ends the session. FR-AUTH-05 is unaffected, because a revoked token still gets that 401.
 - Activity in any tab counts for SEC-12's idle timeout in every tab, because signing out revokes the session they share.
+
+- E2E-05 says an Author publishes, but 02-SRS 5.3.1 forbids that, so the flow ends with an Editor publishing what the Author submitted.
+- E2E-06's 15 minute wait is stood in for by moving `locked_until` in the database, since 06-TEST-STRATEGY 9.2.3 rules out sleeping. E2E-09 waits for real, by scheduling seconds ahead.
+- E2E uses real containers for the database, cache, storage and mail, with Mailpit receiving what the worker sends, and runs the built SPA, since a bundling fault only shows there. Login and other rate limits are raised for the run, because every flow comes from one address and those limits have tests of their own.
 
 ## Consequences
 

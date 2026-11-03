@@ -7,20 +7,19 @@ export default defineConfig({
   server: {
     port: 5173,
     // Not a bare /api, which would also claim the /api-keys screen on a reload.
-    proxy: { '^/api/': { target: 'http://localhost:3000' } },
+    proxy: { '^/api/': { target: process.env['CMS_API_PROXY'] ?? 'http://localhost:3000' } },
   },
   build: {
     sourcemap: true,
     // M-BUN-02: the editor is one route, but more than one route's budget as a single file.
     rolldownOptions: {
       output: {
+        // Only libraries that do not reach React. A group takes its dependencies with it, and leaving
+        // them behind instead (includeDependenciesRecursively) breaks ProseMirror's load order.
         advancedChunks: {
-          // Dependencies stay where they are, or React would move in here and load up front.
-          includeDependenciesRecursively: false,
           groups: [
-            { name: 'prosemirror', test: /[\\/]prosemirror-|@tiptap[\\/]pm/ },
-            { name: 'tiptap-core', test: /@tiptap[\\/]core/ },
-            { name: 'tiptap', test: /@tiptap[\\/]|linkifyjs/ },
+            { name: 'prosemirror', test: /[\/]prosemirror-|@tiptap[\/]pm/ },
+            { name: 'tiptap-core', test: /@tiptap[\/]core/ },
           ],
         },
       },
