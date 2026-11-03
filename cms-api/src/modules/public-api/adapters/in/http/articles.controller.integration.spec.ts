@@ -203,19 +203,38 @@ describe('public API endpoints', () => {
 
   describe('pages', () => {
     it('has no author, tags or category (01-Requirements 6.2)', async () => {
+      infra.contents.add(published('parent', { type: 'page', title: 'Parent' }));
       infra.contents.add(published('about', { type: 'page', parentId: 'parent' }));
 
       const list = await get('/api/v1/pages').expect(200);
       const one = await get('/api/v1/pages/about').expect(200);
+      const listed = (list.body as ListBody).data.find((item) => item.slug === 'about');
 
-      for (const item of [(list.body as ListBody).data[0], (one.body as { data: object }).data]) {
-        expect(item).toMatchObject({ slug: 'about', parent_id: 'parent' });
+      for (const item of [listed, (one.body as { data: object }).data]) {
+        expect(item).toMatchObject({
+          slug: 'about',
+          parent: { slug: 'parent', title: 'Parent' },
+        });
+        expect(item).not.toHaveProperty('parent_id');
         for (const field of ['author_name', 'tags', 'category']) {
           expect(item).not.toHaveProperty(field);
         }
       }
       expect((one.body as { data: object }).data).toHaveProperty('seo');
     });
+
+    it.each(['draft', 'in_review', 'unpublished'] as const)(
+      'does not reveal a parent that is %s (RK-04)',
+      async (status) => {
+        infra.contents.add(published('hidden', { type: 'page', status }));
+        infra.contents.add(published('child', { type: 'page', parentId: 'hidden' }));
+
+        const one = await get('/api/v1/pages/child').expect(200);
+
+        expect((one.body as { data: object }).data).toMatchObject({ parent: null });
+        expect(JSON.stringify(one.body)).not.toContain('hidden');
+      },
+    );
 
     it('does not return an article as a page', async () => {
       infra.contents.add(published('story'));
@@ -307,6 +326,38 @@ describe('public API endpoints', () => {
 
     it('answers 200 when the ETag no longer matches', async () => {
       await get('/api/v1/articles/one').set('If-None-Match', '"old"').expect(200);
+    });
+
+    it('ignores a date alone, which cannot tell that something changed', async () => {
+      const far = new Date('2030-01-01T00:00:00Z').toUTCString();
+
+      await get('/api/v1/articles/one').set('If-Modified-Since', far).expect(200);
+    });
+
+    it('answers with the full list after its newest item is removed, whatever date is sent', async () => {
+      const first = await get('/api/v1/articles').expect(200);
+      infra.contents.delete('one');
+      await infra.responseCache.invalidateAll();
+
+      await get('/api/v1/articles')
+        .set('If-Modified-Since', first.headers['last-modified'] as string)
+        .expect(200);
+    });
+
+    it('still honors a matching ETag when a date comes with it', async () => {
+      const first = await get('/api/v1/articles/one').expect(200);
+
+      await get('/api/v1/articles/one')
+        .set('If-None-Match', first.headers['etag'] as string)
+        .set('If-Modified-Since', first.headers['last-modified'] as string)
+        .expect(304);
+    });
+
+    it('adds to Vary rather than replacing what CORS put there', async () => {
+      const res = await get('/api/v1/articles/one').set('Origin', 'https://cms.example.com');
+
+      expect(res.headers['vary']).toContain('Origin');
+      expect(res.headers['vary']).toContain('X-API-Key');
     });
 
     it('still requires a key for a conditional request', async () => {

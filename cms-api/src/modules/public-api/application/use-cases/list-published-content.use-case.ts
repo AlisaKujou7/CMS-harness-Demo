@@ -6,7 +6,13 @@ import type {
   PublicContentList,
   PublicResponse,
 } from '../ports/in/public-api.ports.js';
-import { cached, mediaTag, toPublicMedia, toSummary } from '../services/public-helpers.js';
+import {
+  cached,
+  contentTag,
+  mediaTag,
+  toPublicMedia,
+  toSummary,
+} from '../services/public-helpers.js';
 import type { PublicApiDeps } from '../public-api-deps.js';
 
 const EPOCH = new Date(0);
@@ -29,7 +35,7 @@ export class ListPublishedContent implements ListPublishedContentUseCase {
         const image = item.featuredImageId === null ? undefined : byId.get(item.featuredImageId);
         return toSummary(item, image ? toPublicMedia(image) : null);
       });
-      const versions = result.items.map((item) => `${item.id}:${String(item.version)}`);
+      const versions = result.items.map(contentTag);
       return {
         data: {
           items,

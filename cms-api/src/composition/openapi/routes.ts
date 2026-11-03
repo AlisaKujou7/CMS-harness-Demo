@@ -81,7 +81,14 @@ const MEDIA_ROUTES: readonly ApiRoute[] = [
   },
 ];
 
-const publicRead = { tag: 'Public API', auth: 'apiKey', method: 'get', status: 200 } as const;
+const publicRead = {
+  tag: 'Public API',
+  cacheHeaders: true,
+  rateLimited: true,
+  auth: 'apiKey',
+  method: 'get',
+  status: 200,
+} as const;
 
 const PUBLIC_ROUTES: readonly ApiRoute[] = [
   {
@@ -136,6 +143,7 @@ const HEALTH_ROUTES: readonly ApiRoute[] = [
   {
     ...healthRead,
     path: '/readyz',
+    unavailableStatus: 503,
     id: 'getReadiness',
     summary: 'Whether it can serve requests. 503 if not',
   },

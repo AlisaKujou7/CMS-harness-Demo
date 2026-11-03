@@ -1,4 +1,8 @@
-import type { PublicBodyNode, PublicContentType } from '../out/public-sources.port.js';
+import type {
+  PublicBodyNode,
+  PublicContentType,
+  PublishedParent,
+} from '../out/public-sources.port.js';
 
 export interface PublicMedia {
   readonly id: string;
@@ -22,7 +26,7 @@ export interface PublicContentSummary {
   readonly authorName: string;
   readonly tags: readonly string[];
   readonly category: string | null;
-  readonly parentId: string | null;
+  readonly parent: PublishedParent | null;
   readonly featuredImage: PublicMedia | null;
   readonly publishedAt: string;
   readonly updatedAt: string;

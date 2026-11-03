@@ -309,6 +309,30 @@ describe('PrismaContentRepository', () => {
       expect(found?.authorName).toBe('Ann Author');
     });
 
+    it('names a parent only when it is public itself (RK-04)', async () => {
+      await repo.create(item(1, { ...live, type: 'page', slug: 'live', title: 'Live' }));
+      await repo.create(item(2, { type: 'page', slug: 'draft', title: 'Draft' }));
+      await repo.create(item(3, { ...live, type: 'page', slug: 'gone', deletedAt: T0 }));
+      await repo.create(item(4, { ...live, type: 'page', slug: 'later', publishedAt: after(61) }));
+      await repo.create(item(5, { ...live, type: 'page', slug: 'unset', publishedAt: null }));
+      const childOf = async (n: number, slug: string) => {
+        await repo.create(item(n + 10, { ...live, type: 'page', slug, parentId: id(n) }));
+        const found = await repo.findPublishedBySlug('page', slug, NOW);
+        return found?.parent;
+      };
+
+      await expect(childOf(1, 'c1')).resolves.toEqual({ slug: 'live', title: 'Live' });
+      await expect(childOf(2, 'c2')).resolves.toBeNull();
+      await expect(childOf(3, 'c3')).resolves.toBeNull();
+      await expect(childOf(4, 'c4')).resolves.toBeNull();
+      await expect(childOf(5, 'c5')).resolves.toBeNull();
+
+      const list = await repo.findPublished({ type: 'page' }, PAGE, NOW);
+      const parents = Object.fromEntries(list.items.map((row) => [row.slug, row.parent]));
+      expect(parents['c1']).toEqual({ slug: 'live', title: 'Live' });
+      expect(parents['c2']).toBeNull();
+    });
+
     it('counts only public use of media', async () => {
       const media = new PrismaMediaRepository(db.context);
       await media.create(aMediaItem({ id: id(90), storageKey: 'k', uploadedBy: AUTHOR }));

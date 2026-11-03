@@ -20,6 +20,53 @@ function toSchema(schema: z.ZodType, io: 'input' | 'output'): JsonObject {
   return Object.fromEntries(Object.entries(json).filter(([key]) => key !== '$schema'));
 }
 
+const CACHE_HEADERS = {
+  ETag: { description: 'Names this version of the response', schema: { type: 'string' } },
+  'Last-Modified': {
+    description: 'For information. Only If-None-Match can get a 304',
+    schema: { type: 'string' },
+  },
+  'Cache-Control': { description: 'How long to reuse the response', schema: { type: 'string' } },
+};
+
+function requiredHeaderParameters(route: ApiRoute): JsonObject[] {
+  return Object.entries(route.requiredHeaders ?? {}).map(([name, value]) => ({
+    name,
+    in: 'header',
+    required: true,
+    schema: { type: 'string', const: value },
+  }));
+}
+
+function extraResponses(route: ApiRoute): JsonObject {
+  const error = { $ref: '#/components/responses/Error' };
+  return {
+    ...(route.cacheHeaders
+      ? { '304': { description: 'The version named by If-None-Match is still current' } }
+      : {}),
+    ...(route.rateLimited
+      ? {
+          '429': {
+            description: 'Too many requests. Wait as long as Retry-After says',
+            headers: {
+              'Retry-After': { description: 'Seconds to wait', schema: { type: 'integer' } },
+            },
+            content: { 'application/json': { schema: toSchema(errorEnvelope, 'output') } },
+          },
+        }
+      : {}),
+    ...(route.unavailableStatus !== undefined && typeof route.response === 'object'
+      ? {
+          [String(route.unavailableStatus)]: {
+            description: 'Not able to serve requests',
+            content: jsonContent(toSchema(route.response, 'output')),
+          },
+        }
+      : {}),
+    default: error,
+  };
+}
+
 function pathParameters(path: string): JsonObject[] {
   return [...path.matchAll(/\{(\w+)\}/g)].map(([, name]) => ({
     name,
@@ -49,16 +96,18 @@ function jsonContent(schema: JsonObject): JsonObject {
 
 function successResponse(route: ApiRoute): JsonObject {
   const description = route.summary;
+  const headers = route.cacheHeaders ? { headers: CACHE_HEADERS } : {};
   if (route.response === undefined) return { description };
   if (route.response === 'text/csv') {
     return { description, content: { 'text/csv': { schema: { type: 'string' } } } };
   }
-  return { description, content: jsonContent(toSchema(route.response, 'output')) };
+  return { description, ...headers, content: jsonContent(toSchema(route.response, 'output')) };
 }
 
 function toOperation(route: ApiRoute): JsonObject {
   const parameters = [
     ...pathParameters(route.path),
+    ...requiredHeaderParameters(route),
     ...(route.query ? queryParameters(route.query) : []),
   ];
   const security = SECURITY[route.auth];
@@ -70,11 +119,17 @@ function toOperation(route: ApiRoute): JsonObject {
     ...(security ? { security } : {}),
     ...(parameters.length > 0 ? { parameters } : {}),
     ...(route.body
-      ? { requestBody: { required: true, content: jsonContent(toSchema(route.body, 'input')) } }
+      ? {
+          requestBody: {
+            // Controllers read a missing body as an empty one, so it is only needed if that fails.
+            required: !route.body.safeParse({}).success,
+            content: jsonContent(toSchema(route.body, 'input')),
+          },
+        }
       : {}),
     responses: {
       [String(route.status)]: successResponse(route),
-      default: { $ref: '#/components/responses/Error' },
+      ...extraResponses(route),
     },
   };
 }
@@ -108,7 +163,7 @@ export function buildOpenApiDocument(routes: readonly ApiRoute[] = API_ROUTES): 
           type: 'apiKey',
           in: 'cookie',
           name: 'cms_refresh',
-          description: 'Requests must also send the header X-Requested-With: cms-admin',
+          description: 'The session cookie set at login',
         },
       },
       responses: {

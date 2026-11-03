@@ -25,7 +25,7 @@ const aRecord = (overrides: Partial<PublishedDetailRecord> = {}): PublishedDetai
   authorName: 'Ann',
   tags: ['t'],
   category: 'news',
-  parentId: null,
+  parent: null,
   featuredImageId: null,
   socialImageId: null,
   version: 3,
@@ -89,7 +89,7 @@ describe('public API use cases', () => {
         authorName: 'Ann',
         tags: ['t'],
         category: 'news',
-        parentId: null,
+        parent: null,
         featuredImage: null,
         publishedAt: '2026-05-01T00:00:00.000Z',
         updatedAt: '2026-05-02T00:00:00.000Z',
@@ -165,6 +165,20 @@ describe('public API use cases', () => {
         expect(content.reads).toBe(2);
       });
 
+      it('does not keep what it loaded before an invalidation that arrived meanwhile', async () => {
+        content.items.push(aRecord());
+        const read = content.list.bind(content);
+        content.list = async (query, page) => {
+          const result = await read(query, page);
+          await new InvalidatePublicCache(deps).execute();
+          return result;
+        };
+
+        await list();
+
+        expect(responseCache.entries.size).toBe(0);
+      });
+
       it('reads again after invalidation', async () => {
         await list();
         await new InvalidatePublicCache(deps).execute();
@@ -194,6 +208,20 @@ describe('public API use cases', () => {
         const before = await tag();
 
         content.items[0] = aRecord({ version: 4 });
+
+        await expect(tag()).resolves.not.toBe(before);
+      });
+
+      it.each([
+        ['its author is renamed', { authorName: 'Renamed' }],
+        ['its parent gets a new slug', { parent: { slug: 'new', title: 'P' } }],
+        ['its parent gets a new title', { parent: { slug: 'p', title: 'New' } }],
+        ['its parent stops being public', { parent: null }],
+      ])('changes when %s', async (_name, change) => {
+        content.items.push(aRecord({ parent: { slug: 'p', title: 'P' } }));
+        const before = await tag();
+
+        content.items[0] = aRecord({ parent: { slug: 'p', title: 'P' }, ...change });
 
         await expect(tag()).resolves.not.toBe(before);
       });
@@ -422,6 +450,16 @@ describe('public API use cases', () => {
 
       await new GetPublishedContent(deps).execute({ type: 'page', slug: 'a-slug' });
       expect(content.reads).toBe(2);
+    });
+
+    it('changes its tag when the author is renamed', async () => {
+      content.items.push(aRecord());
+      const before = (await get()).cacheTag;
+
+      await new InvalidatePublicCache(deps).execute();
+      content.items[0] = aRecord({ authorName: 'Renamed' });
+
+      await expect(get()).resolves.not.toMatchObject({ cacheTag: before });
     });
 
     it('changes its tag with the version, but not with time when it has no media', async () => {

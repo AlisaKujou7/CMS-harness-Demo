@@ -11,6 +11,7 @@ import type {
   ContentVersionSummary,
   PublishedCriteria,
   PublishedListItem,
+  PublishedParent,
 } from '../out/content-repository.port.js';
 
 export interface ContentView {
@@ -152,6 +153,7 @@ export interface RevertContentUseCase {
 
 export interface PublishedDetail extends Omit<ContentView, 'publishedAt'> {
   readonly authorName: string;
+  readonly parent: PublishedParent | null;
   readonly publishedAt: Date;
 }
 

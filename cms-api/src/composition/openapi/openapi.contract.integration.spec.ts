@@ -20,7 +20,10 @@ import { buildOpenApiDocument } from './build-document.js';
 import { errorEnvelope } from './contract-schemas.js';
 import { API_ROUTES, type ApiRoute } from './routes.js';
 
-const ADMIN = 'user-1';
+const ADMIN = '55555555-1111-4111-8111-111111111111';
+const PAGE = '55555555-2222-4222-8222-222222222222';
+const KEY = '55555555-3333-4333-8333-333333333333';
+const VERSION = '55555555-4444-4444-8444-444444444444';
 const ID = '22222222-2222-4222-8222-222222222222';
 const API_KEY = 'cmsk_contract';
 const client = (app: INestApplication) =>
@@ -42,7 +45,7 @@ describe('the published specification (M-API-04)', () => {
     infra.accounts.add(anAccount({ id: ADMIN, role: 'admin' }));
     infra.users.add(aUser({ id: ID, email: 'other@example.com', role: 'editor' }));
     await infra.apiKeys.save(
-      anApiKey({ keyHash: infra.opaqueTokens.hash(API_KEY), createdBy: ADMIN }),
+      anApiKey({ id: KEY, keyHash: infra.opaqueTokens.hash(API_KEY), createdBy: ADMIN }),
     );
     const variants = { thumbnail: { key: 'thumb', width: 320, height: 160 } };
     infra.media.add(aMediaItem({ uploadedBy: ADMIN, variants, variantStatus: 'ready' }));
@@ -53,10 +56,10 @@ describe('the published specification (M-API-04)', () => {
       authorId: ADMIN,
     };
     infra.contents.add(aContent({ ...live, id: ID, slug: 'story', featuredImageId: MEDIA_ID }));
-    infra.contents.add(aContent({ ...live, id: 'p', type: 'page', slug: 'about' }));
+    infra.contents.add(aContent({ ...live, id: PAGE, type: 'page', slug: 'about' }));
     await infra.contents.addVersion(
       {
-        id: 'v',
+        id: VERSION,
         contentId: ID,
         versionNo: 1,
         editorId: ADMIN,
@@ -320,12 +323,102 @@ describe('the published specification (M-API-04)', () => {
     });
   });
 
+  describe('what it says beyond the success body', () => {
+    const operation = (id: string) => {
+      const route = API_ROUTES.find((candidate) => candidate.id === id) as ApiRoute;
+      const paths = document['paths'] as Record<string, Record<string, Record<string, never>>>;
+      return (paths[route.path] as Record<string, Record<string, never>>)[route.method] as Record<
+        string,
+        Record<string, Record<string, unknown>>
+      >;
+    };
+
+    it('declares the cache headers the public API really sends (FR-PUBAPI-04)', async () => {
+      const res = await client(app).get('/api/v1/articles').set('X-API-Key', API_KEY);
+
+      const declared = operation('listArticles')['responses']?.['200']?.['headers'] as object;
+      for (const header of Object.keys(declared)) {
+        expect(res.headers[header.toLowerCase()]).toBeDefined();
+      }
+    });
+
+    it('declares a 304, and it really happens', async () => {
+      const first = await client(app).get('/api/v1/articles').set('X-API-Key', API_KEY);
+
+      const second = await client(app)
+        .get('/api/v1/articles')
+        .set('X-API-Key', API_KEY)
+        .set('If-None-Match', first.headers['etag'] as string);
+
+      expect(second.status).toBe(304);
+      expect(operation('listArticles')['responses']).toHaveProperty('304');
+    });
+
+    it('declares 429 with Retry-After where a limit applies', () => {
+      for (const id of ['listArticles', 'getPublicMedia', 'login', 'changePassword']) {
+        expect(operation(id)['responses']?.['429']).toHaveProperty('headers.Retry-After');
+      }
+    });
+
+    it('declares a 503 for readiness, and it really happens', async () => {
+      infra.readiness.ready = false;
+
+      const res = await client(app).get('/readyz');
+
+      infra.readiness.ready = true;
+      expect(res.status).toBe(503);
+      expect(operation('getReadiness')['responses']).toHaveProperty('503');
+    });
+
+    it.each([
+      ['refreshSession', '/api/admin/auth/refresh'],
+      ['logout', '/api/admin/auth/logout'],
+    ])('declares the header %s needs, and it is really refused without it', async (id, path) => {
+      const res = await client(app).post(path);
+
+      expect(res.status).toBe(403);
+      expect(operation(id)['parameters']).toContainEqual(
+        expect.objectContaining({ name: 'X-Requested-With', in: 'header', required: true }),
+      );
+    });
+
+    it('marks a body optional only where the API accepts none', () => {
+      const body = (id: string) => operation(id)['requestBody'] as unknown as { required: boolean };
+
+      expect(body('rejectContent').required).toBe(false);
+      expect(body('login').required).toBe(true);
+      expect(body('updateContent').required).toBe(true);
+    });
+
+    it('declares ids as UUIDs', () => {
+      expect(JSON.stringify(operation('getContent')['responses']?.['200'])).toContain(
+        '"format":"uuid"',
+      );
+    });
+  });
+
   describe('the viewer (FR-PUBAPI-07)', () => {
     it('serves the specification', async () => {
       const res = await client(app).get('/openapi.json').expect(200);
 
       expect(res.body).toMatchObject({ openapi: '3.1.0' });
       expect(Object.keys((res.body as { paths: object }).paths)).toContain('/api/v1/articles');
+    });
+
+    it('prepares the specification once, and lets clients reuse it', async () => {
+      const first = await client(app).get('/openapi.json').expect(200);
+
+      expect(first.headers['cache-control']).toBe('public, max-age=300');
+      await client(app)
+        .get('/openapi.json')
+        .set('If-None-Match', first.headers['etag'] as string)
+        .expect(304);
+    });
+
+    it('tells the page not to ask a third party to validate', async () => {
+      const res = await client(app).get('/docs/init.js').expect(200);
+
+      expect(res.text).toContain('validatorUrl: null');
     });
 
     it('serves a page at /docs that needs nothing from outside', async () => {

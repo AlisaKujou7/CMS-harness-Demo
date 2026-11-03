@@ -4,7 +4,7 @@ import { z } from 'zod';
 // the contract test, which is what keeps the published specification honest (M-API-04).
 const timestamp = z.iso.datetime();
 const nullableTimestamp = timestamp.nullable();
-const uuid = z.string();
+const uuid = z.uuid();
 const role = z.enum(['admin', 'editor', 'author']);
 const contentStatus = z.enum(['draft', 'in_review', 'published', 'unpublished', 'archived']);
 const contentType = z.enum(['article', 'page']);
@@ -199,7 +199,13 @@ const articleFields = {
   tags: z.array(z.string()),
   category: z.string().nullable(),
 };
-const pageFields = { ...publicCommon, parent_id: uuid.nullable() };
+const pageFields = {
+  ...publicCommon,
+  parent: z
+    .strictObject({ slug: z.string(), title: z.string() })
+    .nullable()
+    .describe('The parent page, when it is published too'),
+};
 const detailFields = {
   body: richText,
   seo: z.strictObject({

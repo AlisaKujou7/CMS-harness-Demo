@@ -41,6 +41,12 @@ export interface PublishedCriteria {
   readonly category?: string;
 }
 
+// Only ever a parent that is itself public, so a draft page is never confirmed to exist.
+export interface PublishedParent {
+  readonly slug: string;
+  readonly title: string;
+}
+
 export interface PublishedListItem {
   readonly id: string;
   readonly title: string;
@@ -48,7 +54,7 @@ export interface PublishedListItem {
   readonly authorName: string;
   readonly tags: readonly string[];
   readonly category: string | null;
-  readonly parentId: string | null;
+  readonly parent: PublishedParent | null;
   readonly featuredImageId: string | null;
   readonly version: number;
   readonly publishedAt: Date;
@@ -95,7 +101,11 @@ export interface ContentRepository {
     type: ContentType,
     slug: string,
     now: Date,
-  ): Promise<{ readonly content: Content; readonly authorName: string } | null>;
+  ): Promise<{
+    readonly content: Content;
+    readonly authorName: string;
+    readonly parent: PublishedParent | null;
+  } | null>;
   countPublishedMediaUsage(mediaId: string, now: Date): Promise<number>;
   // Soft-deleted items do not exist as far as every caller is concerned.
   findById(id: string): Promise<Content | null>;

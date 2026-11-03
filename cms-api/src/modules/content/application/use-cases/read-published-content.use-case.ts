@@ -18,7 +18,12 @@ export class ReadPublishedContent implements PublishedContentQueries {
     const found = await this.deps.contents.findPublishedBySlug(type, slug, this.deps.clock.now());
     if (!found) return null;
     const view = toContentView(found.content);
-    return { ...view, authorName: found.authorName, publishedAt: view.publishedAt as Date };
+    return {
+      ...view,
+      authorName: found.authorName,
+      parent: found.parent,
+      publishedAt: view.publishedAt as Date,
+    };
   }
 
   countMediaUsage(mediaId: string): Promise<number> {

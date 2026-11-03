@@ -11,6 +11,7 @@ import type {
   ContentVersionSummary,
   PublishedCriteria,
   PublishedListItem,
+  PublishedParent,
 } from '../../src/modules/content/application/ports/out/content-repository.port.js';
 import type { Content } from '../../src/modules/content/domain/entities/content.entity.js';
 import { type ContentType } from '../../src/modules/content/domain/entities/content.entity.js';
@@ -63,10 +64,19 @@ export class InMemoryContentRepository implements ContentRepository {
     this.contents.set(content.id, content);
   }
 
+  delete(id: string): void {
+    this.contents.delete(id);
+  }
+
   get(id: string): Content {
     const content = this.contents.get(id);
     if (!content) throw new Error(`No content ${id}`);
     return content;
+  }
+
+  private publicParentOf(content: Content, now: Date): PublishedParent | null {
+    const parent = content.parentId === null ? undefined : this.contents.get(content.parentId);
+    return parent && isPublic(parent, now) ? { slug: parent.slug, title: parent.title } : null;
   }
 
   findPublished(
@@ -88,6 +98,7 @@ export class InMemoryContentRepository implements ContentRepository {
     const items = all.slice(start, start + page.pageSize).map((content) => ({
       ...content,
       publishedAt: content.publishedAt as Date,
+      parent: this.publicParentOf(content, now),
       authorName: `Name of ${content.authorId}`,
     }));
     return Promise.resolve(pagedResult(items, all.length, page));
@@ -97,11 +108,19 @@ export class InMemoryContentRepository implements ContentRepository {
     type: ContentType,
     slug: string,
     now: Date,
-  ): Promise<{ content: Content; authorName: string } | null> {
+  ): Promise<{ content: Content; authorName: string; parent: PublishedParent | null } | null> {
     const content = [...this.contents.values()].find(
       (candidate) => isPublic(candidate, now) && candidate.type === type && candidate.slug === slug,
     );
-    return Promise.resolve(content ? { content, authorName: `Name of ${content.authorId}` } : null);
+    return Promise.resolve(
+      content
+        ? {
+            content,
+            authorName: `Name of ${content.authorId}`,
+            parent: this.publicParentOf(content, now),
+          }
+        : null,
+    );
   }
 
   countPublishedMediaUsage(mediaId: string, now: Date): Promise<number> {

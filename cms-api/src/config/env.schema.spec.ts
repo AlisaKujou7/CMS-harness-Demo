@@ -114,10 +114,19 @@ describe('public API settings', () => {
     });
   });
 
-  it('refreshes URLs at half their lifetime, and never at zero', () => {
-    const short = loadEnv({ ...minimal, MEDIA_READ_URL_TTL_SEC: '1' });
+  it('refreshes URLs at half their lifetime', () => {
+    const short = loadEnv({ ...minimal, MEDIA_READ_URL_TTL_SEC: '120' });
 
-    expect(short.publicApi.urlRefreshSeconds).toBe(1);
+    expect(short.publicApi.urlRefreshSeconds).toBe(60);
+  });
+
+  it('refuses URLs too short-lived to outlast the responses holding them', () => {
+    expect(() => loadEnv({ ...minimal, MEDIA_READ_URL_TTL_SEC: '119' })).toThrow(
+      'MEDIA_READ_URL_TTL_SEC',
+    );
+    expect(() =>
+      loadEnv({ ...minimal, MEDIA_READ_URL_TTL_SEC: '40', PUBLIC_CACHE_TTL_SEC: '10' }),
+    ).not.toThrow();
   });
 
   it('refuses a cache long enough to break the 60 second promise', () => {

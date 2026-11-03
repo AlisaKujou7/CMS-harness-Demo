@@ -190,63 +190,79 @@ describe('public API against real infrastructure', () => {
   describe('RedisResponseCache', () => {
     let redis: Redis;
     let cache: RedisResponseCache;
-    const logger = new InMemoryLogger();
 
     beforeAll(() => {
       redis = new Redis(redisUrl(), { maxRetriesPerRequest: 1 });
-      cache = new RedisResponseCache(redis, logger);
+      cache = new RedisResponseCache(redis, new InMemoryLogger());
     });
 
     afterAll(() => {
       redis.disconnect();
     });
 
-    it('stores, expires, and clears everything at once', async () => {
-      await expect(cache.get('none')).resolves.toBeNull();
+    const read = async (key: string) => (await cache.lookup(key)).value;
+    const write = async (key: string, value: string, ttl: number) => {
+      await (await cache.lookup(key)).store(value, ttl);
+    };
 
-      await cache.set('a', 'value', 60);
-      await cache.set('short', 'value', 1);
-      await expect(cache.get('a')).resolves.toBe('value');
+    it('stores, expires, and clears everything at once', async () => {
+      await expect(read('none')).resolves.toBeNull();
+
+      await write('a', 'value', 60);
+      await write('short', 'value', 1);
+      await expect(read('a')).resolves.toBe('value');
 
       await new Promise((resolve) => setTimeout(resolve, 1200));
-      await expect(cache.get('short')).resolves.toBeNull();
+      await expect(read('short')).resolves.toBeNull();
 
       await cache.invalidateAll();
-      await expect(cache.get('a')).resolves.toBeNull();
+      await expect(read('a')).resolves.toBeNull();
     });
 
-    it('fails open during an outage, and logs it', async () => {
+    it('does not let what was loaded before an invalidation survive it', async () => {
+      const entry = await cache.lookup('race');
+
+      await cache.invalidateAll();
+      await entry.store('stale', 60);
+
+      await expect(read('race')).resolves.toBeNull();
+    });
+
+    it('fails open when it cannot read, storing nothing', async () => {
+      const failing = new InMemoryLogger();
       const broken = new RedisResponseCache(
         {
           get: () => Promise.reject(new Error('redis is down')),
-          set: () => Promise.reject(new Error('redis is down')),
+          set: () => Promise.reject(new Error('should not be called')),
           incr: () => Promise.reject(new Error('redis is down')),
         },
-        logger,
+        failing,
       );
 
-      await expect(broken.get('a')).resolves.toBeNull();
-      await expect(broken.set('a', 'b', 1)).resolves.toBeUndefined();
-      await expect(broken.invalidateAll()).resolves.toBeUndefined();
+      const entry = await broken.lookup('a');
 
-      expect(logger.errors.map((entry) => entry.message)).toEqual([
+      expect(entry.value).toBeNull();
+      await expect(entry.store('b', 1)).resolves.toBeUndefined();
+      await expect(broken.invalidateAll()).resolves.toBeUndefined();
+      expect(failing.errors.map((item) => item.message)).toEqual([
         'Public cache read failed',
-        'Public cache write failed',
         'Public cache invalidation failed',
       ]);
     });
 
-    it('also fails open when only the entry write fails', async () => {
+    it('fails open when only the write fails', async () => {
+      const failing = new InMemoryLogger();
       const partial = new RedisResponseCache(
         {
           get: () => Promise.resolve(null),
           set: () => Promise.reject(new Error('redis is down')),
           incr: () => Promise.resolve(1),
         },
-        new InMemoryLogger(),
+        failing,
       );
 
-      await expect(partial.set('a', 'b', 1)).resolves.toBeUndefined();
+      await expect((await partial.lookup('a')).store('b', 1)).resolves.toBeUndefined();
+      expect(failing.errors[0]?.message).toBe('Public cache write failed');
     });
   });
 });

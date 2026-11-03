@@ -12,10 +12,10 @@ export async function cached<T>(
   key: string,
   load: () => Promise<T>,
 ): Promise<T> {
-  const hit = await deps.responseCache.get(key);
-  if (hit !== null) return JSON.parse(hit) as T;
+  const entry = await deps.responseCache.lookup(key);
+  if (entry.value !== null) return JSON.parse(entry.value) as T;
   const value = await load();
-  await deps.responseCache.set(key, JSON.stringify(value), deps.publicApiConfig.cacheTtlSeconds);
+  await entry.store(JSON.stringify(value), deps.publicApiConfig.cacheTtlSeconds);
   return value;
 }
 
@@ -45,11 +45,19 @@ export function toSummary(
     authorName: record.authorName,
     tags: record.tags,
     category: record.category,
-    parentId: record.parentId,
+    parent: record.parent,
     featuredImage,
     publishedAt: record.publishedAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
   };
+}
+
+// Includes what is shown from outside the item's own version: renaming an author or a parent page
+// changes a response without changing the item.
+export function contentTag(record: PublishedSummaryRecord): string {
+  return [record.id, record.version, record.authorName, record.parent?.slug, record.parent?.title]
+    .map(String)
+    .join(':');
 }
 
 export function inlineMediaIds(node: PublicBodyNode): string[] {

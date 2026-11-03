@@ -13,6 +13,11 @@ export interface ApiRoute {
   readonly query?: z.ZodObject;
   readonly body?: z.ZodType;
   readonly status: number;
+  // Headers the route requires, by name and the one value it accepts.
+  readonly requiredHeaders?: Readonly<Record<string, string>>;
+  readonly cacheHeaders?: boolean;
+  readonly rateLimited?: boolean;
+  readonly unavailableStatus?: number;
   // Absent means no body. A string names a media type that is not JSON.
   readonly response?: z.ZodType | 'text/csv';
 }

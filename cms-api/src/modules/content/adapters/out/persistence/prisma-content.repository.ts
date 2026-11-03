@@ -24,6 +24,7 @@ import type {
   ContentVersionSummary,
   PublishedCriteria,
   PublishedListItem,
+  PublishedParent,
 } from '../../../application/ports/out/content-repository.port.js';
 import { Content, type ContentType } from '../../../domain/entities/content.entity.js';
 import {
@@ -117,6 +118,30 @@ function publicWhere(now: Date) {
   return { status: 'published', publishedAt: { lte: now }, deletedAt: null } as const;
 }
 
+const PARENT_FIELDS = {
+  slug: true,
+  title: true,
+  status: true,
+  publishedAt: true,
+  deletedAt: true,
+} as const;
+
+// The same rule as publicWhere, for a row a query has already joined.
+function publicParent(
+  parent: {
+    slug: string;
+    title: string;
+    status: string;
+    publishedAt: Date | null;
+    deletedAt: Date | null;
+  } | null,
+  now: Date,
+): PublishedParent | null {
+  if (parent?.status !== 'published' || parent.deletedAt !== null) return null;
+  if (parent.publishedAt === null || parent.publishedAt > now) return null;
+  return { slug: parent.slug, title: parent.title };
+}
+
 export class PrismaContentRepository implements ContentRepository {
   constructor(private readonly db: PrismaContext) {}
 
@@ -141,7 +166,7 @@ export class PrismaContentRepository implements ContentRepository {
           slug: true,
           tags: true,
           category: true,
-          parentId: true,
+          parent: { select: PARENT_FIELDS },
           featuredImageId: true,
           version: true,
           publishedAt: true,
@@ -154,8 +179,9 @@ export class PrismaContentRepository implements ContentRepository {
       }),
       this.db.client.content.count({ where }),
     ]);
-    const items = rows.map(({ author, publishedAt, ...row }) => ({
+    const items = rows.map(({ author, publishedAt, parent, ...row }) => ({
       ...row,
+      parent: publicParent(parent, now),
       authorName: author.name,
       publishedAt: publishedAt as Date,
     }));
@@ -166,12 +192,18 @@ export class PrismaContentRepository implements ContentRepository {
     type: ContentType,
     slug: string,
     now: Date,
-  ): Promise<{ content: Content; authorName: string } | null> {
+  ): Promise<{ content: Content; authorName: string; parent: PublishedParent | null } | null> {
     const row = await this.db.client.content.findFirst({
       where: { ...publicWhere(now), type, slug },
-      include: { author: { select: { name: true } } },
+      include: { author: { select: { name: true } }, parent: { select: PARENT_FIELDS } },
     });
-    return row && { content: toDomain(row), authorName: row.author.name };
+    return (
+      row && {
+        content: toDomain(row),
+        authorName: row.author.name,
+        parent: publicParent(row.parent, now),
+      }
+    );
   }
 
   countPublishedMediaUsage(mediaId: string, now: Date): Promise<number> {

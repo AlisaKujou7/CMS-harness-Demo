@@ -8,6 +8,7 @@ import * as c from './contract-schemas.js';
 import type { ApiRoute } from './route-types.js';
 
 const AUTH = '/api/admin/auth';
+const CSRF = { 'X-Requested-With': 'cms-admin' };
 const tag = 'Authentication';
 const session = c.single(c.session);
 
@@ -15,6 +16,7 @@ export const AUTH_ROUTES: readonly ApiRoute[] = [
   {
     method: 'post',
     path: `${AUTH}/login`,
+    rateLimited: true,
     id: 'login',
     summary: 'Log in',
     tag,
@@ -26,6 +28,7 @@ export const AUTH_ROUTES: readonly ApiRoute[] = [
   {
     method: 'post',
     path: `${AUTH}/refresh`,
+    requiredHeaders: CSRF,
     id: 'refreshSession',
     summary: 'Exchange the refresh cookie for a new access token',
     tag,
@@ -36,6 +39,7 @@ export const AUTH_ROUTES: readonly ApiRoute[] = [
   {
     method: 'post',
     path: `${AUTH}/logout`,
+    requiredHeaders: CSRF,
     id: 'logout',
     summary: 'Log out',
     tag,
@@ -45,6 +49,7 @@ export const AUTH_ROUTES: readonly ApiRoute[] = [
   {
     method: 'post',
     path: `${AUTH}/password/forgot`,
+    rateLimited: true,
     id: 'forgotPassword',
     summary: 'Ask for a password reset email',
     tag,
@@ -55,6 +60,7 @@ export const AUTH_ROUTES: readonly ApiRoute[] = [
   {
     method: 'post',
     path: `${AUTH}/password/reset`,
+    rateLimited: true,
     id: 'resetPassword',
     summary: 'Set a new password with a reset token',
     tag,
@@ -65,6 +71,7 @@ export const AUTH_ROUTES: readonly ApiRoute[] = [
   {
     method: 'post',
     path: `${AUTH}/invitations/accept`,
+    rateLimited: true,
     id: 'acceptInvitation',
     summary: 'Accept an invitation and set a password',
     tag,
@@ -85,6 +92,7 @@ export const AUTH_ROUTES: readonly ApiRoute[] = [
   {
     method: 'post',
     path: `${AUTH}/password/change`,
+    rateLimited: true,
     id: 'changePassword',
     summary: 'Change your own password',
     tag,

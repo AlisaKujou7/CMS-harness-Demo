@@ -1,4 +1,5 @@
 import type {
+  CacheEntry,
   PublicContentType,
   PublicMediaReader,
   PublicMediaRecord,
@@ -14,21 +15,36 @@ import {
   type PageRequest,
 } from '../../src/shared/kernel/paged-result.js';
 
+class InMemoryCacheEntry implements CacheEntry {
+  constructor(
+    readonly value: string | null,
+    private readonly write: (value: string, ttlSeconds: number) => void,
+  ) {}
+
+  store(value: string, ttlSeconds: number): Promise<void> {
+    this.write(value, ttlSeconds);
+    return Promise.resolve();
+  }
+}
+
 export class InMemoryResponseCache implements ResponseCache {
   readonly entries = new Map<string, string>();
   readonly ttls: number[] = [];
+  private generation = 0;
 
-  get(key: string): Promise<string | null> {
-    return Promise.resolve(this.entries.get(key) ?? null);
-  }
-
-  set(key: string, value: string, ttlSeconds: number): Promise<void> {
-    this.entries.set(key, value);
-    this.ttls.push(ttlSeconds);
-    return Promise.resolve();
+  lookup(key: string): Promise<CacheEntry> {
+    const generation = this.generation;
+    return Promise.resolve(
+      new InMemoryCacheEntry(this.entries.get(key) ?? null, (value, ttlSeconds) => {
+        // Like the real one, a store from before an invalidation lands where nothing reads it.
+        if (generation === this.generation) this.entries.set(key, value);
+        this.ttls.push(ttlSeconds);
+      }),
+    );
   }
 
   invalidateAll(): Promise<void> {
+    this.generation += 1;
     this.entries.clear();
     return Promise.resolve();
   }

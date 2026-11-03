@@ -58,7 +58,7 @@ function toArticle(item: PublicContentSummary) {
 }
 
 function toPage(item: PublicContentSummary) {
-  return { ...commonFields(item), parent_id: item.parentId };
+  return { ...commonFields(item), parent: item.parent };
 }
 
 function detailFields(item: PublicContentDetail) {
@@ -92,6 +92,10 @@ export class PublicController {
   // FR-PUBAPI-04. Express answers 304 by itself when these match the request's validators. Private
   // because a response depends on holding a key, so a shared cache must not reuse it.
   private withCacheHeaders<T, B>(response: Response, result: PublicResponse<T>, body: B): B {
+    // A date cannot say when this changed: removing an item moves a list's date backwards, and
+    // signed URLs change with no date at all. Only the ETag can decide, so the date is ignored,
+    // which HTTP allows, and such a client simply gets the full response.
+    Reflect.deleteProperty(response.req.headers, 'if-modified-since');
     const etag = createHash('sha256').update(result.cacheTag).digest('base64url');
     response.setHeader('ETag', `"${etag}"`);
     response.setHeader('Last-Modified', result.lastModified);
@@ -99,7 +103,7 @@ export class PublicController {
       'Cache-Control',
       `private, max-age=${String(this.config.publicCacheSeconds)}`,
     );
-    response.setHeader('Vary', 'X-API-Key');
+    response.vary('X-API-Key');
     return body;
   }
 

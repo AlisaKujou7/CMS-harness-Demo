@@ -78,6 +78,15 @@ const schema = z
     LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
   })
   .superRefine((env, context) => {
+    // A client can reuse a response until the URL slot ends (half the lifetime), plus one cache
+    // period in Redis and one of its own, and the URLs in it must outlast all of that.
+    if (env.MEDIA_READ_URL_TTL_SEC < 4 * env.PUBLIC_CACHE_TTL_SEC) {
+      context.addIssue({
+        code: 'custom',
+        path: ['MEDIA_READ_URL_TTL_SEC'],
+        message: 'must be at least 4 times PUBLIC_CACHE_TTL_SEC, or responses outlive their URLs',
+      });
+    }
     // MinIO has no ambient identity to fall back on, as an AWS role does for S3.
     if (env.OBJECT_STORAGE_PROVIDER === 'minio') {
       for (const name of [
@@ -166,7 +175,7 @@ function toConfig(env: z.output<typeof schema>) {
     publicApi: {
       cacheTtlSeconds: env.PUBLIC_CACHE_TTL_SEC,
       // Half the signed URLs' life, so a response cannot be reused past them.
-      urlRefreshSeconds: Math.max(Math.floor(env.MEDIA_READ_URL_TTL_SEC / 2), 1),
+      urlRefreshSeconds: Math.floor(env.MEDIA_READ_URL_TTL_SEC / 2),
     },
     objectStorage: toObjectStorage(env),
     media: toMedia(env),

@@ -16,6 +16,11 @@ export interface PublishedQuery {
   readonly category?: string;
 }
 
+export interface PublishedParent {
+  readonly slug: string;
+  readonly title: string;
+}
+
 export interface PublishedSummaryRecord {
   readonly id: string;
   readonly title: string;
@@ -23,7 +28,7 @@ export interface PublishedSummaryRecord {
   readonly authorName: string;
   readonly tags: readonly string[];
   readonly category: string | null;
-  readonly parentId: string | null;
+  readonly parent: PublishedParent | null;
   readonly featuredImageId: string | null;
   readonly version: number;
   readonly publishedAt: Date;
@@ -66,9 +71,14 @@ export interface PublicMediaReader {
   findByIds(ids: readonly string[]): Promise<readonly PublicMediaRecord[]>;
 }
 
-// Strings, because a cached response must come back exactly as it went in.
+export interface CacheEntry {
+  readonly value: string | null;
+  store(value: string, ttlSeconds: number): Promise<void>;
+}
+
+// Strings, because a cached response must come back exactly as it went in. Looking up and storing
+// are one operation, so what was loaded before an invalidation cannot be stored as if after it.
 export interface ResponseCache {
-  get(key: string): Promise<string | null>;
-  set(key: string, value: string, ttlSeconds: number): Promise<void>;
+  lookup(key: string): Promise<CacheEntry>;
   invalidateAll(): Promise<void>;
 }

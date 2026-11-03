@@ -11,6 +11,7 @@ import type { PublicContentType } from '../ports/out/public-sources.port.js';
 import type { PublicApiDeps } from '../public-api-deps.js';
 import {
   cached,
+  contentTag,
   inlineMediaIds,
   mediaTag,
   resolveBody,
@@ -62,7 +63,7 @@ export class GetPublishedContent implements GetPublishedContentUseCase {
           body: resolveBody(record.body, byId),
           seo: { ...record.effectiveSeo, socialImage: imageOf(record.socialImageId) },
         },
-        cacheTag: [record.id, record.version, mediaTag(this.deps, media)].join('|'),
+        cacheTag: [contentTag(record), mediaTag(this.deps, media)].join('|'),
         lastModified: record.updatedAt.toUTCString(),
       };
     });
