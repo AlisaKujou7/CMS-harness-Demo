@@ -8,7 +8,7 @@
 
 ## Contract
 
-**สถานะ:** รออนุมัติ
+**สถานะ:** อนุมัติแล้ว
 
 ### ขอบเขต
 
@@ -46,9 +46,23 @@
 
 ### การอนุมัติ
 
-- **ผู้อนุมัติ:**
-- **วันที่:**
+- **ผู้อนุมัติ:** ผู้ใช้ ผ่านแชตของ Claude Code ("อนุมัติทั้งคู่")
+- **วันที่:** 2026-11-03
 
 ## Red
 
-ยังไม่เริ่ม
+รัน `npx vitest run --project unit src/shared/adapters/http/request-log.spec.ts` ก่อนเขียนโค้ด:
+
+```text
+× records the request, and matches the id the client received
+× names the signed-in user
+× holds only the agreed fields, so no email, IP, key or token can reach it
+× leaves out the query string, which can hold anything
+× records a route that does not exist
+× skips /healthz, which health checks call constantly
+× skips /readyz, which health checks call constantly
+AssertionError: expected [] to have a length of 1 but got +0
+Tests  7 failed (7)
+```
+
+ล้มถูกเหตุผล เพราะ API ยังไม่เขียน log ส่วน `tsc --noEmit` ผ่าน เทสต์จึงไม่ได้ล้มเพราะ compile ไม่ได้
