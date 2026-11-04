@@ -16,10 +16,9 @@
 
 ## งานที่รู้ว่ายังค้าง
 
-| งาน | อ้างอิง | สถานะ |
-| --- | ------- | ----- |
-
-| รายงานเข้าเล่มสหกิจ | - | พักไว้ตามที่ผู้ใช้สั่ง |
-| Metrics, alert และ error tracking | NFR-OBS-02..04 | นอกขอบเขต Demo |
-| Load test และ security review | NFR-PERF, SEC-15 | นอกขอบเขต Demo |
-| ยืนยัน license ของ image `cms-migrate` | ADR-0013 | รอ Tech Lead |
+| งาน                                    | อ้างอิง          | สถานะ                  |
+| -------------------------------------- | ---------------- | ---------------------- |
+| รายงานเข้าเล่มสหกิจ                    | -                | พักไว้ตามที่ผู้ใช้สั่ง |
+| Metrics, alert และ error tracking      | NFR-OBS-02..04   | นอกขอบเขต Demo         |
+| Load test และ security review          | NFR-PERF, SEC-15 | นอกขอบเขต Demo         |
+| ยืนยัน license ของ image `cms-migrate` | ADR-0013         | รอ Tech Lead           |

@@ -20,6 +20,33 @@ bash infra/scripts/demo-up.sh
 | Editor | `editor@cms.test` | `Demo-Editor-2026` |
 | Admin  | `admin@cms.test`  | ดูจากไฟล์ด้านบน    |
 
+### เลือก terminal ให้ถูก
+
+คำสั่งในคู่มือนี้เขียนสำหรับ Git Bash ถ้าใช้ PowerShell ให้ปรับตามตัวอย่างนี้ เพราะคำว่า `bash` ใน PowerShell จะไปเรียก WSL ไม่ใช่ Git Bash
+
+| ในคู่มือเขียนว่า | ใน PowerShell ให้ใช้                              |
+| ---------------- | ------------------------------------------------- |
+| `bash <สคริปต์>` | `& "C:\Program Files\Git\bin\bash.exe" <สคริปต์>` |
+| `curl`           | `curl.exe`                                        |
+
+ตัวอย่าง:
+
+```powershell
+& "C:\Program Files\Git\bin\bash.exe" infra/scripts/demo-up.sh
+```
+
+ถ้าติดตั้ง Git ไว้ที่อื่น ให้เปลี่ยน path ให้ตรงกับเครื่อง
+
+### เปิดระบบอีกครั้งหลังปิดเครื่อง
+
+เปิด Docker Desktop แล้วรอให้พร้อมก่อน จากนั้นรันคำสั่งนี้ ข้อมูลเดิมจะยังอยู่:
+
+```bash
+bash infra/scripts/compose.sh up -d --wait
+```
+
+ใช้ `demo-up.sh` เมื่อเริ่มครั้งแรก หรือหลังสั่ง `--wipe` เท่านั้น เพราะช้ากว่าและรันการทดสอบใหม่ทั้งหมด
+
 ### เตรียม browser ก่อนเดโม
 
 1. เปิด <https://localhost:8443> แล้วกด **Advanced** และ **Proceed** เพื่อยอมรับคำเตือนใบรับรอง
@@ -109,7 +136,7 @@ Editor เปิดบทความ `Office move: first draft` กด **Schedu
 bash infra/scripts/local-down.sh --wipe
 ```
 
-จากนั้นรัน `demo-up.sh` อีกครั้ง
+จากนั้นรัน `demo-up.sh` อีกครั้ง หลังสั่งนี้ รหัสของ Admin และ API key จะเปลี่ยนใหม่ ให้ดูค่าล่าสุดใน `demo-accounts.txt`
 
 ปิดระบบโดยเก็บข้อมูลไว้:
 
@@ -117,12 +144,14 @@ bash infra/scripts/local-down.sh --wipe
 bash infra/scripts/local-down.sh
 ```
 
-| ปัญหา                        | ทางแก้                                                        |
-| ---------------------------- | ------------------------------------------------------------- |
-| อัปโหลดไม่ได้ หรือรูปไม่ขึ้น | เปิด <https://media.localhost:8443> แล้วยอมรับคำเตือนอีกครั้ง |
-| สคริปต์บอก port ถูกใช้อยู่   | ปิดโปรแกรมที่ใช้ port 8080, 8443 หรือ 8025                    |
-| คำสั่ง `docker` ล้มเหลว      | เปิด Docker Desktop แล้วรอให้พร้อมก่อน                        |
-| ต้องการดู log                | `bash infra/scripts/compose.sh logs --tail=100 cms-api`       |
+| ปัญหา                                 | ทางแก้                                                              |
+| ------------------------------------- | ------------------------------------------------------------------- |
+| อัปโหลดไม่ได้ หรือรูปไม่ขึ้น          | เปิด <https://media.localhost:8443> แล้วยอมรับคำเตือนอีกครั้ง       |
+| สคริปต์บอก port ถูกใช้อยู่            | ปิดโปรแกรมที่ใช้ port 8080, 8443 หรือ 8025                          |
+| คำสั่ง `docker` ล้มเหลว               | เปิด Docker Desktop แล้วรอให้พร้อมก่อน                              |
+| `execvpe(/bin/bash) failed`           | กำลังใช้ PowerShell ดูหัวข้อ "เลือก terminal ให้ถูก"                |
+| เปิดหน้าเว็บไม่ได้หลังเปิดเครื่องใหม่ | Docker Desktop ยังไม่เปิด ดูหัวข้อ "เปิดระบบอีกครั้งหลังปิดเครื่อง" |
+| ต้องการดู log                         | `bash infra/scripts/compose.sh logs --tail=100 cms-api`             |
 
 ## ขอบเขตของเดโมนี้
 
