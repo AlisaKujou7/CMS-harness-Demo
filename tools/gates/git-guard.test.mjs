@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,6 +10,7 @@ import {
   decideGitCommand,
   filesOutsideContract,
   readWorkflowState,
+  tddContext,
 } from './git-guard.mjs';
 
 describe('classifyGitCommand', () => {
@@ -99,7 +101,8 @@ describe('decideGitCommand', () => {
       files: ['a.ts', 'a.spec.ts'],
     };
     const decide = (command, stagedFiles, headSubject = 'feat(a): b') =>
-      decideGitCommand(command, null, { stagedFiles, headSubject, state }).decision;
+      decideGitCommand(command, null, { stagedFiles, headSubject, state, headState: state })
+        .decision;
 
     it('allows a red commit that holds a test, without a gate', () => {
       assert.equal(decide(red, ['cms-api/src/a.spec.ts', 'cms-api/src/a.ts']), 'allow');
@@ -138,7 +141,7 @@ describe('workflow state from docs/harness/state.json', () => {
   const green = 'git commit -m "green(ci): x"';
   const approved = { ticket: 'T-9', step: 'red', approved: '2026-11-12', files: ['a.ts', 'src/'] };
   const decide = (command, state, stagedFiles, headSubject = 'red(ci): x') =>
-    decideGitCommand(command, null, { stagedFiles, headSubject, state });
+    decideGitCommand(command, null, { stagedFiles, headSubject, state, headState: state });
 
   it('refuses red when there is no state file', () => {
     const result = decide(red, null, ['a.spec.ts']);
@@ -220,6 +223,158 @@ describe('readWorkflowState', () => {
   it('returns null for a file that is not valid JSON, so the hook refuses', () => {
     withRoot('{ not json', (root) => {
       assert.equal(readWorkflowState(root), null);
+    });
+  });
+});
+
+describe('review fixes for T-005', () => {
+  const approved = {
+    ticket: 'T-9',
+    step: 'green',
+    approved: '2026-11-12',
+    files: ['a.ts', 'src/'],
+  };
+  const decide = (command, tdd) =>
+    decideGitCommand(command, null, {
+      stagedFiles: ['a.ts'],
+      headSubject: 'red(ci): x',
+      state: approved,
+      headState: approved,
+      ...tdd,
+    });
+
+  describe('a malformed state file fails closed', () => {
+    it('treats a files value that is not a list as an empty Contract', () => {
+      for (const files of [null, 'src/', 7, { a: 1 }]) {
+        assert.deepEqual(filesOutsideContract(['a.ts'], files), ['a.ts'], String(files));
+      }
+    });
+
+    it('ignores entries that are not strings', () => {
+      assert.deepEqual(filesOutsideContract(['a.ts'], [null, 1, 'a.ts']), []);
+    });
+
+    it('refuses green when files is null instead of throwing', () => {
+      const state = { ...approved, files: null };
+      assert.equal(decide('git commit -m "green(ci): x"', { headState: state }).decision, 'deny');
+    });
+
+    it('reads JSON that is not an object as no state', () => {
+      for (const text of ['"T-9"', '[]', 'null', '7']) {
+        const root = mkdtempSync(join(tmpdir(), 'cms-state-'));
+        try {
+          mkdirSync(join(root, 'docs', 'harness'), { recursive: true });
+          writeFileSync(join(root, STATE_PATH), text);
+          assert.equal(readWorkflowState(root), null, text);
+        } finally {
+          rmSync(root, { recursive: true, force: true });
+        }
+      }
+    });
+
+    it('denies a commit when the hook itself fails', () => {
+      const root = mkdtempSync(join(tmpdir(), 'cms-not-a-repo-'));
+      try {
+        const hook = join(import.meta.dirname, '..', '..', '.claude', 'hooks', 'guard-git.mjs');
+        const input = JSON.stringify({ tool_input: { command: 'git commit -m "green(ci): x"' } });
+        const { stdout } = spawnSync('node', [hook, root], { input, encoding: 'utf8' });
+        assert.match(stdout, /"permissionDecision":"deny"/);
+        assert.match(stdout, /git guard failed/i);
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    });
+  });
+
+  describe('red and green commit only what is staged', () => {
+    it('refuses -a, --all, --include, --only and paths', () => {
+      for (const command of [
+        'git commit -am "green(ci): x"',
+        'git commit -a -m "green(ci): x"',
+        'git commit --all -m "green(ci): x"',
+        'git commit -i -m "green(ci): x" a.ts',
+        'git commit --include -m "green(ci): x" a.ts',
+        'git commit -o -m "green(ci): x" a.ts',
+        'git commit -m "green(ci): x" README.md',
+        'git commit -m "green(ci): x" -- README.md',
+        'git commit -m "red(ci): x" a.spec.ts',
+      ]) {
+        const result = decide(command);
+        assert.equal(result.decision, 'deny', command);
+        assert.match(result.reason, /only what is staged/, command);
+      }
+    });
+
+    it('allows the usual ways of writing the message', () => {
+      for (const command of [
+        'git commit -m "green(ci): x"',
+        'git commit -q -m "green(ci): x" -m "body"',
+        'git commit --author="A B <a@b.c>" -m "green(ci): x"',
+        `git commit -m "$(cat <<'EOF'\ngreen(ci): x\nEOF\n)"`,
+        'cd repo; git commit -m "green(ci): x" 2>&1 | tail -5',
+      ]) {
+        assert.equal(decide(command).decision, 'allow', command);
+      }
+    });
+  });
+
+  describe('green reads the Contract as committed', () => {
+    it('refuses a file that only the uncommitted state allows', () => {
+      const widened = { ...approved, files: [...approved.files, 'README.md'] };
+      const result = decide('git commit -m "green(ci): x"', {
+        stagedFiles: ['a.ts', 'README.md'],
+        state: widened,
+      });
+
+      assert.equal(result.decision, 'deny');
+      assert.match(result.reason, /README\.md/);
+    });
+
+    it('refuses green when HEAD has no state file', () => {
+      assert.equal(decide('git commit -m "green(ci): x"', { headState: null }).decision, 'deny');
+    });
+  });
+
+  describe('tddContext against a real repository', () => {
+    const inRepo = (check) => {
+      const root = mkdtempSync(join(tmpdir(), 'cms-repo-'));
+      const git = (...args) => {
+        const result = spawnSync(
+          'git',
+          ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...args],
+          { cwd: root, encoding: 'utf8' },
+        );
+        assert.equal(result.status, 0, result.stderr);
+      };
+      try {
+        mkdirSync(join(root, 'docs', 'harness'), { recursive: true });
+        writeFileSync(join(root, STATE_PATH), JSON.stringify({ ...approved, files: ['in/'] }));
+        mkdirSync(join(root, 'out'));
+        mkdirSync(join(root, 'in'));
+        writeFileSync(join(root, 'out', 'x.ts'), 'export const x = 1;\n');
+        git('init', '-q');
+        git('add', '.');
+        git('commit', '-q', '-m', 'red(ci): x');
+        check(root, git);
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    };
+
+    it('lists both sides of a rename', () => {
+      inRepo((root, git) => {
+        git('mv', 'out/x.ts', 'in/x.ts');
+        assert.deepEqual(tddContext(root).stagedFiles.sort(), ['in/x.ts', 'out/x.ts']);
+      });
+    });
+
+    it('reads the state as committed at HEAD, apart from the working copy', () => {
+      inRepo((root) => {
+        writeFileSync(join(root, STATE_PATH), JSON.stringify({ ...approved, files: ['out/'] }));
+        const context = tddContext(root);
+        assert.deepEqual(context.headState.files, ['in/']);
+        assert.deepEqual(context.state.files, ['out/']);
+      });
     });
   });
 });

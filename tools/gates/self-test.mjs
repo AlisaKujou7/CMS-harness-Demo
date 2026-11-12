@@ -267,7 +267,7 @@ function hookDecides(commitMessage, stage) {
         encoding: 'utf8',
       });
     git('init', '-q');
-    git('add', 'a.spec.ts');
+    git('add', 'a.spec.ts', 'docs');
     git('commit', '-q', '-m', 'red(ci): planted');
     git('add', ...stage);
     const input = JSON.stringify({ tool_input: { command: `git commit -m "${commitMessage}"` } });

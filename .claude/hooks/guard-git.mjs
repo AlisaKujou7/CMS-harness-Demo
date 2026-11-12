@@ -27,9 +27,16 @@ for await (const chunk of process.stdin) input += chunk;
 const command = JSON.parse(input).tool_input?.command ?? '';
 
 // Most commands are not commits, and the tree is only worth computing for those that are.
-const { commits } = classifyGitCommand(command);
-const changed = commits ? changedSinceGate(ROOT) : [];
-const tdd = commits ? tddContext(ROOT) : undefined;
-const { decision, reason } = decideGitCommand(command, changed, tdd);
+// Claude Code runs the command anyway when a hook crashes, so a commit fails closed instead.
+let result;
+try {
+  const { commits } = classifyGitCommand(command);
+  const changed = commits ? changedSinceGate(ROOT) : [];
+  const tdd = commits ? tddContext(ROOT) : undefined;
+  result = decideGitCommand(command, changed, tdd);
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  result = { decision: 'deny', reason: `The git guard failed, so this is refused: ${message}` };
+}
 // An `allow` here would also skip the user's permission settings, so it stays silent.
-if (decision !== 'allow') answer(decision, reason);
+if (result.decision !== 'allow') answer(result.decision, result.reason);

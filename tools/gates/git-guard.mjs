@@ -21,6 +21,38 @@ const SKIPS_HOOKS = /--no-verify|core\.hookspath|\bcommit\b[^;&|\n]*\s-[a-z]*n[a
 const TDD_STEP = /\s-[a-z]*m\s+["'](?:\$\(cat\s+<<-?\s*['"]?\w+['"]?\s+)?(red|green)\(/;
 const TEST_FILE = /\.(?:spec|test)\.[cm]?[jt]sx?$|(?:^|\/)test\//;
 
+// Options that commit files beyond the index, and options whose value is the next word.
+const WIDENS = /^-[a-zA-Z]*[aio][a-zA-Z]*$|^--(?:all|include|only)$/;
+const TAKES_VALUE =
+  /^-[a-zA-Z]*[mFCct]$|^--(?:message|file|author|date|template|reuse-message|reedit-message|fixup|squash|trailer|cleanup)$/;
+const REDIRECT = /^\d*[<>]/;
+
+// True when the commit takes files that are not staged: -a, --include, --only or a path. The hook
+// checks the staged files, so a red or green commit must commit exactly those.
+function addsUnstagedFiles(code) {
+  const match = gitRunning('commit').exec(code);
+  const words = code
+    .slice(match.index + match[0].length)
+    .split(/[;&|\n]/)[0]
+    .split(/\s+/)
+    .filter(Boolean);
+  for (let i = 0; i < words.length; i += 1) {
+    const word = words[i];
+    if (REDIRECT.test(word)) {
+      if (/^\d*[<>]+$/.test(word)) i += 1;
+    } else if (word === '--') {
+      return i + 1 < words.length;
+    } else if (WIDENS.test(word)) {
+      return true;
+    } else if (TAKES_VALUE.test(word)) {
+      i += 1;
+    } else if (!word.startsWith('-')) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function classifyGitCommand(command) {
   const code = withoutQuotedText(command);
   const commits = gitRunning('commit').test(code);
@@ -30,6 +62,7 @@ export function classifyGitCommand(command) {
     pushes,
     skipsHooks: (commits || pushes) && SKIPS_HOOKS.test(code),
     tddStep: commits ? (TDD_STEP.exec(command)?.[1] ?? null) : null,
+    addsUnstaged: commits && addsUnstagedFiles(code),
   };
 }
 
@@ -45,33 +78,42 @@ function decideRed({ stagedFiles, state }) {
   return deny('A red commit needs a test file staged. Run `git add` first, in a separate command.');
 }
 
-function decideGreen({ stagedFiles, headSubject, state }) {
+// The Contract as committed at HEAD, so a green commit cannot widen its own scope.
+function decideGreen({ stagedFiles, headSubject, headState }) {
   if (!/^(?:red|green)\(/.test(headSubject)) {
     return deny('A green commit must follow a red commit on this branch.');
   }
-  if (state === null || state === undefined) return deny(NO_STATE);
-  const outside = filesOutsideContract(stagedFiles, state.files);
+  if (headState === null || headState === undefined) {
+    return deny(`No readable ${STATE_PATH} at HEAD. It is committed with red.`);
+  }
+  const outside = filesOutsideContract(stagedFiles, headState.files);
   if (outside.length === 0) return { decision: 'allow' };
   const listed = outside.slice(0, 5).join(', ');
-  return deny(`Outside the Contract of ${String(state.ticket)}: ${listed}. Stop and ask the user.`);
+  const ticket = String(headState.ticket);
+  return deny(`Outside the Contract of ${ticket}: ${listed}. Stop and ask the user.`);
 }
 
 // A failing test cannot pass a gate, so these two steps are held to their own rules, and the next
 // ordinary commit is what needs the gate. That keeps a task from ending on them. Both read
 // docs/harness/state.json too: red needs an approved Contract, and green stays inside its files.
-function decideTddStep(step, tdd) {
+function decideTddStep(step, addsUnstaged, tdd) {
+  if (addsUnstaged) {
+    return deny(
+      'A red or green commit takes only what is staged. Drop -a and paths, and `git add` first.',
+    );
+  }
   return step === 'red' ? decideRed(tdd) : decideGreen(tdd);
 }
 
 // `changedSinceGate` is null when no gate has passed, or its tree is no longer known.
 export function decideGitCommand(command, changedSinceGate, tdd) {
-  const { commits, pushes, skipsHooks, tddStep } = classifyGitCommand(command);
+  const { commits, pushes, skipsHooks, tddStep, addsUnstaged } = classifyGitCommand(command);
   if (skipsHooks) {
     return { decision: 'deny', reason: 'Git hooks may not be skipped. Fix what they report.' };
   }
   if (pushes) return { decision: 'ask', reason: 'Pushing needs the user to approve it each time.' };
   if (!commits) return { decision: 'allow' };
-  if (tddStep !== null) return decideTddStep(tddStep, tdd);
+  if (tddStep !== null) return decideTddStep(tddStep, addsUnstaged, tdd);
   if (changedSinceGate === null) {
     return { decision: 'deny', reason: 'No full gate has passed. Run `pnpm gate` first.' };
   }
@@ -105,33 +147,48 @@ export function workingTree(root) {
   }
 }
 
+// --no-renames lists both sides of a move, so a file cannot leave the Contract by being renamed.
 export function tddContext(root) {
-  const staged = git(root, ['diff', '--cached', '--name-only']);
+  const staged = git(root, ['diff', '--cached', '--name-only', '--no-renames']);
   return {
     stagedFiles: staged === '' ? [] : staged.split('\n'),
     headSubject: git(root, ['log', '-1', '--format=%s']),
     state: readWorkflowState(root),
+    headState: readCommittedState(root),
   };
 }
 
 export const STATE_PATH = 'docs/harness/state.json';
 
-// The Ticket in progress, as the hook reads it. Null when missing or unreadable, so the hook refuses
-// rather than guesses.
-export function readWorkflowState(root) {
-  const path = join(root, STATE_PATH);
-  if (!existsSync(path)) return null;
+// Null for anything but a JSON object, so the hook refuses rather than guesses.
+function parseState(text) {
   try {
-    return JSON.parse(readFileSync(path, 'utf8'));
+    const state = JSON.parse(text);
+    return typeof state === 'object' && state !== null && !Array.isArray(state) ? state : null;
   } catch {
     return null;
   }
 }
 
-// An entry that ends in a slash allows everything under that folder.
-export function filesOutsideContract(files, allowed = []) {
+// The Ticket in progress, as it stands in the working copy.
+export function readWorkflowState(root) {
+  const path = join(root, STATE_PATH);
+  return existsSync(path) ? parseState(readFileSync(path, 'utf8')) : null;
+}
+
+function readCommittedState(root) {
+  const result = spawnSync('git', ['show', `HEAD:${STATE_PATH}`], { cwd: root, encoding: 'utf8' });
+  return result.status === 0 ? parseState(result.stdout) : null;
+}
+
+// An entry that ends in a slash allows everything under that folder. Anything else in the list,
+// or a list that is not one, allows nothing.
+export function filesOutsideContract(files, allowed) {
+  const entries = Array.isArray(allowed)
+    ? allowed.filter((entry) => typeof entry === 'string')
+    : [];
   const inside = (file) =>
-    allowed.some((entry) => (entry.endsWith('/') ? file.startsWith(entry) : file === entry));
+    entries.some((entry) => (entry.endsWith('/') ? file.startsWith(entry) : file === entry));
   return files.filter((file) => !inside(file));
 }
 

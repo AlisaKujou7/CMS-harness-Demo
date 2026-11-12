@@ -12,7 +12,9 @@ The Claude Code hook (`tools/gates/git-guard.mjs`) could check the shape of a co
 
 - `docs/harness/state.json` holds the Ticket in progress: `ticket`, `step`, `approved` (the date) and `files` (exact paths, or folders that end in `/`).
 - The hook refuses a `red` commit when the file is missing or unreadable, or `approved` is empty.
-- The hook refuses a `green` commit that stages a file outside `files`, and names it. It still needs `green` to follow `red` or `green`.
+- The hook refuses a `green` commit that stages a file outside `files`, and names it. It reads `files` from `state.json` as committed at HEAD, so `red` commits the file and `green` cannot widen its own scope. It lists both sides of a rename, and still needs `green` to follow `red` or `green`.
+- `red` and `green` commits may take only the staged files, so `-a`, `--include`, `--only` and paths are refused.
+- If the hook itself fails on a commit, it refuses the commit, because Claude Code runs the command when a hook crashes.
 - `gate:self-test` runs the real hook against a scratch repository to prove both refusals.
 - `init.sh` starts a session: install, show the Ticket table, `state.json`, the branch and `git log`, then `pnpm gate:fast`.
 - In Red, code a test needs but that does not exist yet is a stub that throws, so each test fails on its own.
