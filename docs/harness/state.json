@@ -1,16 +1,6 @@
 {
   "ticket": "T-005",
-  "step": "green",
-  "approved": "2026-11-12",
-  "files": [
-    "tools/gates/git-guard.mjs",
-    "tools/gates/git-guard.test.mjs",
-    ".claude/hooks/guard-git.mjs",
-    "tools/gates/self-test.mjs",
-    "init.sh",
-    "docs/harness/",
-    "docs/adr/0018-workflow-state-in-the-hook.md",
-    "docs/quality/gates.md",
-    "CLAUDE.md"
-  ]
+  "step": "done",
+  "approved": "",
+  "files": []
 }
