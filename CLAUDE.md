@@ -23,6 +23,8 @@ Headless CMS MVP built from the specifications in `AIAGENT_POC/`. `README.md` ha
 - Where the specifications conflict, the stricter or more specific one wins. Record each interpretation in
   `docs/adr/0013-spec-conflicts.md`. Quality gate changes are a Tech Lead decision through an ADR.
 - Report what ran and what did not. A check that never ran is not a pass.
+- Anything the next session or another person needs goes in the repository: `STATUS.md`, a Handoff, an
+  ADR or this file. Claude Code's own memory stays on one machine and is never the only record.
 
 ## Rules of the code
 

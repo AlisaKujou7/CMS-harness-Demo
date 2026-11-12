@@ -6,7 +6,7 @@
 - **ปัญหา:** ตอนเทียบกับสเปก 9 ไฟล์พบสองจุดที่โค้ดต่างจากสเปกโดยไม่มีบันทึกใน ADR-0013
   - Editor ไม่มี Markdown fallback ทั้งที่ FR-CONTENT-15 ใน SRS ไม่ได้ระบุไว้
   - ไม่มีโมดูล `notifications` ตามผัง การส่งอีเมลอยู่ใน shared adapter
-- **Branch:** `feature/docs-record-spec-gaps`
+- **Branch:** `feature/docs-record-spec-gaps` ตามแผน แต่ไม่ได้สร้างจริง งานถูก commit บน `feature/shared-request-log` (แก้บันทึกนี้ใน T-004)
 
 ## Contract
 
