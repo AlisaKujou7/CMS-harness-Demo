@@ -97,6 +97,17 @@ export function tddContext(root) {
   };
 }
 
+export const STATE_PATH = 'docs/harness/state.json';
+
+// Stubs for T-005 Red. Each throws, so every test that needs one fails on its own.
+export function readWorkflowState() {
+  throw new Error('readWorkflowState is not written yet (T-005 green)');
+}
+
+export function filesOutsideContract() {
+  throw new Error('filesOutsideContract is not written yet (T-005 green)');
+}
+
 export function writeGateStamp(root, tree) {
   const path = join(root, STAMP_PATH);
   mkdirSync(dirname(path), { recursive: true });

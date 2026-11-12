@@ -9,7 +9,7 @@
 
 ## Contract
 
-**สถานะ:** รออนุมัติ
+**สถานะ:** อนุมัติแล้ว
 
 ### ขอบเขต
 
@@ -49,5 +49,27 @@
 
 ### การอนุมัติ
 
-- **ผู้อนุมัติ:**
-- **วันที่:**
+- **ผู้อนุมัติ:** ผู้ใช้ ผ่านปุ่มในแอป Claude Code ("Approve T-005")
+- **วันที่:** 2026-11-12
+
+## Red
+
+`node --test tools/gates/git-guard.test.mjs` ได้ 18 ผ่าน 10 ล้ม และล้มทีละกรณีตามกฎใหม่ข้อ 4:
+
+- 6 กรณีล้มเพราะโครง `readWorkflowState` และ `filesOutsideContract` throw ว่ายังไม่ได้เขียน
+- 4 กรณีล้มด้วย assertion เพราะ hook ตอนนี้ยังปล่อย `red` ที่ไม่มีการอนุมัติ และ `green` ที่แก้นอกขอบเขต
+- กรณี "still needs green to follow red, inside the Contract" ผ่านอยู่แล้ว เป็นตัวกันไม่ให้กฎเดิมหายไป
+
+```text
+✖ refuses red when there is no state file
+✖ refuses red until the Contract has an approval date
+✖ refuses green that stages a file outside the Contract, and names it
+✖ refuses green when there is no state file
+✖ accepts exact paths and folders that end in a slash
+✖ lists what the Contract does not name
+✖ treats a missing list as an empty one
+✖ returns null when the file does not exist
+✖ reads the ticket, step, approval and files
+✖ returns null for a file that is not valid JSON, so the hook refuses
+ℹ tests 28  pass 18  fail 10
+```

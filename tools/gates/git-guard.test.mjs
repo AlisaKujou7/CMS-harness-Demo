@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, it } from 'node:test';
-import { classifyGitCommand, decideGitCommand } from './git-guard.mjs';
+import {
+  STATE_PATH,
+  classifyGitCommand,
+  decideGitCommand,
+  filesOutsideContract,
+  readWorkflowState,
+} from './git-guard.mjs';
 
 describe('classifyGitCommand', () => {
   it('finds a commit however the command is written', () => {
@@ -83,8 +92,14 @@ describe('decideGitCommand', () => {
   describe('TDD steps, which cannot pass a gate yet', () => {
     const red = 'git commit -m "red(shared): log each request"';
     const green = 'git commit -m "green(shared): log each request"';
+    const state = {
+      ticket: 'T-9',
+      step: 'red',
+      approved: '2026-11-12',
+      files: ['a.ts', 'a.spec.ts'],
+    };
     const decide = (command, stagedFiles, headSubject = 'feat(a): b') =>
-      decideGitCommand(command, null, { stagedFiles, headSubject }).decision;
+      decideGitCommand(command, null, { stagedFiles, headSubject, state }).decision;
 
     it('allows a red commit that holds a test, without a gate', () => {
       assert.equal(decide(red, ['cms-api/src/a.spec.ts', 'cms-api/src/a.ts']), 'allow');
@@ -114,6 +129,97 @@ describe('decideGitCommand', () => {
     it('holds an ordinary commit to the gate, even one that mentions red', () => {
       assert.equal(classifyGitCommand('git commit -m "fix(a): red(b) text"').tddStep, null);
       assert.equal(decide('git commit -m "fix(a): b"', ['a.spec.ts']), 'deny');
+    });
+  });
+});
+
+describe('workflow state from docs/harness/state.json', () => {
+  const red = 'git commit -m "red(ci): x"';
+  const green = 'git commit -m "green(ci): x"';
+  const approved = { ticket: 'T-9', step: 'red', approved: '2026-11-12', files: ['a.ts', 'src/'] };
+  const decide = (command, state, stagedFiles, headSubject = 'red(ci): x') =>
+    decideGitCommand(command, null, { stagedFiles, headSubject, state });
+
+  it('refuses red when there is no state file', () => {
+    const result = decide(red, null, ['a.spec.ts']);
+
+    assert.equal(result.decision, 'deny');
+    assert.match(result.reason, /state\.json/);
+  });
+
+  it('refuses red until the Contract has an approval date', () => {
+    for (const value of [undefined, '', '  ']) {
+      const result = decide(red, { ...approved, approved: value }, ['a.spec.ts']);
+
+      assert.equal(result.decision, 'deny', String(value));
+      assert.match(result.reason, /approv/i);
+    }
+  });
+
+  it('refuses green that stages a file outside the Contract, and names it', () => {
+    const result = decide(green, approved, ['a.ts', 'README.md']);
+
+    assert.equal(result.decision, 'deny');
+    assert.match(result.reason, /README\.md/);
+    assert.doesNotMatch(result.reason, /a\.ts/);
+  });
+
+  it('refuses green when there is no state file', () => {
+    assert.equal(decide(green, null, ['a.ts']).decision, 'deny');
+  });
+
+  it('still needs green to follow red, inside the Contract', () => {
+    assert.equal(decide(green, approved, ['a.ts'], 'feat(ci): x').decision, 'deny');
+  });
+});
+
+describe('filesOutsideContract', () => {
+  it('accepts exact paths and folders that end in a slash', () => {
+    assert.deepEqual(filesOutsideContract(['a.ts', 'src/b/c.ts'], ['a.ts', 'src/']), []);
+  });
+
+  it('lists what the Contract does not name', () => {
+    assert.deepEqual(filesOutsideContract(['a.ts', 'ab.ts', 'srcx/d.ts'], ['a.ts', 'src/']), [
+      'ab.ts',
+      'srcx/d.ts',
+    ]);
+  });
+
+  it('treats a missing list as an empty one', () => {
+    assert.deepEqual(filesOutsideContract(['a.ts'], undefined), ['a.ts']);
+  });
+});
+
+describe('readWorkflowState', () => {
+  const withRoot = (state, check) => {
+    const root = mkdtempSync(join(tmpdir(), 'cms-state-'));
+    try {
+      if (state !== undefined) {
+        mkdirSync(join(root, 'docs', 'harness'), { recursive: true });
+        writeFileSync(join(root, STATE_PATH), state);
+      }
+      check(root);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  };
+
+  it('returns null when the file does not exist', () => {
+    withRoot(undefined, (root) => {
+      assert.equal(readWorkflowState(root), null);
+    });
+  });
+
+  it('reads the ticket, step, approval and files', () => {
+    const state = { ticket: 'T-9', step: 'green', approved: '2026-11-12', files: ['a.ts'] };
+    withRoot(JSON.stringify(state), (root) => {
+      assert.deepEqual(readWorkflowState(root), state);
+    });
+  });
+
+  it('returns null for a file that is not valid JSON, so the hook refuses', () => {
+    withRoot('{ not json', (root) => {
+      assert.equal(readWorkflowState(root), null);
     });
   });
 });
