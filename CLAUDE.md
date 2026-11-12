@@ -3,7 +3,9 @@
 Headless CMS MVP built from the specifications in `AIAGENT_POC/`. `README.md` has the commands, and
 `docs/harness/README.md` explains how the work is controlled.
 
-**Start every session with `docs/harness/STATUS.md`, and check it against `git log`.**
+**Start every session with `bash init.sh`, then read `docs/harness/STATUS.md` and check it against
+`git log`.** `docs/harness/state.json` is the Ticket the hook enforces: record the approval date and the
+Contract's files there before `red`, and clear them at the Handoff.
 
 ## Working agreements
 

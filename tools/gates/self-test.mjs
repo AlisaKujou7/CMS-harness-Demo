@@ -254,7 +254,54 @@ const SCENARIOS = [
   },
 ];
 
+// The real hook, run against a scratch repository whose state.json and staged files are planted.
+// It answers with JSON and exit 0, so a deny is turned into a failing status here.
+const HOOK_REPO = 'reports/zzq-repo';
+
+function hookDecides(commitMessage, stage) {
+  return () => {
+    const repo = join(ROOT, HOOK_REPO);
+    const git = (...args) =>
+      spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...args], {
+        cwd: repo,
+        encoding: 'utf8',
+      });
+    git('init', '-q');
+    git('add', 'a.spec.ts');
+    git('commit', '-q', '-m', 'red(ci): planted');
+    git('add', ...stage);
+    const input = JSON.stringify({ tool_input: { command: `git commit -m "${commitMessage}"` } });
+    const hook = join(ROOT, '.claude', 'hooks', 'guard-git.mjs');
+    const result = spawnSync('node', [hook, repo], { input, encoding: 'utf8' });
+    const denied = /"permissionDecision":"deny"/.test(result.stdout);
+    return { status: denied ? 1 : 0, stdout: result.stdout, stderr: result.stderr };
+  };
+}
+
+const plantState = (state) => ({
+  [`${HOOK_REPO}/docs/harness/state.json`]: JSON.stringify(state),
+  [`${HOOK_REPO}/a.spec.ts`]: 'export {};\n',
+  [`${HOOK_REPO}/b.spec.ts`]: 'export {};\n',
+  [`${HOOK_REPO}/outside.ts`]: 'export {};\n',
+});
+
+SCENARIOS.push(
+  {
+    name: 'red commit before the Contract is approved',
+    files: plantState({ ticket: 'T-ZZQ', step: 'red', approved: '', files: ['b.spec.ts'] }),
+    command: hookDecides('red(ci): zzq', ['b.spec.ts']),
+    expect: /T-ZZQ is not approved/,
+  },
+  {
+    name: 'green commit outside the Contract',
+    files: plantState({ ticket: 'T-ZZQ', step: 'green', approved: '2026-11-12', files: [] }),
+    command: hookDecides('green(ci): zzq', ['outside.ts']),
+    expect: /Outside the Contract of T-ZZQ: outside\.ts/,
+  },
+);
+
 const PLANTED_ROOTS = [
+  HOOK_REPO,
   `${API}/zzq`,
   `${API}/zzr`,
   `${WEB}/zzq`,
@@ -275,12 +322,15 @@ function runScenario({ name, files, command, expect }) {
       mkdirSync(dirname(join(ROOT, path)), { recursive: true });
       writeFileSync(join(ROOT, path), content);
     }
-    const { status, stdout, stderr } = spawnSync(command, {
-      cwd: ROOT,
-      shell: true,
-      encoding: 'utf8',
-      maxBuffer: 64 * 1024 * 1024,
-    });
+    const { status, stdout, stderr } =
+      typeof command === 'function'
+        ? command()
+        : spawnSync(command, {
+            cwd: ROOT,
+            shell: true,
+            encoding: 'utf8',
+            maxBuffer: 64 * 1024 * 1024,
+          });
     const caught = status !== 0 && expect.test(stdout + stderr);
     console.log(`${caught ? 'CAUGHT' : 'MISSED'}  ${name}`);
     // Why it was missed is usually in the tail, and a rerun may not show it again.

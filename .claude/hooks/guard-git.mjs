@@ -7,7 +7,8 @@ import {
   tddContext,
 } from '../../tools/gates/git-guard.mjs';
 
-const ROOT = join(import.meta.dirname, '..', '..');
+// gate:self-test passes a scratch repository here. Claude Code passes nothing.
+const ROOT = process.argv[2] ?? join(import.meta.dirname, '..', '..');
 
 function answer(decision, reason) {
   console.log(

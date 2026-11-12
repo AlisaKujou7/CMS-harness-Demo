@@ -33,18 +33,34 @@ export function classifyGitCommand(command) {
   };
 }
 
-// A failing test cannot pass a gate, so these two steps are held to their own rules, and the next
-// ordinary commit is what needs the gate. That keeps a task from ending on them.
-function decideTddStep(step, { stagedFiles, headSubject }) {
-  if (step === 'red') {
-    if (stagedFiles.some((file) => TEST_FILE.test(file))) return { decision: 'allow' };
-    return {
-      decision: 'deny',
-      reason: 'A red commit needs a test file staged. Run `git add` first, in a separate command.',
-    };
+const deny = (reason) => ({ decision: 'deny', reason });
+const NO_STATE = 'No readable docs/harness/state.json. Record the Ticket and its Contract there.';
+
+function decideRed({ stagedFiles, state }) {
+  if (state === null || state === undefined) return deny(NO_STATE);
+  if (typeof state.approved !== 'string' || state.approved.trim() === '') {
+    return deny(`The Contract of ${String(state.ticket)} is not approved. Ask the user first.`);
   }
-  if (/^(?:red|green)\(/.test(headSubject)) return { decision: 'allow' };
-  return { decision: 'deny', reason: 'A green commit must follow a red commit on this branch.' };
+  if (stagedFiles.some((file) => TEST_FILE.test(file))) return { decision: 'allow' };
+  return deny('A red commit needs a test file staged. Run `git add` first, in a separate command.');
+}
+
+function decideGreen({ stagedFiles, headSubject, state }) {
+  if (!/^(?:red|green)\(/.test(headSubject)) {
+    return deny('A green commit must follow a red commit on this branch.');
+  }
+  if (state === null || state === undefined) return deny(NO_STATE);
+  const outside = filesOutsideContract(stagedFiles, state.files);
+  if (outside.length === 0) return { decision: 'allow' };
+  const listed = outside.slice(0, 5).join(', ');
+  return deny(`Outside the Contract of ${String(state.ticket)}: ${listed}. Stop and ask the user.`);
+}
+
+// A failing test cannot pass a gate, so these two steps are held to their own rules, and the next
+// ordinary commit is what needs the gate. That keeps a task from ending on them. Both read
+// docs/harness/state.json too: red needs an approved Contract, and green stays inside its files.
+function decideTddStep(step, tdd) {
+  return step === 'red' ? decideRed(tdd) : decideGreen(tdd);
 }
 
 // `changedSinceGate` is null when no gate has passed, or its tree is no longer known.
@@ -94,18 +110,29 @@ export function tddContext(root) {
   return {
     stagedFiles: staged === '' ? [] : staged.split('\n'),
     headSubject: git(root, ['log', '-1', '--format=%s']),
+    state: readWorkflowState(root),
   };
 }
 
 export const STATE_PATH = 'docs/harness/state.json';
 
-// Stubs for T-005 Red. Each throws, so every test that needs one fails on its own.
-export function readWorkflowState() {
-  throw new Error('readWorkflowState is not written yet (T-005 green)');
+// The Ticket in progress, as the hook reads it. Null when missing or unreadable, so the hook refuses
+// rather than guesses.
+export function readWorkflowState(root) {
+  const path = join(root, STATE_PATH);
+  if (!existsSync(path)) return null;
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'));
+  } catch {
+    return null;
+  }
 }
 
-export function filesOutsideContract() {
-  throw new Error('filesOutsideContract is not written yet (T-005 green)');
+// An entry that ends in a slash allows everything under that folder.
+export function filesOutsideContract(files, allowed = []) {
+  const inside = (file) =>
+    allowed.some((entry) => (entry.endsWith('/') ? file.startsWith(entry) : file === entry));
+  return files.filter((file) => !inside(file));
 }
 
 export function writeGateStamp(root, tree) {
