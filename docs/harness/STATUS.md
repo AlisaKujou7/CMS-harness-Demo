@@ -12,6 +12,7 @@
 | [T-004](tickets/T-004-review-fixes-docs.md)        | แก้เอกสารตามรีวิว และวาง Memory Management | เสร็จ ดู Handoff |
 | [T-005](tickets/T-005-state-enforcement.md)        | State Management ของเวิร์กโฟลว์            | เสร็จ ดู Handoff |
 | [T-006](tickets/T-006-demo-hook-scenes.md)         | ฉากที่ hook ปฏิเสธ AI ในคู่มือ Demo        | เสร็จ ดู Handoff |
+| [T-007](tickets/T-007-ci-permissions.md)           | แก้สิทธิ์ของ CI ที่ล้มในการรันครั้งแรก     | กำลังทำ          |
 
 ## งานก่อนมีเวิร์กโฟลว์นี้
 
