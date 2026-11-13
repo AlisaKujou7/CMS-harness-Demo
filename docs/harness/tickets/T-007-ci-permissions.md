@@ -38,10 +38,10 @@
 
 ### Definition of Done
 
-- [ ] `pnpm gate` ผ่านในเครื่องก่อน commit
-- [ ] บน PR #1 งาน `Security and licenses` และ `Conventional PR title` ผ่าน
-- [ ] CodeQL ผ่าน หรือถ้ายังล้ม มีสาเหตุจาก log ที่บันทึกไว้
-- [ ] Handoff บันทึกผล CI ทุกงานจากรอบใหม่
+- [x] `pnpm gate` ผ่านในเครื่องก่อน commit
+- [x] บน PR #1 งาน `Security and licenses` และ `Conventional PR title` ผ่าน
+- [x] CodeQL ผ่าน หรือถ้ายังล้ม มีสาเหตุจาก log ที่บันทึกไว้
+- [x] Handoff บันทึกผล CI ทุกงานจากรอบใหม่
 
 ### Red และ Green
 
