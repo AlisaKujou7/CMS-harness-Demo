@@ -11,6 +11,7 @@
 | [T-003](tickets/T-003-requirement-traceability.md) | Requirement Traceability gate สำหรับ FR    | เสร็จ ดู Handoff |
 | [T-004](tickets/T-004-review-fixes-docs.md)        | แก้เอกสารตามรีวิว และวาง Memory Management | เสร็จ ดู Handoff |
 | [T-005](tickets/T-005-state-enforcement.md)        | State Management ของเวิร์กโฟลว์            | เสร็จ ดู Handoff |
+| [T-006](tickets/T-006-demo-hook-scenes.md)         | ฉากที่ hook ปฏิเสธ AI ในคู่มือ Demo        | เสร็จ ดู Handoff |
 
 ## งานก่อนมีเวิร์กโฟลว์นี้
 
