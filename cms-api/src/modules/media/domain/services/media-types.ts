@@ -15,8 +15,45 @@ const EXTENSIONS_BY_MIME: Readonly<Record<string, readonly string[]>> = {
   'application/pdf': ['pdf'],
 };
 
-const SVG_START =
-  /^(?:<\?xml[^>]*>\s*)?(?:<!--[\s\S]*?-->\s*)*(?:<!doctype[^>]*>\s*)?(?:<!--[\s\S]*?-->\s*)*<svg[\s>]/i;
+// An SVG may open with an XML declaration, comments and a doctype before its root. They are skipped
+// in one pass with indexOf: a pattern of repeated comment groups backtracked exponentially on input
+// such as "<!--" followed by many "--><!--", so one upload could stall the API (CodeQL js/redos).
+const NOT_FOUND = -1;
+const WHITESPACE = /\s/;
+
+function skipWhitespace(text: string, at: number): number {
+  let next = at;
+  while (next < text.length && WHITESPACE.test(text.charAt(next))) next += 1;
+  return next;
+}
+
+function opensWith(text: string, at: number, prefix: string): boolean {
+  return text.slice(at, at + prefix.length).toLowerCase() === prefix;
+}
+
+// A declaration or doctype runs to the first ">". Returns where the next markup starts.
+function skipOptional(text: string, at: number, prefix: string): number {
+  if (at === NOT_FOUND || !opensWith(text, at, prefix)) return at;
+  const end = text.indexOf('>', at + prefix.length);
+  return end === NOT_FOUND ? NOT_FOUND : skipWhitespace(text, end + 1);
+}
+
+function skipComments(text: string, at: number): number {
+  let next = at;
+  while (next !== NOT_FOUND && text.startsWith('<!--', next)) {
+    const end = text.indexOf('-->', next + 4);
+    next = end === NOT_FOUND ? NOT_FOUND : skipWhitespace(text, end + 3);
+  }
+  return next;
+}
+
+function opensSvgRoot(text: string): boolean {
+  let at = skipOptional(text, 0, '<?xml');
+  at = skipComments(text, at);
+  at = skipOptional(text, at, '<!doctype');
+  at = skipComments(text, at);
+  return at !== NOT_FOUND && opensWith(text, at, '<svg') && /[\s>]/.test(text.charAt(at + 4));
+}
 
 export function extensionOf(filename: string): string {
   const dot = filename.lastIndexOf('.');
@@ -47,7 +84,7 @@ function ascii(text: string): number[] {
 
 function looksLikeSvg(bytes: Uint8Array): boolean {
   const head = String.fromCharCode(...bytes.subarray(0, SIGNATURE_BYTES));
-  return SVG_START.test(head.replace(/^ï»¿/, '').trimStart());
+  return opensSvgRoot(head.replace(/^ï»¿/, '').trimStart());
 }
 
 // Reads what the file really is, whatever it claims to be.

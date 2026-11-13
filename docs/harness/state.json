@@ -1,6 +1,6 @@
 {
   "ticket": "T-008",
-  "step": "red",
+  "step": "green",
   "approved": "2026-11-13",
   "files": [
     "cms-api/src/modules/media/domain/services/media-types.ts",

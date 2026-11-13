@@ -237,11 +237,21 @@ export class InMemoryObjectStorage implements ObjectStorage {
   }
 }
 
+// Removes scripts in any case, and repeats until nothing changes, so one removal cannot join the
+// pieces of another. A bare "<script" with no end is removed too.
+const SCRIPT = /<script\b[\s\S]*?<\/script[^>]*>|<script/gi;
+
 export class FakeSvgSanitizer implements SvgSanitizer {
   sanitize(bytes: Uint8Array): Uint8Array | null {
     const text = Buffer.from(bytes).toString('utf8');
     if (text.includes('not-well-formed')) return null;
-    return Buffer.from(text.replace(/<script[\s\S]*<\/script>/, ''));
+    let previous: string;
+    let result = text;
+    do {
+      previous = result;
+      result = result.replace(SCRIPT, '');
+    } while (result !== previous);
+    return Buffer.from(result);
   }
 }
 
