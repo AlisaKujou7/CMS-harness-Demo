@@ -1,0 +1,10 @@
+{
+  "name": "cms-migrate",
+  "version": "0.0.0",
+  "private": true,
+  "description": "What the migrate image installs: the Prisma CLI, pinned by the workspace lockfile.",
+  "type": "module",
+  "devDependencies": {
+    "prisma": "7.10.1"
+  }
+}

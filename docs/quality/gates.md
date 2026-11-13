@@ -6,44 +6,49 @@ changes. `pnpm gate` runs the local steps, and `pnpm gate:self-test` proves that
 
 ## G-03 PR gate
 
-| Check                               | Metric                 | Status                                    |
-| ----------------------------------- | ---------------------- | ----------------------------------------- |
-| TypeScript compile and strict flags | M-TS-01..05            | Enforced. Self-tested                     |
-| ESLint and Prettier, 0 warnings     | M-LINT-01..03          | Enforced                                  |
-| Complexity and size limits          | M-CPX-01..07           | Enforced. Self-tested for complexity      |
-| `any` and undocumented suppressions | M-DEBT-04..06          | Enforced. Self-tested for `any`           |
-| Unlinked TODO and FIXME             | M-DEBT-02              | Enforced. Self-tested                     |
-| Skipped and focused tests           | M-TEST-05              | Enforced. Self-tested for skipped tests   |
-| Hexagonal rules                     | M-HEX-01..05           | Enforced. Self-tested                     |
-| Circular dependencies               | M-DEP-01               | Enforced. Self-tested                     |
-| Reactive rules                      | M-RX-01,02,04,05,06,07 | Enforced. Self-tested for 01, 04 and 06   |
-| Coverage, overall and per layer     | §3.2, §3.3             | Enforced. Self-tested                     |
-| Mutation score                      | M-TDD-03, M-TEST-06    | Enforced on the full suite. Self-tested   |
-| Duplication                         | M-DUP-01               | Enforced. Self-tested                     |
-| Bundle budgets                      | M-BUN-01..03           | Enforced                                  |
-| License allow-list                  | M-LIC-01..03           | Enforced for production dependencies      |
-| Dependency CVEs, critical and high  | M-SEC-01,02,05         | Enforced                                  |
-| Commit and PR title format          | M-PR-06                | Enforced                                  |
-| Test-to-code ratio                  | M-TDD-01,06            | Skipped until `origin/main` exists        |
-| Secret scan                         | M-SAST-02              | Enforced locally, in pre-commit and in CI |
-| SAST (CodeQL)                       | M-SAST-01              | CI workflow written, never run            |
+| Check                                                               | Metric                     | Status                                             |
+| ------------------------------------------------------------------- | -------------------------- | -------------------------------------------------- |
+| TypeScript compile and strict flags                                 | M-TS-01..05                | Enforced. Self-tested                              |
+| Browser source free of Node types                                   | M-TS                       | Enforced by `tsconfig.browser.json`. Self-tested   |
+| ESLint and Prettier, 0 warnings                                     | M-LINT-01..03              | Enforced                                           |
+| Complexity and size limits                                          | M-CPX-01..07               | Enforced. Self-tested for complexity               |
+| `any` and undocumented suppressions                                 | M-DEBT-04..06              | Enforced. Self-tested for `any`                    |
+| Unlinked TODO and FIXME                                             | M-DEBT-02                  | Enforced. Self-tested                              |
+| Skipped and focused tests                                           | M-TEST-05                  | Enforced. Self-tested for skipped tests            |
+| Hexagonal rules                                                     | M-HEX-01..05               | Enforced. Self-tested                              |
+| Fake for every outbound port                                        | M-HEX-06                   | Enforced. Self-tested                              |
+| Use case without a spec                                             | M-HEX-07                   | Enforced as "a spec imports it". Self-tested       |
+| Mutable domain fields and setters                                   | M-HEX-08                   | Enforced for fields and setters. Self-tested       |
+| Circular dependencies                                               | M-DEP-01                   | Enforced. Self-tested                              |
+| Reactive rules                                                      | M-RX-01,02,04..08          | Enforced. Self-tested for 01, 04, 06 and 08        |
+| Query key convention, stream teardown                               | M-STATE-02,04              | Enforced as lint rules. Self-tested                |
+| UI text in message files                                            | NFR-I18N-03                | Enforced for JSX text and text props. Self-tested  |
+| React hooks and JSX accessibility                                   | NFR-USE-03                 | Enforced with lint, and axe in component tests     |
+| Coverage, overall and per layer                                     | §3.2, §3.3                 | Enforced across unit and Docker tests. Self-tested |
+| Mutation score                                                      | M-TDD-03, M-TEST-06        | Enforced on the in-process suite. Self-tested      |
+| Mutation on domain and critical code                                | M-TEST-07, §3.3            | Enforced at 90% by group. Self-tested              |
+| Duplication                                                         | M-DUP-01                   | Enforced. Self-tested                              |
+| Bundle budgets                                                      | M-BUN-01..03               | Enforced                                           |
+| E2E flows on the built SPA, axe with contrast, keyboard on one flow | G-04, 06-TEST-STRATEGY 9.2 | Enforced by `pnpm test:e2e`, in `pnpm gate`        |
+| License allow-list                                                  | M-LIC-01..03               | Enforced for production dependencies               |
+| Dependency CVEs, critical and high                                  | M-SEC-01,02,05             | Enforced                                           |
+| Commit and PR title format                                          | M-PR-06                    | Enforced                                           |
+| Test-to-code ratio                                                  | M-TDD-01,06                | Enforced since `origin/main` exists on GitHub      |
+| FR codes traced to tests or a written exception                     | 02-SRS 11.3, ADR-0017      | Enforced as "a test names the code". Self-tested   |
+| Secret scan                                                         | M-SAST-02                  | Enforced locally, in pre-commit and in CI          |
+| SAST (CodeQL)                                                       | M-SAST-01                  | Enforced in CI on PRs since the repo became public |
 
 ## Not enforced yet
 
-| Check                                       | Metric             | Arrives in  |
-| ------------------------------------------- | ------------------ | ----------- |
-| Integration tests (none exist yet)          | M-TEST-02          | Phase 1     |
-| Mutation at 90% on domain and critical code | M-TEST-07, §3.3    | Phase 1     |
-| Diff coverage on changed lines              | M-TDD-02           | With git    |
-| Mutation on changed files only              | M-TDD-03           | With git    |
-| OpenAPI validity and drift                  | M-API-04           | Phase 5     |
-| Fake for every outbound port                | M-HEX-06           | Phase 1     |
-| Use case without integration test           | M-HEX-07           | Phase 1     |
-| Setters on domain entities                  | M-HEX-08           | Phase 1     |
-| Component limits and subscriptions          | M-RX-08, M-STATE-* | Phase 6     |
-| React lint rules, i18n literals             | NFR-I18N-03        | Phase 6     |
-| E2E, Lighthouse, axe                        | G-04, M-BUN-04..08 | Phases 6, 7 |
-| Container scan, SBOM, signing               | G-05, M-INF-*      | Phase 8     |
+| Check                              | Metric               | Arrives in                               |
+| ---------------------------------- | -------------------- | ---------------------------------------- |
+| Diff coverage on changed lines     | M-TDD-02             | With git                                 |
+| Mutation on changed files only     | M-TDD-03             | With git                                 |
+| OpenAPI validity and drift         | M-API-04             | Phase 5                                  |
+| Lighthouse and Web Vitals          | M-BUN-04..08         | Needs a decision on where it runs        |
+| Storybook and Chromatic            | 06-TEST-STRATEGY 8.6 | Needs a decision on the external service |
+| Slice size and invalidation review | M-STATE-01, 03       | By review                                |
+| SBOM, signing, image checks in CI  | G-05, M-INF-01..03   | Workflow written, never run              |
 
 ## Not measured by design for now
 
@@ -53,8 +58,46 @@ changes. `pnpm gate` runs the local steps, and `pnpm gate:self-test` proves that
   the second means nothing until integration tests exist.
 - Needs people or production: review turnaround, DORA, SLOs, load tests, G-06 to G-10.
 
+## Known gaps in what passes
+
+- Only the Compose stack connects as `cms_app`, which `infra/scripts/smoke-flow.sh` checks. Local development and E2E still use the owner.
+- Email delivery depends on `dist/worker.js` running, and a crash between commit and enqueue loses
+  that email. Resending an invitation or a reset request recovers it.
+- Mutation testing skips driven adapters (`adapters/out`), because they need containers. They are
+  covered by the Docker tests at 100% line coverage for auth, but M-TEST targets of 70% for them are
+  not measured.
+- The critical path bar in §3.3 asks for 90% on the HTTP adapters of auth too. Only domain and
+  application are held to it, and adapters only count toward the overall 80%.
+- M-HEX-07 asks for an integration test per use case. The check proves that a spec imports each one.
+- SMTP is tested against a real server with STARTTLS, but not against a production provider or with authentication.
+- Graceful shutdown is verified by hand, by stopping the containers, and no automated test covers it. Both exit 0 within about a second.
+- `infra/scripts/check-images.sh` covers M-INF-01 to 03, but nothing runs it until the release workflow does. The deploy scripts and restore were rehearsed once by hand on Linux in Docker-in-Docker, not on a real VM. Bucket CORS was tried against the gateway, not AWS S3.
+- `postgres:15.19-alpine` has critical and high findings in the Go `stdlib` of its bundled `gosu`, so M-INF-01 does not hold for it, and `check-images.sh` only scans our own images. Nothing runs `gosu` here, because the container starts as user 70.
+- The Claude Code hook in `.claude/settings.json` refuses a commit without a passing full gate, but it reads command text, so a commit inside a script gets past it, and it does not bind commits made outside Claude Code. Files ending in `.md` may change after the gate without another run. `red` and `green` commits need no gate, because a failing test cannot pass one: a red commit must hold a test, a green commit must follow one, and the next ordinary commit needs the gate. Nothing proves that a red test really failed. Since ADR-0018 a red commit also needs an approval date in `docs/harness/state.json`, and a green commit may stage only the files listed there as committed at HEAD, with no `-a` or paths, but the agent can edit that file, so it proves a record, not a person's approval.
+- CI first ran on GitHub on PR #1 (2026-11-13). Every code check passed there after T-007 fixed the token permissions. CodeQL could not upload while the repository was private. It became public on 2026-11-13, and the first upload found four high alerts in existing code: a ReDoS in the SVG check and two in a test fake, fixed in T-008. Mutation testing on the 2-core runner had not finished after more than 50 minutes, against about 4 minutes locally.
+- Alerts, metrics and error tracking from 07-OPS-ARCH 14 and 15 are not built, as ADR-0013 records. Terraform (M-INF-04) is not used.
+
+- M-BUN-02 is measured per file. The editor route is split into several files that each pass, but
+  opening it downloads about 130 KB gzipped in total, over the 100 KB the metric asks of a route.
+- Mutation testing of `cms-web` leaves out string and object literal mutants, since those are mostly
+  styling, and message files, tokens and the app shell. M-TEST-07's layer bars are not measured for it.
+- M-CPX-04 limits a function to 50 lines, but a React component is held to 200 lines, the limit M-RX-07
+  writes for components, because its JSX is markup. Complexity limits still apply to it. Hooks and
+  other functions keep the 50 lines.
+- The axe scans in component tests leave out color contrast, since jsdom has no layout. The E2E
+  accessibility flow checks it in a real browser, in both themes, on the main screens, a row menu and
+  the media picker. Other dialogs and error states are not scanned for contrast.
+- 06-TEST-STRATEGY 8.7 asks for keyboard-only checks of all interactive flows. One flow does this:
+  signing in, finding an article, using its menu, and saving an edit. Screen reader checks with NVDA
+  or VoiceOver are manual and have not been done.
+- `eslint-plugin-jsx-a11y` declares support up to ESLint 9. It runs under ESLint 10 today, and needs
+  replacing if a later ESLint breaks it.
+
 ## Known dependency findings
 
-`pnpm audit` reports 0 findings. Five moderate findings in `qs` and `minimatch`, both transitive dev
-dependencies of Stryker, are resolved through `overrides` in `pnpm-workspace.yaml`. Remove those
-overrides once Stryker's own dependency ranges include the fixed versions.
+`pnpm audit` reports 1 moderate finding, within M-SEC-03 (at most 5, with an action plan): `glob`
+through `testcontainers > archiver`, a dev dependency that does not ship. Action: take the upstream
+fix when Testcontainers updates `archiver`, and review on each Dependabot run.
+
+Five earlier moderate findings in `qs` and `minimatch`, both from Stryker, are resolved through
+`overrides` in `pnpm-workspace.yaml`. Remove them once Stryker's own ranges include the fixes.

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_PAGE_SIZE,
   InvalidPageRequestError,
+  MAX_PAGE,
   MAX_PAGE_SIZE,
   pagedResult,
   toPageRequest,
@@ -51,6 +52,12 @@ describe('toPageRequest', () => {
     const error = new InvalidPageRequestError('page', 0);
 
     expect(error.name).toBe('InvalidPageRequestError');
+  });
+
+  it('accepts the last allowed page and rejects anything beyond it', () => {
+    expect(toPageRequest({ page: MAX_PAGE }).page).toBe(MAX_PAGE);
+    expect(() => toPageRequest({ page: MAX_PAGE + 1 })).toThrow(InvalidPageRequestError);
+    expect(() => toPageRequest({ page: 1e30 })).toThrow(InvalidPageRequestError);
   });
 
   it('exposes the default page size from FR-PUBAPI-05', () => {

@@ -113,6 +113,44 @@ const SCENARIOS = [
     expect: /M-RX-04/,
   },
   {
+    name: 'component has too many useState calls',
+    files: {
+      [`${WEB}/zzq/pages/Bad.tsx`]: [
+        "import { useState } from 'react';",
+        'export function Bad() {',
+        ...['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((name) => `  const ${name} = useState(0);`),
+        '  return <div>{[a, b, c, d, e, f, g].length}</div>;',
+        '}',
+        '',
+      ].join('\n'),
+    },
+    command: LINT,
+    expect: /M-RX-08/,
+  },
+  {
+    name: 'UI text written inline',
+    files: { [`${WEB}/zzq/pages/Bad.tsx`]: 'export const Bad = () => <p>Inline words</p>;\n' },
+    command: LINT,
+    expect: /NFR-I18N-03/,
+  },
+  {
+    name: 'component subscribes by itself',
+    files: {
+      [`${WEB}/zzq/pages/Bad.tsx`]:
+        "import { of } from 'rxjs';\nof(1).subscribe();\nexport const Bad = () => <br />;\n",
+    },
+    command: LINT,
+    expect: /M-STATE-04/,
+  },
+  {
+    name: 'query key without its feature',
+    files: {
+      [`${WEB}/zzq/pages/bad.ts`]: "export const bad = { queryKey: ['stranger', 1] };\n",
+    },
+    command: LINT,
+    expect: /M-STATE-02/,
+  },
+  {
     name: 'skipped test',
     files: {
       'cms-api/src/shared/zzq.spec.ts':
@@ -131,6 +169,12 @@ const SCENARIOS = [
     },
     command: LINT,
     expect: /complexity/,
+  },
+  {
+    name: 'browser code uses a Node global',
+    files: { 'cms-web/src/shared/zzq.ts': 'export const home = process.env.HOME;\n' },
+    command: 'pnpm --filter cms-web typecheck',
+    expect: /process/,
   },
   {
     name: 'unchecked indexed access',
@@ -153,13 +197,20 @@ const SCENARIOS = [
       ['a', 'b'].map((suffix) => [
         `cms-api/src/shared/zzq-${suffix}.ts`,
         `export function dup${suffix}(a: number, b: number): number {\n${Array.from(
-          { length: 40 },
+          // Below maxLines in .jscpd.json, or jscpd skips the file and nothing is proven.
+          { length: 900 },
           (_, i) => `  a = a * ${String(i)} + b - ${String(i * 3)};`,
         ).join('\n')}\n  return a;\n}\n`,
       ]),
     ),
     command: 'pnpm dup',
-    expect: /threshold|Clone|clones/i,
+    expect: /too many duplicates/i,
+  },
+  {
+    name: 'requirement that nothing traces',
+    files: { 'reports/zzq-srs.md': '| FR-ZZQ-01 | A requirement nobody built. |\n' },
+    command: 'node tools/gates/check.mjs traceability reports/zzq-srs.md',
+    expect: /FR-ZZQ-01 has no test/,
   },
   {
     name: 'unlinked TODO',
@@ -170,17 +221,87 @@ const SCENARIOS = [
   {
     name: 'test that asserts nothing lets mutants survive',
     files: {
-      'cms-api/src/shared/kernel/zzq.ts':
-        'export const f = (a: number, b: number) => (a > b ? a + b : a - b);\n',
-      'cms-api/src/shared/kernel/zzq.spec.ts':
+      [`${API}/auth/domain/zzq.ts`]: `export const f = (a: number, b: number) => [${Array.from(
+        { length: 12 },
+        (_, i) => `a > b + ${String(i)} ? a + b : a - b`,
+      ).join(', ')}];\n`,
+      [`${API}/auth/domain/zzq.spec.ts`]:
         "import { expect, it } from 'vitest';\nimport { f } from './zzq.js';\nit('runs', () => {\n  f(2, 1);\n  f(1, 2);\n  expect(true).toBe(true);\n});\n",
     },
-    command: 'pnpm --filter cms-api test:mutation',
-    expect: /below|threshold/i,
+    command: 'pnpm --filter cms-api test:mutation && node tools/gates/check.mjs mutation',
+    expect: /M-TEST-07/,
+  },
+  {
+    name: 'domain entity with a public mutable field',
+    files: { [`${API}/zzq/domain/bad.ts`]: 'export class Bad {\n  status = 1;\n}\n' },
+    command: LINT,
+    expect: /M-HEX-08/,
+  },
+  {
+    name: 'outbound port without a fake',
+    files: {
+      [`${API}/zzq/application/ports/out/bad.port.ts`]:
+        'export interface ZzqGateway {\n  call(): Promise<void>;\n}\n',
+    },
+    command: 'node tools/gates/check.mjs architecture',
+    expect: /M-HEX-06 port ZzqGateway/,
+  },
+  {
+    name: 'use case without a spec',
+    files: { [`${API}/zzq/application/bad.use-case.ts`]: 'export const a = 1;\n' },
+    command: 'node tools/gates/check.mjs architecture',
+    expect: /M-HEX-07 use case bad\.use-case/,
   },
 ];
 
+// The real hook, run against a scratch repository whose state.json and staged files are planted.
+// It answers with JSON and exit 0, so a deny is turned into a failing status here.
+const HOOK_REPO = 'reports/zzq-repo';
+
+function hookDecides(commitMessage, stage) {
+  return () => {
+    const repo = join(ROOT, HOOK_REPO);
+    const git = (...args) =>
+      spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...args], {
+        cwd: repo,
+        encoding: 'utf8',
+      });
+    git('init', '-q');
+    git('add', 'a.spec.ts', 'docs');
+    git('commit', '-q', '-m', 'red(ci): planted');
+    git('add', ...stage);
+    const input = JSON.stringify({ tool_input: { command: `git commit -m "${commitMessage}"` } });
+    const hook = join(ROOT, '.claude', 'hooks', 'guard-git.mjs');
+    const result = spawnSync('node', [hook, repo], { input, encoding: 'utf8' });
+    const denied = /"permissionDecision":"deny"/.test(result.stdout);
+    return { status: denied ? 1 : 0, stdout: result.stdout, stderr: result.stderr };
+  };
+}
+
+const plantState = (state) => ({
+  [`${HOOK_REPO}/docs/harness/state.json`]: JSON.stringify(state),
+  [`${HOOK_REPO}/a.spec.ts`]: 'export {};\n',
+  [`${HOOK_REPO}/b.spec.ts`]: 'export {};\n',
+  [`${HOOK_REPO}/outside.ts`]: 'export {};\n',
+});
+
+SCENARIOS.push(
+  {
+    name: 'red commit before the Contract is approved',
+    files: plantState({ ticket: 'T-ZZQ', step: 'red', approved: '', files: ['b.spec.ts'] }),
+    command: hookDecides('red(ci): zzq', ['b.spec.ts']),
+    expect: /T-ZZQ is not approved/,
+  },
+  {
+    name: 'green commit outside the Contract',
+    files: plantState({ ticket: 'T-ZZQ', step: 'green', approved: '2026-11-12', files: [] }),
+    command: hookDecides('green(ci): zzq', ['outside.ts']),
+    expect: /Outside the Contract of T-ZZQ: outside\.ts/,
+  },
+);
+
 const PLANTED_ROOTS = [
+  HOOK_REPO,
   `${API}/zzq`,
   `${API}/zzr`,
   `${WEB}/zzq`,
@@ -201,14 +322,19 @@ function runScenario({ name, files, command, expect }) {
       mkdirSync(dirname(join(ROOT, path)), { recursive: true });
       writeFileSync(join(ROOT, path), content);
     }
-    const { status, stdout, stderr } = spawnSync(command, {
-      cwd: ROOT,
-      shell: true,
-      encoding: 'utf8',
-      maxBuffer: 64 * 1024 * 1024,
-    });
+    const { status, stdout, stderr } =
+      typeof command === 'function'
+        ? command()
+        : spawnSync(command, {
+            cwd: ROOT,
+            shell: true,
+            encoding: 'utf8',
+            maxBuffer: 64 * 1024 * 1024,
+          });
     const caught = status !== 0 && expect.test(stdout + stderr);
     console.log(`${caught ? 'CAUGHT' : 'MISSED'}  ${name}`);
+    // Why it was missed is usually in the tail, and a rerun may not show it again.
+    if (!caught) console.log(`exit ${String(status)}\n${(stdout + stderr).slice(-3000)}`);
     if (!caught) console.log(`  exit ${String(status)}\n${(stdout + stderr).slice(-1500)}`);
     return caught;
   } finally {

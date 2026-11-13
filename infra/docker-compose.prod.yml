@@ -1,0 +1,108 @@
+# Production overrides (07-OPS-ARCH 9.3): resource limits, log rotation and host metrics.
+x-logging: &logging
+  logging:
+    driver: json-file
+    options:
+      max-size: '50m'
+      max-file: '5'
+
+services:
+  cms-api:
+    <<: *logging
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1g
+        reservations:
+          cpus: '0.5'
+          memory: 512m
+
+  cms-worker:
+    <<: *logging
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 768m
+
+  postgres:
+    <<: *logging
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2g
+        reservations:
+          cpus: '1.0'
+          memory: 1g
+    command:
+      - postgres
+      - -c
+      - shared_buffers=512MB
+      - -c
+      - effective_cache_size=1500MB
+      - -c
+      - work_mem=16MB
+      - -c
+      - maintenance_work_mem=128MB
+      - -c
+      - max_connections=100
+      - -c
+      - log_min_duration_statement=1000
+      - -c
+      - log_line_prefix=%t [%p] %u@%d
+
+  redis:
+    <<: *logging
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 1.2g
+
+  object-storage:
+    <<: *logging
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1g
+
+  nginx:
+    <<: *logging
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256m
+
+  # Linux hosts only, so it lives here rather than in the base file that local runs use too.
+  node-exporter:
+    <<: *logging
+    image: prom/node-exporter:v1.9.1
+    restart: unless-stopped
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    user: '65534:65534'
+    pid: host
+    network_mode: host
+    read_only: true
+    volumes:
+      - /:/host:ro,rslave
+    command:
+      - --path.rootfs=/host
+      - --no-collector.wifi
+      # Scraped from the host or over a tunnel. ufw leaves this port closed (07-OPS-ARCH 5.3).
+      - --web.listen-address=127.0.0.1:9100
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:9100/metrics']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128m

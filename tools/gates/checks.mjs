@@ -19,7 +19,76 @@ const ALLOWED_LICENSES = new Set([
   'BSD-3-Clause',
   'ISC',
   'MPL-2.0',
+  'MIT-0',
+  '0BSD',
 ]);
+
+// 02-SRS 11.3. A code counts as traced when a test names it. That shows someone connected the two,
+// not that the test proves the requirement, so a person still reads what gets added.
+export function findUntracedRequirements(srsText, testSources, exceptions) {
+  const required = new Set([...srsText.matchAll(/^\|\s*(FR-[A-Z]+-\d+)\s*\|/gm)].map((m) => m[1]));
+  if (required.size === 0) return ['No FR codes found in the specification'];
+  const traced = new Set(testSources.flatMap((source) => source.match(/\bFR-[A-Z]+-\d+\b/g) ?? []));
+
+  const untraced = [...required]
+    .filter((code) => !traced.has(code) && !(code in exceptions))
+    .map((code) => `${code} has no test and no exception`);
+  const badExceptions = Object.entries(exceptions).flatMap(([code, reason]) => {
+    if (!required.has(code)) return [`${code} is an exception, but the specification lacks it`];
+    if (traced.has(code)) return [`${code} is an exception, but a test now traces it`];
+    return reason.trim() === '' ? [`${code} is an exception with no reason`] : [];
+  });
+  return [...untraced, ...badExceptions];
+}
+
+export function findPortsWithoutFakes(portSources, fakeSources) {
+  const fakes = fakeSources.join('\n');
+  const ports = portSources.flatMap((source) =>
+    [...source.matchAll(/export interface (\w+)[^{]*\{([^}]*)\}/g)]
+      .filter(([, , body]) => body.includes('('))
+      .map(([, name]) => name),
+  );
+  return ports.filter((port) => !new RegExp(`implements\\s+${port}\\b`).test(fakes));
+}
+
+export function findUntestedUseCases(useCaseNames, specSources) {
+  const specs = specSources.join('\n');
+  return useCaseNames.filter((name) => !specs.includes(`/${name}.js`));
+}
+
+// 05-METRICS 3.2 and 3.3. Each entry is scored as one group per module or path.
+const MUTATION_BARS = [
+  { pattern: /^src\/modules\/[^/]+\/domain\//, depth: 4, minimum: 90 },
+  { pattern: /^src\/modules\/auth\/application\//, depth: 4, minimum: 90 },
+  { pattern: /^src\/modules\/content\/application\//, depth: 4, minimum: 90 },
+  { pattern: /^src\/modules\/media\/application\//, depth: 4, minimum: 90 },
+  { pattern: /^src\/modules\/public-api\/application\//, depth: 4, minimum: 90 },
+  { pattern: /^src\/shared\/kernel\//, depth: 3, minimum: 80 },
+];
+const DETECTED = new Set(['Killed', 'Timeout']);
+const COUNTED = new Set(['Killed', 'Timeout', 'Survived', 'NoCoverage']);
+
+export function findWeakMutationScores(report) {
+  const groups = new Map();
+  for (const [path, file] of Object.entries(report.files)) {
+    const bar = MUTATION_BARS.find(({ pattern }) => pattern.test(path));
+    if (!bar) continue;
+    const group = path.split('/').slice(0, bar.depth).join('/');
+    const entry = groups.get(group) ?? { minimum: bar.minimum, detected: 0, total: 0 };
+    for (const { status } of file.mutants) {
+      if (!COUNTED.has(status)) continue;
+      entry.total += 1;
+      if (DETECTED.has(status)) entry.detected += 1;
+    }
+    groups.set(group, entry);
+  }
+  return [...groups].flatMap(([group, { minimum, detected, total }]) => {
+    const score = total === 0 ? 100 : (detected / total) * 100;
+    return score < minimum
+      ? [`M-TEST-07 ${group} scores ${score.toFixed(1)}, below ${String(minimum)}`]
+      : [];
+  });
+}
 
 export function findMissingStrictFlags(tsconfig) {
   const options = tsconfig.compilerOptions ?? {};
@@ -58,9 +127,31 @@ export function isLicenseAllowed(expression) {
   return normalized.split(' OR ').some((license) => ALLOWED_LICENSES.has(license.trim()));
 }
 
+// ADR-0015: the prebuilt libvips binaries sharp loads as a separate library, unmodified. An exception
+// names both the package and its exact license, so any other LGPL dependency still fails. ADR-0016
+// does the same for the fonts 03-DESIGN names.
+const LICENSE_EXCEPTIONS = [
+  {
+    name: /^(@fontsource-variable\/roboto-flex|@fontsource\/roboto-mono)$/,
+    licenses: new Set(['OFL-1.1']),
+  },
+  {
+    name: /^@img\/sharp-(libvips-)?[a-z0-9-]+$/,
+    licenses: new Set(['LGPL-3.0-or-later', 'Apache-2.0 AND LGPL-3.0-or-later']),
+  },
+];
+
+function isLicenseExcepted(name, license) {
+  return LICENSE_EXCEPTIONS.some((rule) => rule.name.test(name) && rule.licenses.has(license));
+}
+
 export function findDisallowedLicenses(report) {
   return Object.entries(report).flatMap(([license, packages]) =>
-    isLicenseAllowed(license) ? [] : packages.map((pkg) => `${pkg.name} (${license})`),
+    isLicenseAllowed(license)
+      ? []
+      : packages
+          .filter((pkg) => !isLicenseExcepted(pkg.name, license))
+          .map((pkg) => `${pkg.name} (${license})`),
   );
 }
 

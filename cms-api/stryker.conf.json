@@ -3,15 +3,21 @@
   "packageManager": "pnpm",
   "testRunner": "vitest",
   "plugins": ["@stryker-mutator/vitest-runner"],
-  "reporters": ["clear-text", "progress", "html"],
+  "vitest": { "configFile": "vitest.mutation.config.ts" },
+  "reporters": ["clear-text", "progress", "html", "json"],
   "htmlReporter": { "fileName": "reports/mutation/index.html" },
+  "jsonReporter": { "fileName": "reports/mutation/mutation.json" },
   "mutate": [
     "src/**/*.ts",
     "!src/**/*.spec.ts",
     "!src/**/*.types.ts",
     "!src/**/*.generated.ts",
+    "!src/generated/**",
+    "!src/**/adapters/out/**",
+    "!src/shared/adapters/out/**",
     "!src/composition/**",
-    "!src/main.ts"
+    "!src/main.ts",
+    "!src/worker.ts"
   ],
   "thresholds": { "high": 90, "low": 80, "break": 80 },
   "incremental": true,

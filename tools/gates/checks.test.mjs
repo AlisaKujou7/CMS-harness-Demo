@@ -5,11 +5,194 @@ import {
   evaluateTestRatio,
   findDisallowedLicenses,
   findMissingStrictFlags,
+  findPortsWithoutFakes,
   findUnlinkedTodos,
+  findUntestedUseCases,
+  findUntracedRequirements,
+  findWeakMutationScores,
   isLicenseAllowed,
 } from './checks.mjs';
 
 const KB = 1024;
+
+describe('findUntracedRequirements (02-SRS 11.3)', () => {
+  const srs = `
+| ID | Requirement |
+| FR-AUTH-01 | Sign in. |
+| FR-AUTH-10 | Audit it. Traces to FR-USER-99 in passing. |
+| FR-USER-02 | Invite. |
+`;
+
+  it('passes when each requirement has a test or an exception', () => {
+    const tests = ["it('signs in (FR-AUTH-01)')", '// FR-USER-02\nit("invites")'];
+
+    assert.deepEqual(findUntracedRequirements(srs, tests, { 'FR-AUTH-10': 'Why not.' }), []);
+  });
+
+  it('names each requirement that nothing traces', () => {
+    const violations = findUntracedRequirements(srs, ["it('x (FR-AUTH-01)')"], {});
+
+    assert.equal(violations.length, 2);
+    assert.match(violations[0], /FR-AUTH-10/);
+    assert.match(violations[1], /FR-USER-02/);
+  });
+
+  it('does not read one code as another that starts the same', () => {
+    const tests = ["it('x (FR-AUTH-101)')", "it('x (FR-AUTH-1)')"];
+
+    const violations = findUntracedRequirements(srs, tests, {
+      'FR-AUTH-10': 'Why not.',
+      'FR-USER-02': 'Why not.',
+    });
+
+    assert.equal(violations.length, 1);
+    assert.match(violations[0], /FR-AUTH-01/);
+  });
+
+  it('only counts codes that start a row of the requirement table', () => {
+    const tests = ["it('x (FR-AUTH-01, FR-AUTH-10, FR-USER-02)')"];
+
+    assert.deepEqual(findUntracedRequirements(srs, tests, {}), []);
+  });
+
+  it('refuses an exception with no reason', () => {
+    const tests = ["it('x (FR-AUTH-01, FR-AUTH-10)')"];
+
+    const violations = findUntracedRequirements(srs, tests, { 'FR-USER-02': '  ' });
+
+    assert.equal(violations.length, 1);
+    assert.match(violations[0], /FR-USER-02.*reason/);
+  });
+
+  it('refuses an exception for a code the specification does not have', () => {
+    const tests = ["it('x (FR-AUTH-01, FR-AUTH-10, FR-USER-02)')"];
+
+    const violations = findUntracedRequirements(srs, tests, { 'FR-GONE-01': 'Why not.' });
+
+    assert.equal(violations.length, 1);
+    assert.match(violations[0], /FR-GONE-01/);
+  });
+
+  it('refuses an exception for a code that a test now traces', () => {
+    const tests = ["it('x (FR-AUTH-01, FR-AUTH-10, FR-USER-02)')"];
+
+    const violations = findUntracedRequirements(srs, tests, { 'FR-AUTH-01': 'Why not.' });
+
+    assert.equal(violations.length, 1);
+    assert.match(violations[0], /FR-AUTH-01/);
+  });
+
+  it('fails rather than passes when it finds no requirements at all', () => {
+    assert.equal(findUntracedRequirements('no table here', [], {}).length, 1);
+  });
+});
+
+describe('findPortsWithoutFakes (M-HEX-06)', () => {
+  const ports = `
+    export interface Clock { now(): Date; }
+    export interface EmailMessage { readonly to: string; }
+    export interface Cache { get(key: string): Promise<string>; }
+  `;
+
+  it('lists ports that no fake implements, ignoring plain data types', () => {
+    const fakes = 'export class FakeClock implements Clock {}';
+
+    assert.deepEqual(findPortsWithoutFakes([ports], [fakes]), ['Cache']);
+  });
+
+  it('accepts ports whose fakes exist in any file', () => {
+    const fakes = ['class A implements Clock {}', 'class B implements Cache {}'];
+
+    assert.deepEqual(findPortsWithoutFakes([ports], fakes), []);
+  });
+
+  it('does not confuse a port with one whose name merely contains it', () => {
+    assert.deepEqual(findPortsWithoutFakes([ports], ['class A implements ClockPort {}']), [
+      'Clock',
+      'Cache',
+    ]);
+  });
+});
+
+describe('findUntestedUseCases (M-HEX-07)', () => {
+  it('lists use cases that no spec imports', () => {
+    const useCases = ['login.use-case', 'logout.use-case'];
+    const specs = ["import { Login } from './login.use-case.js';"];
+
+    assert.deepEqual(findUntestedUseCases(useCases, specs), ['logout.use-case']);
+  });
+});
+
+describe('findWeakMutationScores (M-TEST-07)', () => {
+  const report = (entries) => ({
+    files: Object.fromEntries(
+      Object.entries(entries).map(([path, statuses]) => [
+        path,
+        { mutants: statuses.map((status) => ({ status })) },
+      ]),
+    ),
+  });
+  const statuses = (killed, survived) => [
+    ...Array(killed).fill('Killed'),
+    ...Array(survived).fill('Survived'),
+  ];
+
+  it('accepts critical code at exactly 90%', () => {
+    const result = findWeakMutationScores(
+      report({ 'src/modules/auth/domain/a.ts': statuses(9, 1) }),
+    );
+
+    assert.deepEqual(result, []);
+  });
+
+  it('flags a critical group below 90%', () => {
+    const result = findWeakMutationScores(
+      report({ 'src/modules/auth/application/a.ts': statuses(8, 2) }),
+    );
+
+    assert.equal(result.length, 1);
+    assert.match(result[0], /M-TEST-07.*src\/modules\/auth\/application.*80\.0/);
+  });
+
+  it('holds every domain and the kernel to 90%', () => {
+    const result = findWeakMutationScores(
+      report({
+        'src/modules/content/domain/a.ts': statuses(1, 1),
+        'src/shared/kernel/a.ts': statuses(1, 1),
+      }),
+    );
+
+    assert.equal(result.length, 2);
+  });
+
+  it('counts timeouts as killed, and uncovered mutants against the score', () => {
+    const ok = findWeakMutationScores(
+      report({ 'src/shared/kernel/a.ts': [...statuses(9, 0), 'Timeout'] }),
+    );
+    const weak = findWeakMutationScores(
+      report({ 'src/shared/kernel/a.ts': [...statuses(1, 0), 'NoCoverage'] }),
+    );
+
+    assert.deepEqual(ok, []);
+    assert.equal(weak.length, 1);
+  });
+
+  it('ignores mutants Stryker could not run', () => {
+    const result = findWeakMutationScores(
+      report({ 'src/shared/kernel/a.ts': [...statuses(1, 0), 'Ignored', 'CompileError'] }),
+    );
+
+    assert.deepEqual(result, []);
+  });
+
+  it('does not hold other code to the critical bar', () => {
+    const result = findWeakMutationScores(
+      report({ 'src/modules/content/adapters/in/a.ts': statuses(1, 9) }),
+    );
+
+    assert.deepEqual(result, []);
+  });
+});
 
 describe('findMissingStrictFlags', () => {
   const allFlags = {
@@ -93,6 +276,11 @@ describe('isLicenseAllowed', () => {
     }
   });
 
+  it('accepts the attribution-free licenses added by ADR-0014', () => {
+    assert.equal(isLicenseAllowed('MIT-0'), true);
+    assert.equal(isLicenseAllowed('0BSD'), true);
+  });
+
   it('rejects GPL family and unknown licenses', () => {
     for (const license of ['GPL-3.0', 'AGPL-3.0', 'UNKNOWN', '']) {
       assert.equal(isLicenseAllowed(license), false, license);
@@ -113,6 +301,33 @@ describe('findDisallowedLicenses', () => {
     const report = { MIT: [{ name: 'react' }], 'GPL-3.0': [{ name: 'bad-pkg' }] };
 
     assert.deepEqual(findDisallowedLicenses(report), ['bad-pkg (GPL-3.0)']);
+  });
+
+  it('excepts only the libvips binaries, under only their own license (ADR-0015)', () => {
+    const report = {
+      'LGPL-3.0-or-later': [{ name: '@img/sharp-libvips-linux-x64' }, { name: 'other-lgpl' }],
+      'Apache-2.0 AND LGPL-3.0-or-later': [{ name: '@img/sharp-win32-x64' }],
+      'GPL-3.0': [{ name: '@img/sharp-linux-x64' }],
+    };
+
+    assert.deepEqual(findDisallowedLicenses(report), [
+      'other-lgpl (LGPL-3.0-or-later)',
+      '@img/sharp-linux-x64 (GPL-3.0)',
+    ]);
+  });
+});
+
+describe('findDisallowedLicenses for fonts (ADR-0016)', () => {
+  it('excepts only the two fonts 03-DESIGN names', () => {
+    const report = {
+      'OFL-1.1': [
+        { name: '@fontsource-variable/roboto-flex' },
+        { name: '@fontsource/roboto-mono' },
+        { name: '@fontsource/other' },
+      ],
+    };
+
+    assert.deepEqual(findDisallowedLicenses(report), ['@fontsource/other (OFL-1.1)']);
   });
 });
 

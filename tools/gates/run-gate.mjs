@@ -4,6 +4,7 @@
 //   node tools/gates/run-gate.mjs --only=a,b the named steps
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
+import { workingTree, writeGateStamp } from './git-guard.mjs';
 
 const EXIT_SKIP = 78;
 const ROOT = join(import.meta.dirname, '..', '..');
@@ -13,18 +14,27 @@ const STEPS = [
   { id: 'strict', label: 'TypeScript strict flags', command: 'node tools/gates/check.mjs strict' },
   { id: 'types', label: 'TypeScript compile', command: 'pnpm typecheck' },
   { id: 'lint', label: 'ESLint and complexity', command: 'pnpm lint' },
-  { id: 'arch', label: 'Architecture rules', command: 'pnpm depcruise' },
+  {
+    id: 'arch',
+    label: 'Architecture rules',
+    command: 'pnpm depcruise && node tools/gates/check.mjs architecture',
+  },
   { id: 'todos', label: 'Unlinked TODO/FIXME', command: 'node tools/gates/check.mjs todos' },
   { id: 'tools', label: 'Gate tool tests', command: 'pnpm test:tools' },
-  { id: 'coverage', label: 'Unit tests and coverage', command: 'pnpm test:cov' },
-  { id: 'integration', label: 'Integration tests', command: 'pnpm test:integration' },
+  {
+    id: 'traceability',
+    label: 'Requirement traceability',
+    command: 'node tools/gates/check.mjs traceability',
+  },
+  { id: 'openapi', label: 'OpenAPI lint', command: 'pnpm openapi:lint' },
+  { id: 'coverage', label: 'All tests and coverage', command: 'pnpm test:cov' },
   { id: 'duplication', label: 'Duplication', command: 'pnpm dup' },
   { id: 'ratio', label: 'Test-to-code ratio', command: 'node tools/gates/check.mjs ratio' },
   { id: 'secrets', label: 'Secret scan', command: 'node tools/gates/check.mjs secrets' },
   {
     id: 'mutation',
     label: 'Mutation testing',
-    command: 'pnpm test:mutation',
+    command: 'pnpm test:mutation && node tools/gates/check.mjs mutation',
     slow: true,
   },
   {
@@ -33,6 +43,7 @@ const STEPS = [
     command: 'pnpm --filter cms-web build && node tools/gates/check.mjs bundle',
     slow: true,
   },
+  { id: 'e2e', label: 'End-to-end flows', command: 'pnpm test:e2e', slow: true },
   { id: 'audit', label: 'Dependency CVEs', command: 'pnpm audit --audit-level high', slow: true },
   {
     id: 'licenses',
@@ -62,7 +73,10 @@ function runStep(step) {
   return { label: step.label, outcome, seconds };
 }
 
-const results = selectSteps(process.argv.slice(2)).map(runStep);
+const args = process.argv.slice(2);
+// Taken first, so an edit made while the gate runs does not count as checked.
+const treeAtStart = args.length === 0 ? workingTree(ROOT) : null;
+const results = selectSteps(args).map(runStep);
 
 console.log('\n===== Quality Gate Report =====');
 for (const { label, outcome, seconds } of results) {
@@ -74,4 +88,6 @@ const skipped = results.filter((result) => result.outcome === 'SKIP');
 if (failed.length > 0) console.log(`\nRESULT: FAIL (${String(failed.length)} failed)`);
 else if (skipped.length > 0) console.log(`\nRESULT: PASS WITH ${String(skipped.length)} SKIPPED`);
 else console.log('\nRESULT: PASS');
+// Only a full run counts, and the Claude Code hook reads this before a commit.
+if (treeAtStart !== null && failed.length === 0) writeGateStamp(ROOT, treeAtStart);
 process.exit(failed.length > 0 ? 1 : 0);
