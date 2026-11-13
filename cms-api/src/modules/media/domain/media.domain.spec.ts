@@ -97,6 +97,30 @@ describe('media types (FR-MEDIA-01, FR-MEDIA-03)', () => {
       );
     });
 
+    // CodeQL js/redos: nested comment groups backtracked exponentially, so one upload stalled the API.
+    // Twenty-four repeats took seconds with that pattern; a scan that reads once takes well under 1 ms.
+    it('reads comments in time that grows with the input, not exponentially', () => {
+      const bytes = text(`<!--${'--><!--'.repeat(24)}x`);
+
+      const started = performance.now();
+      const mime = detectMimeType(bytes);
+      const elapsed = performance.now() - started;
+
+      expect(mime).toBeNull();
+      expect(elapsed).toBeLessThan(100);
+    });
+
+    it.each([
+      ['a comment holding a tag', text('<!-- <svg> --><svg>'), SVG_MIME],
+      ['comments that run together', text('<!----><!-- a --><svg>'), SVG_MIME],
+      ['a comment that never ends', text('<!-- <svg>'), null],
+      ['a declaration that never ends', text('<?xml version="1.0"'), null],
+      ['two declarations', text('<?xml?><?xml?><svg>'), null],
+      ['a doctype before the declaration', text('<!DOCTYPE svg><?xml?><svg>'), null],
+    ])('reads %s as the old pattern did', (_name, bytes, mime) => {
+      expect(detectMimeType(bytes)).toBe(mime);
+    });
+
     it('looks only at the start of a long file', () => {
       const late = Buffer.concat([Buffer.alloc(5000, 0x20), text('<svg>')]);
 

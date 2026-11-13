@@ -1,6 +1,17 @@
 {
-  "ticket": "T-005",
-  "step": "done",
-  "approved": "",
-  "files": []
+  "ticket": "T-008",
+  "step": "red",
+  "approved": "2026-11-13",
+  "files": [
+    "cms-api/src/modules/media/domain/services/media-types.ts",
+    "cms-api/src/modules/media/domain/media.domain.spec.ts",
+    "cms-api/test/fakes/media.fakes.ts",
+    "cms-api/src/modules/media/application/use-cases/media.use-cases.spec.ts",
+    "docs/harness/README.md",
+    "docs/quality/gates.md",
+    "docs/harness/state.json",
+    "docs/harness/tickets/T-008-codeql-alerts.md",
+    "docs/harness/handoffs/T-008.md",
+    "docs/harness/STATUS.md"
+  ]
 }

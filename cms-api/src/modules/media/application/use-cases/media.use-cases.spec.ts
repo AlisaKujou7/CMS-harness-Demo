@@ -519,3 +519,31 @@ describe('media use cases', () => {
     });
   });
 });
+
+// The fake stands in for the real sanitizer in these specs. CodeQL flagged it for missing upper
+// case tags and for removing only the first script.
+describe('FakeSvgSanitizer', () => {
+  const sanitize = (svg: string) =>
+    Buffer.from(new FakeSvgSanitizer().sanitize(Buffer.from(svg)) ?? []).toString('utf8');
+
+  it('removes a script written in upper case', () => {
+    expect(sanitize('<svg><SCRIPT>alert(1)</SCRIPT></svg>')).not.toMatch(/<script/i);
+  });
+
+  it('removes every script, and keeps what lies between them', () => {
+    const result = sanitize('<svg><script>a</script><g/><script>b</script></svg>');
+
+    expect(result).not.toMatch(/<script/i);
+    expect(result).toContain('<g/>');
+  });
+
+  it('leaves no script behind when one is nested in another', () => {
+    expect(sanitize('<svg><scr<script></script>ipt>alert(1)</script></svg>')).not.toMatch(
+      /<script/i,
+    );
+  });
+
+  it('keeps the rest of the drawing', () => {
+    expect(sanitize('<svg><script>a</script><g/></svg>')).toContain('<g/>');
+  });
+});

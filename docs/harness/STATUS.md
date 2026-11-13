@@ -4,15 +4,16 @@
 
 ## ตอนนี้
 
-| Ticket                                             | งาน                                        | สถานะ            |
-| -------------------------------------------------- | ------------------------------------------ | ---------------- |
-| [T-001](tickets/T-001-request-log.md)              | Request log ของ API                        | เสร็จ ดู Handoff |
-| [T-002](tickets/T-002-record-spec-gaps.md)         | ตัดสินใจเรื่อง Markdown และ notifications  | เสร็จ ดู Handoff |
-| [T-003](tickets/T-003-requirement-traceability.md) | Requirement Traceability gate สำหรับ FR    | เสร็จ ดู Handoff |
-| [T-004](tickets/T-004-review-fixes-docs.md)        | แก้เอกสารตามรีวิว และวาง Memory Management | เสร็จ ดู Handoff |
-| [T-005](tickets/T-005-state-enforcement.md)        | State Management ของเวิร์กโฟลว์            | เสร็จ ดู Handoff |
-| [T-006](tickets/T-006-demo-hook-scenes.md)         | ฉากที่ hook ปฏิเสธ AI ในคู่มือ Demo        | เสร็จ ดู Handoff |
-| [T-007](tickets/T-007-ci-permissions.md)           | แก้สิทธิ์ของ CI ที่ล้มในการรันครั้งแรก     | เสร็จ ดู Handoff |
+| Ticket                                             | งาน                                                | สถานะ            |
+| -------------------------------------------------- | -------------------------------------------------- | ---------------- |
+| [T-001](tickets/T-001-request-log.md)              | Request log ของ API                                | เสร็จ ดู Handoff |
+| [T-002](tickets/T-002-record-spec-gaps.md)         | ตัดสินใจเรื่อง Markdown และ notifications          | เสร็จ ดู Handoff |
+| [T-003](tickets/T-003-requirement-traceability.md) | Requirement Traceability gate สำหรับ FR            | เสร็จ ดู Handoff |
+| [T-004](tickets/T-004-review-fixes-docs.md)        | แก้เอกสารตามรีวิว และวาง Memory Management         | เสร็จ ดู Handoff |
+| [T-005](tickets/T-005-state-enforcement.md)        | State Management ของเวิร์กโฟลว์                    | เสร็จ ดู Handoff |
+| [T-006](tickets/T-006-demo-hook-scenes.md)         | ฉากที่ hook ปฏิเสธ AI ในคู่มือ Demo                | เสร็จ ดู Handoff |
+| [T-007](tickets/T-007-ci-permissions.md)           | แก้สิทธิ์ของ CI ที่ล้มในการรันครั้งแรก             | เสร็จ ดู Handoff |
+| [T-008](tickets/T-008-codeql-alerts.md)            | แก้ alert ของ CodeQL และบันทึกว่า repo เป็น Public | กำลังทำ          |
 
 ## งานก่อนมีเวิร์กโฟลว์นี้
 
