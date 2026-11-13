@@ -36,7 +36,7 @@ changes. `pnpm gate` runs the local steps, and `pnpm gate:self-test` proves that
 | Test-to-code ratio                                                  | M-TDD-01,06                | Enforced since `origin/main` exists on GitHub      |
 | FR codes traced to tests or a written exception                     | 02-SRS 11.3, ADR-0017      | Enforced as "a test names the code". Self-tested   |
 | Secret scan                                                         | M-SAST-02                  | Enforced locally, in pre-commit and in CI          |
-| SAST (CodeQL)                                                       | M-SAST-01                  | Runs on PRs, but the result cannot be uploaded     |
+| SAST (CodeQL)                                                       | M-SAST-01                  | Enforced in CI on PRs since the repo became public |
 
 ## Not enforced yet
 
@@ -74,7 +74,7 @@ changes. `pnpm gate` runs the local steps, and `pnpm gate:self-test` proves that
 - `infra/scripts/check-images.sh` covers M-INF-01 to 03, but nothing runs it until the release workflow does. The deploy scripts and restore were rehearsed once by hand on Linux in Docker-in-Docker, not on a real VM. Bucket CORS was tried against the gateway, not AWS S3.
 - `postgres:15.19-alpine` has critical and high findings in the Go `stdlib` of its bundled `gosu`, so M-INF-01 does not hold for it, and `check-images.sh` only scans our own images. Nothing runs `gosu` here, because the container starts as user 70.
 - The Claude Code hook in `.claude/settings.json` refuses a commit without a passing full gate, but it reads command text, so a commit inside a script gets past it, and it does not bind commits made outside Claude Code. Files ending in `.md` may change after the gate without another run. `red` and `green` commits need no gate, because a failing test cannot pass one: a red commit must hold a test, a green commit must follow one, and the next ordinary commit needs the gate. Nothing proves that a red test really failed. Since ADR-0018 a red commit also needs an approval date in `docs/harness/state.json`, and a green commit may stage only the files listed there as committed at HEAD, with no `-a` or paths, but the agent can edit that file, so it proves a record, not a person's approval.
-- CI first ran on GitHub on PR #1 (2026-11-13). Every code check passed there after T-007 fixed the token permissions. CodeQL analyses the code but fails at upload, because code scanning is not enabled on this private repository and needs GitHub Code Security. Mutation testing on the 2-core runner had not finished after more than 50 minutes, against about 4 minutes locally.
+- CI first ran on GitHub on PR #1 (2026-11-13). Every code check passed there after T-007 fixed the token permissions. CodeQL could not upload while the repository was private. It became public on 2026-11-13, and the first upload found four high alerts in existing code: a ReDoS in the SVG check and two in a test fake, fixed in T-008. Mutation testing on the 2-core runner had not finished after more than 50 minutes, against about 4 minutes locally.
 - Alerts, metrics and error tracking from 07-OPS-ARCH 14 and 15 are not built, as ADR-0013 records. Terraform (M-INF-04) is not used.
 
 - M-BUN-02 is measured per file. The editor route is split into several files that each pass, but
