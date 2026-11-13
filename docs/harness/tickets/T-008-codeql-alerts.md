@@ -46,10 +46,10 @@
 
 ### Definition of Done
 
-- [ ] มี commit `red` และ `green` และ Red แต่ละกรณีล้มแยกกัน
-- [ ] เทสต์ ReDoS ผ่านภายใน 100 มิลลิวินาที และเทสต์ SVG เดิมผ่านทั้งหมด
-- [ ] `pnpm gate` และ `pnpm gate:self-test` ผ่าน
-- [ ] check `CodeQL` บน PR #1 ไม่มี alert ระดับ high เหลือ
+- [x] มี commit `red` และ `green` และ Red แต่ละกรณีล้มแยกกัน
+- [x] เทสต์ ReDoS ผ่านภายใน 100 มิลลิวินาที และเทสต์ SVG เดิมผ่านทั้งหมด
+- [x] `pnpm gate` และ `pnpm gate:self-test` ผ่าน
+- [x] check `CodeQL` บน PR #1 ไม่มี alert ระดับ high เหลือ
 
 ### ความเสี่ยง
 
