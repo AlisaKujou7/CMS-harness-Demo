@@ -6,37 +6,37 @@ changes. `pnpm gate` runs the local steps, and `pnpm gate:self-test` proves that
 
 ## G-03 PR gate
 
-| Check                                                               | Metric                     | Status                                             |
-| ------------------------------------------------------------------- | -------------------------- | -------------------------------------------------- |
-| TypeScript compile and strict flags                                 | M-TS-01..05                | Enforced. Self-tested                              |
-| Browser source free of Node types                                   | M-TS                       | Enforced by `tsconfig.browser.json`. Self-tested   |
-| ESLint and Prettier, 0 warnings                                     | M-LINT-01..03              | Enforced                                           |
-| Complexity and size limits                                          | M-CPX-01..07               | Enforced. Self-tested for complexity               |
-| `any` and undocumented suppressions                                 | M-DEBT-04..06              | Enforced. Self-tested for `any`                    |
-| Unlinked TODO and FIXME                                             | M-DEBT-02                  | Enforced. Self-tested                              |
-| Skipped and focused tests                                           | M-TEST-05                  | Enforced. Self-tested for skipped tests            |
-| Hexagonal rules                                                     | M-HEX-01..05               | Enforced. Self-tested                              |
-| Fake for every outbound port                                        | M-HEX-06                   | Enforced. Self-tested                              |
-| Use case without a spec                                             | M-HEX-07                   | Enforced as "a spec imports it". Self-tested       |
-| Mutable domain fields and setters                                   | M-HEX-08                   | Enforced for fields and setters. Self-tested       |
-| Circular dependencies                                               | M-DEP-01                   | Enforced. Self-tested                              |
-| Reactive rules                                                      | M-RX-01,02,04..08          | Enforced. Self-tested for 01, 04, 06 and 08        |
-| Query key convention, stream teardown                               | M-STATE-02,04              | Enforced as lint rules. Self-tested                |
-| UI text in message files                                            | NFR-I18N-03                | Enforced for JSX text and text props. Self-tested  |
-| React hooks and JSX accessibility                                   | NFR-USE-03                 | Enforced with lint, and axe in component tests     |
-| Coverage, overall and per layer                                     | §3.2, §3.3                 | Enforced across unit and Docker tests. Self-tested |
-| Mutation score                                                      | M-TDD-03, M-TEST-06        | Enforced on the in-process suite. Self-tested      |
-| Mutation on domain and critical code                                | M-TEST-07, §3.3            | Enforced at 90% by group. Self-tested              |
-| Duplication                                                         | M-DUP-01                   | Enforced. Self-tested                              |
-| Bundle budgets                                                      | M-BUN-01..03               | Enforced                                           |
-| E2E flows on the built SPA, axe with contrast, keyboard on one flow | G-04, 06-TEST-STRATEGY 9.2 | Enforced by `pnpm test:e2e`, in `pnpm gate`        |
-| License allow-list                                                  | M-LIC-01..03               | Enforced for production dependencies               |
-| Dependency CVEs, critical and high                                  | M-SEC-01,02,05             | Enforced                                           |
-| Commit and PR title format                                          | M-PR-06                    | Enforced                                           |
-| Test-to-code ratio                                                  | M-TDD-01,06                | Enforced since `origin/main` exists on GitHub      |
-| FR codes traced to tests or a written exception                     | 02-SRS 11.3, ADR-0017      | Enforced as "a test names the code". Self-tested   |
-| Secret scan                                                         | M-SAST-02                  | Enforced locally, in pre-commit and in CI          |
-| SAST (CodeQL)                                                       | M-SAST-01                  | Enforced in CI on PRs since the repo became public |
+| Check                                                               | Metric                     | Status                                                     |
+| ------------------------------------------------------------------- | -------------------------- | ---------------------------------------------------------- |
+| TypeScript compile and strict flags                                 | M-TS-01..05                | Enforced. Self-tested                                      |
+| Browser source free of Node types                                   | M-TS                       | Enforced by `tsconfig.browser.json`. Self-tested           |
+| ESLint and Prettier, 0 warnings                                     | M-LINT-01..03              | Enforced                                                   |
+| Complexity and size limits                                          | M-CPX-01..07               | Enforced. Self-tested for complexity                       |
+| `any` and undocumented suppressions                                 | M-DEBT-04..06              | Enforced. Self-tested for `any`                            |
+| Unlinked TODO and FIXME                                             | M-DEBT-02                  | Enforced. Self-tested                                      |
+| Skipped and focused tests                                           | M-TEST-05                  | Enforced. Self-tested for skipped tests                    |
+| Hexagonal rules                                                     | M-HEX-01..05               | Enforced. Self-tested                                      |
+| Fake for every outbound port                                        | M-HEX-06                   | Enforced. Self-tested                                      |
+| Use case without a spec                                             | M-HEX-07                   | Enforced as "a spec imports it". Self-tested               |
+| Mutable domain fields and setters                                   | M-HEX-08                   | Enforced for fields and setters. Self-tested               |
+| Circular dependencies                                               | M-DEP-01                   | Enforced. Self-tested                                      |
+| Reactive rules                                                      | M-RX-01,02,04..08          | Enforced. Self-tested for 01, 04, 06 and 08                |
+| Query key convention, stream teardown                               | M-STATE-02,04              | Enforced as lint rules. Self-tested                        |
+| UI text in message files                                            | NFR-I18N-03                | Enforced for JSX text and text props. Self-tested          |
+| React hooks and JSX accessibility                                   | NFR-USE-03                 | Enforced with lint, and axe in component tests             |
+| Coverage, overall and per layer                                     | §3.2, §3.3                 | Enforced across unit and Docker tests. Self-tested         |
+| Mutation score                                                      | M-TDD-03, M-TEST-06        | Enforced on the in-process suite. Self-tested              |
+| Mutation on domain and critical code                                | M-TEST-07, §3.3            | Enforced at 90% by group. Self-tested                      |
+| Duplication                                                         | M-DUP-01                   | Enforced. Self-tested                                      |
+| Bundle budgets                                                      | M-BUN-01..03               | Enforced                                                   |
+| E2E flows on the built SPA, axe with contrast, keyboard on one flow | G-04, 06-TEST-STRATEGY 9.2 | Enforced by `pnpm test:e2e`, in `pnpm gate`                |
+| License allow-list                                                  | M-LIC-01..03               | Enforced for production dependencies                       |
+| Dependency CVEs, critical and high                                  | M-SEC-01,02,05             | Enforced. One advisory allowed until 2026-12-18 (ADR-0020) |
+| Commit and PR title format                                          | M-PR-06                    | Enforced                                                   |
+| Test-to-code ratio                                                  | M-TDD-01,06                | Enforced since `origin/main` exists on GitHub              |
+| FR codes traced to tests or a written exception                     | 02-SRS 11.3, ADR-0017      | Enforced as "a test names the code". Self-tested           |
+| Secret scan                                                         | M-SAST-02                  | Enforced locally, in pre-commit and in CI                  |
+| SAST (CodeQL)                                                       | M-SAST-01                  | Enforced in CI on PRs since the repo became public         |
 
 ## Not enforced yet
 
@@ -73,7 +73,7 @@ changes. `pnpm gate` runs the local steps, and `pnpm gate:self-test` proves that
 - Graceful shutdown is verified by hand, by stopping the containers, and no automated test covers it. Both exit 0 within about a second.
 - `infra/scripts/check-images.sh` covers M-INF-01 to 03, but nothing runs it until the release workflow does. The deploy scripts and restore were rehearsed once by hand on Linux in Docker-in-Docker, not on a real VM. Bucket CORS was tried against the gateway, not AWS S3.
 - `postgres:15.19-alpine` has critical and high findings in the Go `stdlib` of its bundled `gosu`, so M-INF-01 does not hold for it, and `check-images.sh` only scans our own images. Nothing runs `gosu` here, because the container starts as user 70.
-- The Claude Code hook in `.claude/settings.json` refuses a commit without a passing full gate, but it reads command text, so a commit inside a script gets past it, and it does not bind commits made outside Claude Code. Files ending in `.md` may change after the gate without another run. `red` and `green` commits need no gate, because a failing test cannot pass one: a red commit must hold a test, a green commit must follow one, and the next ordinary commit needs the gate. Nothing proves that a red test really failed. Since ADR-0018 a red commit also needs an approval date in `docs/harness/state.json`, and a green commit may stage only the files listed there as committed at HEAD, with no `-a` or paths, but the agent can edit that file, so it proves a record, not a person's approval.
+- The Claude Code hook in `.claude/settings.json` refuses a commit without a passing full gate, but it reads command text, so a commit inside a script gets past it, and it does not bind commits made outside Claude Code. Files ending in `.md` may change after the gate without another run, except the specifications in `AIAGENT_POC/`, which the traceability step reads (ADR-0019). Since ADR-0019 the hook also reads commands inside `bash -c`, `sh -c`, `eval`, `pwsh -Command` and `cmd /c`, asks before another program runs a quoted git commit, refuses `HUSKY=0`, reads red or green from the first message only, and refuses an ordinary commit after a gate that skipped the secret scan. A stamp can still be written by hand, since `writeGateStamp` is a plain function. `red` and `green` commits need no gate, because a failing test cannot pass one: a red commit must hold a test, a green commit must follow one, and the next ordinary commit needs the gate. Nothing proves that a red test really failed. Since ADR-0018 a red commit also needs an approval date in `docs/harness/state.json`, and a green commit may stage only the files listed there as committed at HEAD, with no `-a` or paths, but the agent can edit that file, so it proves a record, not a person's approval.
 - CI first ran on GitHub on PR #1 (2026-11-13). Every code check passed there after T-007 fixed the token permissions. CodeQL could not upload while the repository was private. It became public on 2026-11-13, and the first upload found four high alerts in existing code: a ReDoS in the SVG check and two in a test fake, fixed in T-008. Mutation testing on the 2-core runner had not finished after more than 50 minutes, against about 4 minutes locally.
 - Alerts, metrics and error tracking from 07-OPS-ARCH 14 and 15 are not built, as ADR-0013 records. Terraform (M-INF-04) is not used.
 

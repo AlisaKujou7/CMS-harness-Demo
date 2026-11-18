@@ -16,3 +16,8 @@ allowBuilds:
   msgpackr-extract: false
   protobufjs: false
   ssh2: false
+# GHSA-fc5q-39xc-vjpf: picomatch ReDoS with no fixed version yet, reached only through dev tools.
+# Recheck by 2026-12-18 and remove once a fix exists (ADR-0020).
+auditConfig:
+  ignoreGhsas:
+    - GHSA-fc5q-39xc-vjpf
