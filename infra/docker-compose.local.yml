@@ -1,0 +1,59 @@
+# One machine, for trying the stack: images built here, named volumes in place of the data disk,
+# and Mailpit in place of an email provider. Bind mounts of data would break on Docker Desktop, whose
+# Windows and macOS file sharing cannot hold Postgres's permissions or extended attributes.
+services:
+  nginx:
+    build:
+      context: ..
+      dockerfile: infra/docker/web.Dockerfile
+
+  cms-api:
+    build:
+      context: ..
+      dockerfile: infra/docker/api.Dockerfile
+      target: runtime
+
+  cms-worker:
+    build:
+      context: ..
+      dockerfile: infra/docker/api.Dockerfile
+      target: runtime
+
+  cms-migrate:
+    build:
+      context: ..
+      dockerfile: infra/docker/api.Dockerfile
+      target: migrate
+
+  postgres:
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  redis:
+    volumes:
+      - redis-data:/data
+
+  object-storage:
+    volumes:
+      - object-storage-data:/data
+
+  object-storage-init:
+    volumes:
+      - object-storage-data:/data
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    restart: unless-stopped
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - '127.0.0.1:${MAILPIT_PORT:-8025}:8025'
+    networks:
+      - cms-internal
+      - cms-edge
+
+volumes:
+  postgres-data:
+  redis-data:
+  object-storage-data:

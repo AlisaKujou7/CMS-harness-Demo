@@ -1,0 +1,55 @@
+# Local development dependencies only. Production runs from infra/ (07-OPS-ARCH).
+name: cms-dev
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: cms
+      POSTGRES_PASSWORD: cms-local-only
+      POSTGRES_DB: cms
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U cms -d cms']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '127.0.0.1:6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # The S3 service that deployments run (ADR-0013). A bucket is a top-level directory, and it is
+  # private: SEC-06 means nothing here may be listed or read anonymously.
+  object-storage:
+    image: versity/versitygw:v1.10.0
+    entrypoint:
+      - sh
+      - -c
+      - mkdir -p /data/cms-media && exec versitygw --port :9000 --health /health posix /data
+    environment:
+      ROOT_ACCESS_KEY: cms-local-only
+      ROOT_SECRET_KEY: cms-local-only-secret
+      VGW_CORS_ALLOW_ORIGIN: http://localhost:5173
+    ports:
+      - '127.0.0.1:9000:9000'
+    volumes:
+      - object-storage-data:/data
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:9000/health']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  object-storage-data:
+  postgres-data:

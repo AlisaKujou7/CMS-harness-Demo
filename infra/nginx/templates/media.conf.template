@@ -1,0 +1,28 @@
+# Browsers upload to and read from object storage directly, using signed URLs (FR-MEDIA-04). Unused
+# with an external S3 service, where OBJECT_STORAGE_PUBLIC_URL points elsewhere.
+server {
+    listen 8443 ssl;
+    http2 on;
+    server_name ${MEDIA_DOMAIN};
+
+    ssl_certificate /etc/cms/tls/fullchain.pem;
+    ssl_certificate_key /etc/cms/tls/privkey.pem;
+
+    # FR-MEDIA-02 allows 20 MB, and the signature fixes the exact size of each upload.
+    client_max_body_size 25m;
+    proxy_request_buffering off;
+    proxy_buffering off;
+
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+    add_header X-Content-Type-Options "nosniff" always;
+
+    location / {
+        set $object_storage http://object-storage:9000;
+        proxy_pass $object_storage;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        # A signature covers the host, including any port, exactly as the browser sent it.
+        proxy_set_header Host $http_host;
+        proxy_read_timeout 120s;
+    }
+}

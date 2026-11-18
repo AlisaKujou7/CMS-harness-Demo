@@ -1,0 +1,6 @@
+[Unit]
+Description=CMS file permissions audit
+
+[Service]
+Type=oneshot
+ExecStart=/opt/cms/current/scripts/audit-perms.sh

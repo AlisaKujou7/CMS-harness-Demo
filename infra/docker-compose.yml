@@ -1,0 +1,266 @@
+# Base definition (07-OPS-ARCH 9.2). Run it through scripts/compose.sh, which adds the override for
+# this environment. Where this differs from the document, ADR-0013 says why.
+name: cms
+
+x-hardening: &hardening
+  restart: unless-stopped
+  cap_drop: [ALL]
+  security_opt:
+    - no-new-privileges:true
+
+# Named one by one, so the API never holds the database owner's password or the backup keys.
+x-app-environment: &app-environment
+  NODE_ENV: ${NODE_ENV:-production}
+  HTTP_PORT: '3000'
+  # nginx is the one hop in front. A load balancer or CDN ahead of it needs code to change too.
+  TRUST_PROXY: 'true'
+  PUBLIC_URL: ${PUBLIC_URL:?}
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?}
+  DATABASE_URL: postgresql://cms_app:${CMS_APP_DB_PASSWORD:?}@${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:?}?schema=public
+  REDIS_URL: redis://default:${REDIS_PASSWORD:?}@${REDIS_HOST:-redis}:${REDIS_PORT:-6379}
+  JWT_SECRET: ${JWT_SECRET:?}
+  JWT_SECRET_PREVIOUS: ${JWT_SECRET_PREVIOUS:-}
+  JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
+  JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-14d}
+  ARGON2_MEMORY_KB: ${ARGON2_MEMORY_KB:-19456}
+  ARGON2_ITERATIONS: ${ARGON2_ITERATIONS:-2}
+  ARGON2_PARALLELISM: ${ARGON2_PARALLELISM:-1}
+  RATE_LIMIT_LOGIN_PER_MIN: ${RATE_LIMIT_LOGIN_PER_MIN:-10}
+  RATE_LIMIT_PASSWORD_RESET_PER_HOUR: ${RATE_LIMIT_PASSWORD_RESET_PER_HOUR:-5}
+  RATE_LIMIT_INVITATION_PER_HOUR: ${RATE_LIMIT_INVITATION_PER_HOUR:-30}
+  RATE_LIMIT_PUBLIC_API_PER_MIN: ${RATE_LIMIT_PUBLIC_API_PER_MIN:-60}
+  PUBLIC_CACHE_TTL_SEC: ${PUBLIC_CACHE_TTL_SEC:-30}
+  OBJECT_STORAGE_PROVIDER: ${OBJECT_STORAGE_PROVIDER:?}
+  OBJECT_STORAGE_ENDPOINT: ${OBJECT_STORAGE_ENDPOINT:-}
+  OBJECT_STORAGE_REGION: ${OBJECT_STORAGE_REGION:-us-east-1}
+  OBJECT_STORAGE_BUCKET: ${OBJECT_STORAGE_BUCKET:-cms-media}
+  OBJECT_STORAGE_ACCESS_KEY: ${OBJECT_STORAGE_ACCESS_KEY:-}
+  OBJECT_STORAGE_SECRET_KEY: ${OBJECT_STORAGE_SECRET_KEY:-}
+  OBJECT_STORAGE_PUBLIC_URL: ${OBJECT_STORAGE_PUBLIC_URL:-}
+  MEDIA_MAX_UPLOAD_MB: ${MEDIA_MAX_UPLOAD_MB:-20}
+  MEDIA_UPLOAD_URL_TTL_SEC: ${MEDIA_UPLOAD_URL_TTL_SEC:-900}
+  MEDIA_READ_URL_TTL_SEC: ${MEDIA_READ_URL_TTL_SEC:-3600}
+  CONTENT_CATEGORIES: ${CONTENT_CATEGORIES:-news,guides,announcements}
+  WORKER_SCHEDULED_PUBLISH_INTERVAL_SEC: ${WORKER_SCHEDULED_PUBLISH_INTERVAL_SEC:-30}
+  EMAIL_PROVIDER: ${EMAIL_PROVIDER:?}
+  EMAIL_FROM: ${EMAIL_FROM:?}
+  EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-CMS}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  SMTP_SECURE: ${SMTP_SECURE:-true}
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+
+services:
+  nginx:
+    <<: *hardening
+    image: ${CMS_IMAGE_REGISTRY:?}/cms-web:${CMS_VERSION:?}
+    depends_on:
+      cms-api:
+        condition: service_healthy
+    ports:
+      - '${NGINX_HTTP_PORT:-80}:8080'
+      - '${NGINX_HTTPS_PORT:-443}:8443'
+    environment:
+      CMS_DOMAIN: ${CMS_DOMAIN:?}
+      MEDIA_DOMAIN: ${MEDIA_DOMAIN:?}
+      PUBLIC_URL: ${PUBLIC_URL:?}
+      MEDIA_ORIGIN: ${MEDIA_ORIGIN:?}
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/snippets:/etc/nginx/snippets:ro
+      - ./nginx/templates:/etc/nginx/templates:ro
+      - ${CMS_TLS_DIR:-/etc/cms/tls}:/etc/cms/tls:ro
+      - ${CMS_ACME_DIR:-/var/www/certbot}:/var/www/certbot:ro
+    networks:
+      - cms-edge
+      - cms-internal
+    read_only: true
+    tmpfs:
+      - /tmp
+      # The image's entrypoint writes the rendered templates here.
+      - /etc/nginx/conf.d:uid=101,gid=101
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:8081/healthz']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  cms-api:
+    <<: *hardening
+    image: ${CMS_IMAGE_REGISTRY:?}/cms-api:${CMS_VERSION:?}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      object-storage:
+        condition: service_healthy
+        # Absent when media lives in an external S3 service.
+        required: false
+    environment:
+      <<: *app-environment
+      ROLE: api
+    networks:
+      - cms-internal
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://localhost:3000/healthz').then((r)=>process.exit(r.ok?0:1),()=>process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 30s
+
+  cms-worker:
+    <<: *hardening
+    image: ${CMS_IMAGE_REGISTRY:?}/cms-api:${CMS_VERSION:?}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      object-storage:
+        condition: service_healthy
+        required: false
+    environment:
+      <<: *app-environment
+      ROLE: worker
+    command: ['node', 'dist/worker.js']
+    networks:
+      - cms-internal
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ['CMD', 'node', 'dist/composition/check-worker-heartbeat.js']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Applies migrations as the database owner. Only run on request, by scripts/migrate.sh.
+  cms-migrate:
+    image: ${CMS_IMAGE_REGISTRY:?}/cms-migrate:${CMS_VERSION:?}
+    profiles: [tools]
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:?}?schema=public
+    networks:
+      - cms-internal
+
+  postgres:
+    <<: *hardening
+    image: postgres:15.19-alpine@sha256:54e0dd8e8cddcdbb9156c2486eed5a43eccb7214d7c6828097d41ce049fb3984
+    # The alpine image's postgres user, so no capabilities are needed to step down from root.
+    user: '70:70'
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: ${POSTGRES_DB:?}
+      PGDATA: /var/lib/postgresql/data/pgdata
+      CMS_APP_DB_PASSWORD: ${CMS_APP_DB_PASSWORD:?}
+    volumes:
+      - ${CMS_DATA_DIR:-/var/lib/cms}/postgres:/var/lib/postgresql/data
+    networks:
+      - cms-internal
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql:uid=70,gid=70
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    shm_size: 256mb
+
+  redis:
+    <<: *hardening
+    image: redis:7.4.12-alpine@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f
+    user: '999:1000'
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?}
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?}
+    # noeviction, not the allkeys-lru of 07-OPS-ARCH 9.2, which could evict queued jobs (ADR-0013).
+    command:
+      - sh
+      - -c
+      - >-
+        exec redis-server --requirepass "$$REDIS_PASSWORD" --appendonly yes --maxmemory 1gb
+        --maxmemory-policy noeviction
+    volumes:
+      - ${CMS_DATA_DIR:-/var/lib/cms}/redis:/data
+    networks:
+      - cms-internal
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ['CMD-SHELL', 'redis-cli ping | grep -q PONG']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Self-hosted media storage, enabled by the profile. Versity Gateway replaces MinIO, whose official
+  # images are gone (ADR-0013). Objects are plain files with their metadata in extended attributes.
+  object-storage:
+    <<: *hardening
+    image: versity/versitygw:v1.10.0
+    profiles: [self-hosted-storage]
+    user: '1000:1000'
+    depends_on:
+      object-storage-init:
+        condition: service_completed_successfully
+    environment:
+      ROOT_ACCESS_KEY: ${OBJECT_STORAGE_ACCESS_KEY:-}
+      ROOT_SECRET_KEY: ${OBJECT_STORAGE_SECRET_KEY:-}
+      VGW_CORS_ALLOW_ORIGIN: ${PUBLIC_URL:?}
+    command: ['--port', ':9000', '--health', '/health', '--quiet', 'posix', '/data']
+    volumes:
+      - ${CMS_DATA_DIR:-/var/lib/cms}/object-storage:/data
+    networks:
+      - cms-internal
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:9000/health']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # Makes the data directory the gateway's and creates the bucket, which is a top-level directory.
+  object-storage-init:
+    image: versity/versitygw:v1.10.0
+    profiles: [self-hosted-storage]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
+    security_opt:
+      - no-new-privileges:true
+    entrypoint:
+      - sh
+      - -c
+      - mkdir -p "/data/$$BUCKET" && chown -R 1000:1000 /data && chmod 700 /data
+    environment:
+      BUCKET: ${OBJECT_STORAGE_BUCKET:-cms-media}
+    volumes:
+      - ${CMS_DATA_DIR:-/var/lib/cms}/object-storage:/data
+    network_mode: none
+
+networks:
+  cms-edge:
+    driver: bridge
+  cms-internal:
+    driver: bridge
+    # Option A in 07-OPS-ARCH 5.2: outbound mail and backups leave directly, filtered on the host.
+    internal: false

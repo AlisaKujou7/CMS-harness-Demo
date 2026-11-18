@@ -1,5 +1,11 @@
-import { messages } from './messages';
+import { RouterProvider } from 'react-router';
+import { AppProviders } from './providers/AppProviders';
+import { router } from './routes/router';
 
 export function App() {
-  return <h1>{messages.appTitle}</h1>;
+  return (
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>
+  );
 }

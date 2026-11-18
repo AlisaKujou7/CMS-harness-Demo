@@ -1,0 +1,23 @@
+export const dashboardMessages = {
+  greeting: {
+    morning: 'Good morning, {name}',
+    afternoon: 'Good afternoon, {name}',
+    evening: 'Good evening, {name}',
+  },
+  subtitle: "Here's what's happening in your workspace",
+  total: 'Total',
+  published: 'Published',
+  inReview: 'In Review',
+  drafts: 'Drafts',
+  loadingStats: 'Loading content counts',
+  activityTitle: 'Recent activity',
+  contentTitle: 'Recently updated',
+  noActivity: 'Nothing has happened yet.',
+  viewAudit: 'View audit log',
+  quickTitle: 'Quick actions',
+  newArticle: 'New Article',
+  newPage: 'New Page',
+  uploadMedia: 'Upload Media',
+  activityLine: '{actor} {action}',
+  contentLine: '{author} updated "{title}"',
+} as const;

@@ -1,0 +1,8 @@
+{
+  "description": "Points to where features are tracked, under the name that harness tooling looks for. Nothing here is duplicated.",
+  "requirements": "AIAGENT_POC/02-Software-Requirements-Specification.md",
+  "traceability": "node tools/gates/check.mjs traceability",
+  "traceabilityExceptions": "tools/gates/traceability-exceptions.json",
+  "tickets": "docs/harness/tickets/",
+  "status": "docs/harness/STATUS.md"
+}

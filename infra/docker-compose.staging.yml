@@ -1,0 +1,56 @@
+# Staging overrides: half the production limits on a VM of half the size (07-OPS-ARCH 3.1).
+x-logging: &logging
+  logging:
+    driver: json-file
+    options:
+      max-size: '50m'
+      max-file: '3'
+
+services:
+  cms-api:
+    <<: *logging
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512m
+
+  cms-worker:
+    <<: *logging
+    deploy:
+      resources:
+        limits:
+          cpus: '0.75'
+          memory: 512m
+
+  postgres:
+    <<: *logging
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1g
+
+  redis:
+    <<: *logging
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 1.2g
+
+  object-storage:
+    <<: *logging
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512m
+
+  nginx:
+    <<: *logging
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128m

@@ -2,11 +2,16 @@ node_modules/
 dist/
 coverage/
 reports/
+test-results/
 .stryker-tmp/
 *.tsbuildinfo
+cms-api/src/generated/
 *.log
 
 # Secrets: only .env.example is ever committed (07-OPS-ARCH 7.1)
 .env
 .env.*
 !.env.example
+
+# Local stack: generated secrets, self-signed certificate and backups
+infra/.local/

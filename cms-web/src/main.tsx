@@ -1,3 +1,5 @@
+import '@fontsource-variable/roboto-flex/wght.css';
+import '@fontsource/roboto-mono/400.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './app/App';

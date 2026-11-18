@@ -1,5 +1,8 @@
+import { AppError } from './app-error.js';
+
 export const DEFAULT_PAGE_SIZE = 25;
 export const MAX_PAGE_SIZE = 100;
+export const MAX_PAGE = 1_000_000;
 
 export interface PageRequest {
   readonly page: number;
@@ -12,10 +15,14 @@ export interface PagedResult<T> extends PageRequest {
   readonly totalPages: number;
 }
 
-export class InvalidPageRequestError extends Error {
+export class InvalidPageRequestError extends AppError {
   constructor(field: string, value: number) {
-    super(`${field} must be a positive integer, got ${String(value)}`);
-    this.name = 'InvalidPageRequestError';
+    super({
+      kind: 'validation',
+      code: 'VALIDATION_ERROR',
+      message: `${field} must be a positive integer, got ${String(value)}`,
+      details: { field },
+    });
   }
 }
 
@@ -26,6 +33,7 @@ function requirePositiveInteger(field: string, value: number): number {
 
 export function toPageRequest(input: { page?: number; pageSize?: number }): PageRequest {
   const page = requirePositiveInteger('page', input.page ?? 1);
+  if (page > MAX_PAGE) throw new InvalidPageRequestError('page', page);
   const pageSize = requirePositiveInteger('pageSize', input.pageSize ?? DEFAULT_PAGE_SIZE);
   return { page, pageSize: Math.min(pageSize, MAX_PAGE_SIZE) };
 }

@@ -1,0 +1,255 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  admin
+  editor
+  author
+
+  @@map("user_role")
+}
+
+enum UserStatus {
+  active
+  deactivated
+  invited
+
+  @@map("user_status")
+}
+
+enum ContentType {
+  article
+  page
+
+  @@map("content_type")
+}
+
+enum ContentStatus {
+  draft
+  in_review
+  published
+  unpublished
+  archived
+
+  @@map("content_status")
+}
+
+enum VariantStatus {
+  pending
+  ready
+  failed
+  none
+
+  @@map("variant_status")
+}
+
+model User {
+  id           String     @id @db.Uuid
+  email        String     @unique
+  name         String
+  passwordHash String?    @map("password_hash")
+  role         UserRole
+  status       UserStatus
+  lastLoginAt  DateTime?  @map("last_login_at") @db.Timestamptz(3)
+  createdAt    DateTime   @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime   @map("updated_at") @db.Timestamptz(3)
+
+  lockout     LoginLockout?
+  refreshTokens RefreshToken[]
+  resetTokens PasswordResetToken[]
+  invitationTokens InvitationToken[]
+  apiKeys     ApiKey[]
+  authoredContent Content[]
+  contentVersions ContentVersion[]
+  uploadedMedia MediaItem[]
+
+  @@map("users")
+}
+
+model LoginLockout {
+  userId          String    @id @map("user_id") @db.Uuid
+  failureTimes DateTime[] @map("failure_times") @db.Timestamptz(3)
+  lockedUntil     DateTime? @map("locked_until") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("login_lockouts")
+}
+
+model RefreshToken {
+  id        String    @id @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  familyId  String    @map("family_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  issuedAt  DateTime  @map("issued_at") @db.Timestamptz(3)
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(3)
+  rotatedAt DateTime? @map("rotated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@map("refresh_tokens")
+}
+
+model PasswordResetToken {
+  id        String    @id @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, usedAt])
+  @@map("password_reset_tokens")
+}
+
+model InvitationToken {
+  id        String    @id @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(3)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, usedAt])
+  @@map("invitation_tokens")
+}
+
+model ApiKey {
+  id         String    @id @db.Uuid
+  name       String
+  prefix     String
+  keyHash    String    @unique @map("key_hash")
+  createdBy  String    @map("created_by") @db.Uuid
+  createdAt  DateTime  @map("created_at") @db.Timestamptz(3)
+  lastUsedAt DateTime? @map("last_used_at") @db.Timestamptz(3)
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz(3)
+
+  creator User @relation(fields: [createdBy], references: [id])
+
+  @@map("api_keys")
+}
+
+model AuditEvent {
+  id         String   @id @db.Uuid
+  occurredAt DateTime @map("occurred_at") @db.Timestamptz(3)
+  actorId    String?  @map("actor_id") @db.Uuid
+  actorIp    String?  @map("actor_ip")
+  action     String
+  targetType String?  @map("target_type")
+  targetId   String?  @map("target_id") @db.Uuid
+  summary    Json
+
+  @@index([occurredAt(sort: Desc)])
+  @@index([actorId, occurredAt(sort: Desc)])
+  @@index([action, occurredAt(sort: Desc)])
+  @@index([targetType, targetId])
+  @@map("audit_events")
+}
+
+model Content {
+  id              String        @id @db.Uuid
+  type            ContentType
+  title           String
+  slug            String
+  body            Json
+  status          ContentStatus
+  authorId        String        @map("author_id") @db.Uuid
+  featuredImageId String?       @map("featured_image_id") @db.Uuid
+  socialImageId   String?       @map("social_image_id") @db.Uuid
+  seoTitle        String?       @map("seo_title")
+  seoDescription  String?       @map("seo_description")
+  tags            String[]
+  category        String?
+  parentId        String?       @map("parent_id") @db.Uuid
+  scheduledAt     DateTime?     @map("scheduled_at") @db.Timestamptz(3)
+  publishedAt     DateTime?     @map("published_at") @db.Timestamptz(3)
+  deletedAt       DateTime?     @map("deleted_at") @db.Timestamptz(3)
+  reviewNote      String?       @map("review_note")
+  version         Int
+  createdAt       DateTime      @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime      @map("updated_at") @db.Timestamptz(3)
+
+  // Derived on every save, so finding what uses a file needs no scan of every body (FR-MEDIA-07).
+  referencedMediaIds String[]   @default([]) @map("referenced_media_ids") @db.Uuid
+
+  author   User             @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  featuredImage MediaItem?  @relation("FeaturedImage", fields: [featuredImageId], references: [id], onDelete: SetNull)
+  socialImage   MediaItem?  @relation("SocialImage", fields: [socialImageId], references: [id], onDelete: SetNull)
+  parent   Content?         @relation("PageHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children Content[]        @relation("PageHierarchy")
+  versions ContentVersion[]
+
+  // Uniqueness comes from content_type_slug_live_key, a partial index on live rows that this schema
+  // language cannot express. See migration 20260516000000_content_review_fixes.
+  @@index([type, slug])
+  @@index([status, publishedAt(sort: Desc)])
+  @@index([authorId, status])
+  @@index([tags], type: Gin)
+  @@index([scheduledAt])
+  @@index([deletedAt])
+  @@index([parentId])
+  @@index([referencedMediaIds], type: Gin)
+  @@index([featuredImageId])
+  @@index([socialImageId])
+  @@map("content")
+}
+
+model ContentVersion {
+  id        String   @id @db.Uuid
+  contentId String   @map("content_id") @db.Uuid
+  versionNo Int      @map("version_no")
+  snapshot  Json
+  editorId  String?  @map("editor_id") @db.Uuid
+  createdAt DateTime @map("created_at") @db.Timestamptz(3)
+
+  content Content @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  editor  User?   @relation(fields: [editorId], references: [id], onDelete: Restrict)
+
+  @@unique([contentId, versionNo])
+  @@index([editorId])
+  @@map("content_versions")
+}
+
+model MediaItem {
+  id            String        @id @db.Uuid
+  storageKey    String        @unique @map("storage_key")
+  filename      String
+  mimeType      String        @map("mime_type")
+  sizeBytes     BigInt        @map("size_bytes")
+  width         Int?
+  height        Int?
+  altText       String?       @map("alt_text")
+  caption       String?
+  variants      Json
+  variantStatus VariantStatus @map("variant_status")
+  uploadedBy    String        @map("uploaded_by") @db.Uuid
+  createdAt     DateTime      @map("created_at") @db.Timestamptz(3)
+
+  uploader         User      @relation(fields: [uploadedBy], references: [id], onDelete: Restrict)
+  featuredInContent Content[] @relation("FeaturedImage")
+  socialInContent   Content[] @relation("SocialImage")
+
+  @@index([createdAt(sort: Desc)])
+  @@index([uploadedBy])
+  @@index([variantStatus, createdAt])
+  @@map("media_items")
+}
+
+model MediaFileDeletion {
+  key       String   @id
+  createdAt DateTime @map("created_at") @db.Timestamptz(3)
+
+  @@index([createdAt])
+  @@map("media_file_deletions")
+}
