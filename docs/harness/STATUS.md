@@ -14,6 +14,7 @@
 | [T-006](tickets/T-006-demo-hook-scenes.md)         | ฉากที่ hook ปฏิเสธ AI ในคู่มือ Demo                | เสร็จ ดู Handoff |
 | [T-007](tickets/T-007-ci-permissions.md)           | แก้สิทธิ์ของ CI ที่ล้มในการรันครั้งแรก             | เสร็จ ดู Handoff |
 | [T-008](tickets/T-008-codeql-alerts.md)            | แก้ alert ของ CodeQL และบันทึกว่า repo เป็น Public | เสร็จ ดู Handoff |
+| [T-009](tickets/T-009-hook-review-2.md)            | ปิดช่องโหว่ของ hook และ gate จากรีวิวรอบที่สอง     | กำลังทำ          |
 
 ## งานก่อนมีเวิร์กโฟลว์นี้
 

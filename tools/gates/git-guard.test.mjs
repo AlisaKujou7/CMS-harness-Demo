@@ -5,12 +5,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
 import {
+  STAMP_PATH,
   STATE_PATH,
   classifyGitCommand,
   decideGitCommand,
   filesOutsideContract,
+  readGateSkipped,
   readWorkflowState,
   tddContext,
+  writeGateStamp,
 } from './git-guard.mjs';
 
 describe('classifyGitCommand', () => {
@@ -375,6 +378,162 @@ describe('review fixes for T-005', () => {
         assert.deepEqual(context.headState.files, ['in/']);
         assert.deepEqual(context.state.files, ['out/']);
       });
+    });
+  });
+});
+
+// Findings from the second harness review (T-009), checked against 981765e before this change.
+describe('review fixes for T-009', () => {
+  const approved = { ticket: 'T-9', step: 'red', approved: '2026-11-18', files: ['a.ts'] };
+  const context = {
+    stagedFiles: ['a.spec.ts'],
+    headSubject: 'feat(a): b',
+    state: approved,
+    headState: approved,
+    gateSkipped: [],
+  };
+  const decide = (command, changed = [], extra = {}) =>
+    decideGitCommand(command, changed, { ...context, ...extra });
+
+  describe('1: a commit inside a shell string or eval', () => {
+    for (const command of [
+      `bash -c "git commit -m 'feat(api): x'"`,
+      `sh -c 'git commit -m "feat(api): x"'`,
+      `eval "git commit -m 'feat(api): x'"`,
+      `pwsh -Command "git commit -m 'feat(api): x'"`,
+      `cmd /c "git commit -m feat(api): x"`,
+    ]) {
+      it(`counts ${command.split(' ')[0]} as a commit`, () => {
+        assert.equal(classifyGitCommand(command).commits, true, command);
+        assert.equal(decide(command, null).decision, 'deny', command);
+      });
+    }
+
+    it('reads a push inside a shell string', () => {
+      assert.equal(decide(`bash -c "git push origin main"`).decision, 'ask');
+    });
+
+    it('reads skipped hooks inside a shell string', () => {
+      assert.equal(decide(`sh -c "git commit --no-verify -m x"`).decision, 'deny');
+    });
+
+    it('asks when another program runs a quoted git commit it cannot read', () => {
+      for (const command of [
+        `node -e "require('child_process').execSync('git commit -m x')"`,
+        `python -c "import os; os.system('git commit -m x')"`,
+      ]) {
+        assert.equal(decide(command).decision, 'ask', command);
+      }
+    });
+
+    it('still leaves text that only mentions a commit alone', () => {
+      for (const command of [
+        'echo "git commit and git push"',
+        "grep -rn 'git commit' docs",
+        'git log --grep "git commit"',
+        "printf '%s\\n' 'git push'",
+      ]) {
+        assert.equal(decide(command).decision, 'allow', command);
+      }
+    });
+  });
+
+  describe('4a: red or green comes from the first message only', () => {
+    it('holds a commit whose first message is ordinary to the gate', () => {
+      const command = 'git commit -m "feat(a): x" -m "red(a): y"';
+      assert.equal(classifyGitCommand(command).tddStep, null);
+      assert.equal(decide(command, null).decision, 'deny');
+    });
+
+    it('still reads red from the first message', () => {
+      assert.equal(classifyGitCommand('git commit -m "red(a): x" -m "body"').tddStep, 'red');
+    });
+  });
+
+  describe('4b: HUSKY=0 skips git hooks', () => {
+    for (const command of [
+      'HUSKY=0 git commit -m "feat(a): x"',
+      'export HUSKY=0; git commit -m "feat(a): x"',
+      "$env:HUSKY='0'; git commit -m 'feat(a): x'",
+      'env HUSKY=0 git push',
+    ]) {
+      it(`refuses ${command}`, () => {
+        assert.equal(decide(command).decision, 'deny', command);
+        assert.match(decide(command).reason, /hooks may not be skipped/i);
+      });
+    }
+
+    it('does not mistake HUSKY=1 for skipping', () => {
+      assert.equal(decide('HUSKY=1 git commit -m "feat(a): x"').decision, 'allow');
+    });
+  });
+
+  describe('3: the specifications are not exempt like other documents', () => {
+    it('needs a new gate after a change to a specification', () => {
+      const changed = ['AIAGENT_POC/02-Software-Requirements-Specification.md'];
+      const result = decide('git commit -m "docs(a): x"', changed);
+
+      assert.equal(result.decision, 'deny');
+      assert.match(result.reason, /AIAGENT_POC/);
+    });
+
+    it('still lets other documents through', () => {
+      assert.equal(decide('git commit -m "docs(a): x"', ['docs/a.md']).decision, 'allow');
+    });
+  });
+
+  describe('5: a gate that skipped the secret scan does not count', () => {
+    it('refuses an ordinary commit when the stamp skipped secrets', () => {
+      const result = decide('git commit -m "feat(a): x"', [], { gateSkipped: ['secrets'] });
+
+      assert.equal(result.decision, 'deny');
+      assert.match(result.reason, /secret scan/i);
+    });
+
+    it('allows other skipped steps, which the report shows', () => {
+      assert.equal(
+        decide('git commit -m "feat(a): x"', [], { gateSkipped: ['bundle'] }).decision,
+        'allow',
+      );
+    });
+
+    it('records and reads the skipped steps with the stamp', () => {
+      const root = mkdtempSync(join(tmpdir(), 'cms-stamp-'));
+      try {
+        writeGateStamp(root, 'abc', ['secrets']);
+        assert.deepEqual(readGateSkipped(root), ['secrets']);
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    });
+
+    it('reads an old stamp without the list as nothing skipped', () => {
+      const root = mkdtempSync(join(tmpdir(), 'cms-stamp-'));
+      try {
+        mkdirSync(join(root, 'reports'), { recursive: true });
+        writeFileSync(join(root, STAMP_PATH), JSON.stringify({ tree: 'abc' }));
+        assert.deepEqual(readGateSkipped(root), []);
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    });
+  });
+
+  describe('11: a heredoc fed to another program is data', () => {
+    it('does not read a commit in a file being written', () => {
+      const command = `cat > notes.md <<'EOF'\ngit commit -m "green(ci): x"\nEOF`;
+      assert.equal(classifyGitCommand(command).commits, false);
+      assert.equal(decide(command, null).decision, 'allow');
+    });
+
+    it('still reads a commit fed to a shell through a heredoc', () => {
+      const command = `bash <<'EOF'\ngit commit -m "feat(a): x"\nEOF`;
+      assert.equal(classifyGitCommand(command).commits, true);
+    });
+
+    it('still reads a message passed to git through a heredoc', () => {
+      const command = `git commit -m "$(cat <<'EOF'\nred(shared): x\nEOF\n)"`;
+      assert.equal(classifyGitCommand(command).tddStep, 'red');
     });
   });
 });

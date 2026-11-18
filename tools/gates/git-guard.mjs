@@ -198,6 +198,11 @@ export function writeGateStamp(root, tree) {
   writeFileSync(path, JSON.stringify({ tree }));
 }
 
+// Stub for T-009 Red. It throws, so each test that needs it fails on its own.
+export function readGateSkipped() {
+  throw new Error('readGateSkipped is not written yet (T-009 green)');
+}
+
 export function changedSinceGate(root) {
   const path = join(root, STAMP_PATH);
   if (!existsSync(path)) return null;
