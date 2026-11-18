@@ -1,17 +1,6 @@
 {
   "ticket": "T-009",
-  "step": "green",
-  "approved": "2026-11-18",
-  "files": [
-    "tools/gates/git-guard.mjs",
-    "tools/gates/git-guard.test.mjs",
-    "tools/gates/run-gate.mjs",
-    "tools/gates/self-test.mjs",
-    ".github/workflows/pr-gate.yml",
-    "init.sh",
-    "CLAUDE.md",
-    "docs/harness/",
-    "docs/quality/gates.md",
-    "docs/adr/0019-hook-review-2.md"
-  ]
+  "step": "done",
+  "approved": "",
+  "files": []
 }

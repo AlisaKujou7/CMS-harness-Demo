@@ -14,7 +14,8 @@
 | [T-006](tickets/T-006-demo-hook-scenes.md)         | ฉากที่ hook ปฏิเสธ AI ในคู่มือ Demo                | เสร็จ ดู Handoff |
 | [T-007](tickets/T-007-ci-permissions.md)           | แก้สิทธิ์ของ CI ที่ล้มในการรันครั้งแรก             | เสร็จ ดู Handoff |
 | [T-008](tickets/T-008-codeql-alerts.md)            | แก้ alert ของ CodeQL และบันทึกว่า repo เป็น Public | เสร็จ ดู Handoff |
-| [T-009](tickets/T-009-hook-review-2.md)            | ปิดช่องโหว่ของ hook และ gate จากรีวิวรอบที่สอง     | กำลังทำ          |
+| [T-009](tickets/T-009-hook-review-2.md)            | ปิดช่องโหว่ของ hook และ gate จากรีวิวรอบที่สอง     | เสร็จ ดู Handoff |
+| [T-010](tickets/T-010-picomatch-advisory.md)       | ยกเว้น advisory ของ picomatch ชั่วคราวใน gate      | เสร็จ ดู Handoff |
 
 ## งานก่อนมีเวิร์กโฟลว์นี้
 
@@ -41,11 +42,12 @@
 | 9     | ทดสอบพฤติกรรม AI ก่อนและหลังมี harness                                                                                                                                        | วัดผล                            |
 | 10    | Validator อัตโนมัติให้ 32/100 เพราะหาชื่อไฟล์มาตรฐานไม่เจอ: เพิ่ม `progress.md` และ `feature_list.json` เป็นไฟล์ชี้ไปที่ไฟล์จริง ไม่ย้ายของเดิม ส่วน `init.sh` ทำจริงตามข้อ 6 | Validator, เสร็จใน T-004         |
 
-| งาน                                    | อ้างอิง          | สถานะ                  |
-| -------------------------------------- | ---------------- | ---------------------- |
-| Harness: State Management              | หัวหน้างาน       | วางแล้วใน T-005        |
-| Harness: Memory Management             | หัวหน้างาน       | วางแล้วใน T-004        |
-| รายงานเข้าเล่มสหกิจ                    | -                | พักไว้ตามที่ผู้ใช้สั่ง |
-| Metrics, alert และ error tracking      | NFR-OBS-02..04   | นอกขอบเขต Demo         |
-| Load test และ security review          | NFR-PERF, SEC-15 | นอกขอบเขต Demo         |
-| ยืนยัน license ของ image `cms-migrate` | ADR-0013         | รอ Tech Lead           |
+| งาน                                                   | อ้างอิง          | สถานะ                  |
+| ----------------------------------------------------- | ---------------- | ---------------------- |
+| Harness: State Management                             | หัวหน้างาน       | วางแล้วใน T-005        |
+| Harness: Memory Management                            | หัวหน้างาน       | วางแล้วใน T-004        |
+| รายงานเข้าเล่มสหกิจ                                   | -                | พักไว้ตามที่ผู้ใช้สั่ง |
+| ตรวจ picomatch ซ้ำ ถ้ามีเวอร์ชันแก้ให้เอาข้อยกเว้นออก | ADR-0020         | ภายใน 2026-12-18       |
+| Metrics, alert และ error tracking                     | NFR-OBS-02..04   | นอกขอบเขต Demo         |
+| Load test และ security review                         | NFR-PERF, SEC-15 | นอกขอบเขต Demo         |
+| ยืนยัน license ของ image `cms-migrate`                | ADR-0013         | รอ Tech Lead           |

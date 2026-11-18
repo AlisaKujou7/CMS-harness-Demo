@@ -63,10 +63,10 @@
 
 ### Definition of Done
 
-- [ ] มี commit `red` และ `green` และ Red แต่ละกรณีล้มแยกกัน
-- [ ] คำสั่งตัวอย่างจากรีวิวข้อ 1, 4a และ 4b ถูกปฏิเสธ ทั้งในเทสต์และการลองจริงใน Claude Code
-- [ ] `pnpm gate` และ `pnpm gate:self-test` ผ่าน
-- [ ] CI บน PR ใหม่ผ่าน รวมขั้น `openapi`
+- [x] มี commit `red` และ `green` และ Red แต่ละกรณีล้มแยกกัน
+- [x] คำสั่งตัวอย่างจากรีวิวข้อ 1, 4a และ 4b ถูกปฏิเสธ ทั้งในเทสต์และการลองจริงใน Claude Code
+- [x] `pnpm gate` และ `pnpm gate:self-test` ผ่าน
+- [x] CI บน PR ใหม่ผ่าน รวมขั้น `openapi`
 
 ### ความเสี่ยง
 

@@ -50,7 +50,12 @@ Contract's files there before `red`, and clear them at the Handoff.
 - MUI marks what sits behind a modal `aria-hidden`, so role queries miss a toast there. Axe during a fade-in
   reports false contrast failures, so wait for finite animations first.
 
-## On this machine (Windows)
+## On another machine
+
+- `bash init.sh` stops if Node differs from `.nvmrc` or pnpm is missing, and warns when Docker or gitleaks
+  is absent. The gate needs all four, and the hook refuses commits after a gate that skipped the secret scan.
+
+## On Windows
 
 - Write files with the Write tool and change them with Edit. Bash heredocs lose backslashes.
 - In Git Bash, set `MSYS_NO_PATHCONV=1` for docker only, because it stops curl finding `/dev/null`.
