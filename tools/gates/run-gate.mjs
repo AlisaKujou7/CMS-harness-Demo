@@ -70,7 +70,7 @@ function runStep(step) {
   const { status } = spawnSync(step.command, { cwd: ROOT, shell: true, stdio: 'inherit' });
   const seconds = ((performance.now() - startedAt) / 1000).toFixed(1);
   const outcome = status === 0 ? 'PASS' : status === EXIT_SKIP ? 'SKIP' : 'FAIL';
-  return { label: step.label, outcome, seconds };
+  return { id: step.id, label: step.label, outcome, seconds };
 }
 
 const args = process.argv.slice(2);
@@ -88,6 +88,13 @@ const skipped = results.filter((result) => result.outcome === 'SKIP');
 if (failed.length > 0) console.log(`\nRESULT: FAIL (${String(failed.length)} failed)`);
 else if (skipped.length > 0) console.log(`\nRESULT: PASS WITH ${String(skipped.length)} SKIPPED`);
 else console.log('\nRESULT: PASS');
-// Only a full run counts, and the Claude Code hook reads this before a commit.
-if (treeAtStart !== null && failed.length === 0) writeGateStamp(ROOT, treeAtStart);
+// Only a full run counts, and the Claude Code hook reads this before a commit. The skipped steps
+// go with it, so the hook can refuse a gate that never scanned for secrets.
+if (treeAtStart !== null && failed.length === 0) {
+  writeGateStamp(
+    ROOT,
+    treeAtStart,
+    skipped.map((result) => result.id),
+  );
+}
 process.exit(failed.length > 0 ? 1 : 0);

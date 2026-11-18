@@ -1,6 +1,6 @@
 {
   "ticket": "T-009",
-  "step": "red",
+  "step": "green",
   "approved": "2026-11-18",
   "files": [
     "tools/gates/git-guard.mjs",

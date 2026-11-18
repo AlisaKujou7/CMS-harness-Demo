@@ -4,6 +4,27 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# The gate and the hook need the toolchain the repository pins. Stop with the reason, not halfway.
+echo "== Checking the machine"
+want="v$(tr -d '[:space:]' < .nvmrc)"
+have="$(node --version 2>/dev/null || echo none)"
+if [ "$have" != "$want" ]; then
+  echo "Node is $have, but .nvmrc asks for $want. Install that version, then run init.sh again." >&2
+  exit 1
+fi
+if ! command -v pnpm >/dev/null 2>&1; then
+  echo "pnpm is not available. Run 'corepack enable', then run init.sh again." >&2
+  exit 1
+fi
+if ! docker version >/dev/null 2>&1; then
+  echo "Warning: Docker is not running, so coverage and E2E in the full gate will fail." >&2
+fi
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "Warning: gitleaks is missing. The gate skips the secret scan, and the hook refuses commits." >&2
+fi
+echo "Node $have, pnpm $(pnpm --version)"
+
+echo
 echo "== Installing dependencies"
 pnpm install --frozen-lockfile
 

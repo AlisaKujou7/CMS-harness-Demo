@@ -258,7 +258,7 @@ const SCENARIOS = [
 // It answers with JSON and exit 0, so a deny is turned into a failing status here.
 const HOOK_REPO = 'reports/zzq-repo';
 
-function hookDecides(commitMessage, stage) {
+function hookDecides(commitMessage, stage, command = `git commit -m "${commitMessage}"`) {
   return () => {
     const repo = join(ROOT, HOOK_REPO);
     const git = (...args) =>
@@ -270,7 +270,7 @@ function hookDecides(commitMessage, stage) {
     git('add', 'a.spec.ts', 'docs');
     git('commit', '-q', '-m', 'red(ci): planted');
     git('add', ...stage);
-    const input = JSON.stringify({ tool_input: { command: `git commit -m "${commitMessage}"` } });
+    const input = JSON.stringify({ tool_input: { command } });
     const hook = join(ROOT, '.claude', 'hooks', 'guard-git.mjs');
     const result = spawnSync('node', [hook, repo], { input, encoding: 'utf8' });
     const denied = /"permissionDecision":"deny"/.test(result.stdout);
@@ -297,6 +297,18 @@ SCENARIOS.push(
     files: plantState({ ticket: 'T-ZZQ', step: 'green', approved: '2026-11-12', files: [] }),
     command: hookDecides('green(ci): zzq', ['outside.ts']),
     expect: /Outside the Contract of T-ZZQ: outside\.ts/,
+  },
+  {
+    name: 'commit hidden in a shell string',
+    files: plantState({ ticket: 'T-ZZQ', step: 'red', approved: '', files: [] }),
+    command: hookDecides('', ['outside.ts'], `bash -c "git commit -m 'feat(ci): zzq'"`),
+    expect: /No full gate has passed/,
+  },
+  {
+    name: 'git hooks skipped with HUSKY=0',
+    files: plantState({ ticket: 'T-ZZQ', step: 'red', approved: '', files: [] }),
+    command: hookDecides('', ['outside.ts'], 'HUSKY=0 git commit -m "feat(ci): zzq"'),
+    expect: /Git hooks may not be skipped/,
   },
 );
 
